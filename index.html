@@ -1862,6 +1862,9 @@ async function loadFromGSheets() {
         if (!res.ok) throw new Error(`Không tải được sheet: ${name}`);
         let text = await res.text();
         if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+        // Fix EU-style decimal commas in quoted numbers: "5860000,86" -> 5860000.86
+        // Otherwise XLSX strips the comma and reads it as 586000086 (100x inflated).
+        text = text.replace(/"(\d+),(\d+)"/g, '$1.$2');
         // Google Sheets exports dates as US M/D/YYYY. Convert to ISO YYYY-MM-DD
         // so parseDate() doesn't misinterpret M/D as D/M when both <=12.
         text = text.replace(/(^|[,\n"\s])(\d{1,2})\/(\d{1,2})\/(\d{4})(?=[,\n"\s]|$)/g,
