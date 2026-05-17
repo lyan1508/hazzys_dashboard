@@ -1862,6 +1862,10 @@ async function loadFromGSheets() {
         if (!res.ok) throw new Error(`Không tải được sheet: ${name}`);
         let text = await res.text();
         if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+        // Google Sheets exports dates as US M/D/YYYY. Convert to ISO YYYY-MM-DD
+        // so parseDate() doesn't misinterpret M/D as D/M when both <=12.
+        text = text.replace(/(^|[,\n"\s])(\d{1,2})\/(\d{1,2})\/(\d{4})(?=[,\n"\s]|$)/g,
+          (_, pre, mo, d, y) => `${pre}${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
         const ws = XLSX.read(text, { type: 'string', cellDates: true }).Sheets['Sheet1'];
         return [name, ws];
       })
