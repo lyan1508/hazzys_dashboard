@@ -222,12 +222,16 @@ select{cursor:pointer}
    ========================================= */
 .kpi-grid{
   display:grid;
-  grid-template-columns:repeat(7,1fr);
+  grid-template-columns:repeat(9,1fr);
   gap:10px;
   margin-bottom:10px;
 }
-@media(max-width:1400px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:1600px){.kpi-grid{grid-template-columns:repeat(5,1fr)}}
+@media(max-width:1100px){.kpi-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:700px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.kpi-value.good{color:var(--green)}
+.kpi-value.warn{color:#d97706}
+.kpi-value.bad{color:#dc2626}
 
 .kpi-card{
   background:var(--surface);
@@ -616,6 +620,28 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
         </div>
         <div class="kpi-value" id="kSales">—</div>
         <div class="kpi-sub" id="kSalesSub">Total revenue</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#475569,#94a3b8)"></div>
+        <div class="kpi-header">
+          <div class="kpi-label">Target</div>
+          <div class="kpi-icon" style="background:#f1f5f9;color:#475569">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="1" fill="currentColor"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kTarget">—</div>
+        <div class="kpi-sub" id="kTargetSub">Mục tiêu doanh thu</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-accent-bar" id="kAchieveBar" style="background:linear-gradient(90deg,#16a34a,#4ade80)"></div>
+        <div class="kpi-header">
+          <div class="kpi-label">% Đạt Target</div>
+          <div class="kpi-icon" style="background:#dcfce7;color:#16a34a">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 13l4-4 3 3 5-6"/><path d="M10 6h4v4"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kAchieve">—</div>
+        <div class="kpi-sub" id="kAchieveSub">Doanh thu / Target</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#0891b2,#22d3ee)"></div>
@@ -1701,6 +1727,33 @@ function renderKPIs(m) {
   document.getElementById('kCVR').textContent = fmtPct(m.cvr);
   document.getElementById('kUPT').textContent = num(m.upt).toFixed(2);
   document.getElementById('kATV').textContent = fmtVNDShort(m.atv);
+
+  // Target + Achievement %
+  const target = num(m.target);
+  const tgtEl = document.getElementById('kTarget');
+  const achEl = document.getElementById('kAchieve');
+  const achSub = document.getElementById('kAchieveSub');
+  const achBar = document.getElementById('kAchieveBar');
+
+  tgtEl.textContent = target > 0 ? fmtVNDShort(target) : '—';
+  achEl.classList.remove('good', 'warn', 'bad');
+
+  if (target > 0) {
+    const pct = (num(m.totalSales) / target) * 100;
+    achEl.textContent = fmtPct(pct);
+    const gap = num(m.totalSales) - target;
+    achSub.textContent = (gap >= 0 ? 'Vượt ' : 'Thiếu ') + fmtVNDShort(Math.abs(gap));
+    let cls, grad;
+    if (pct >= 100)      { cls = 'good'; grad = 'linear-gradient(90deg,#16a34a,#4ade80)'; }
+    else if (pct >= 80)  { cls = 'warn'; grad = 'linear-gradient(90deg,#d97706,#fbbf24)'; }
+    else                 { cls = 'bad';  grad = 'linear-gradient(90deg,#dc2626,#f87171)'; }
+    achEl.classList.add(cls);
+    achBar.style.background = grad;
+  } else {
+    achEl.textContent = '—';
+    achSub.textContent = 'Chưa có target';
+    achBar.style.background = 'linear-gradient(90deg,#94a3b8,#cbd5e1)';
+  }
 }
 
 function renderTopProducts(m) {
