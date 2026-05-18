@@ -440,6 +440,9 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
 .loader{display:flex;flex-direction:column;align-items:center;gap:12px;background:var(--surface);padding:28px 40px;border-radius:var(--radius);box-shadow:var(--shadow-lg);border:1px solid var(--border)}
 .spinner{width:32px;height:32px;border:3px solid var(--border-2);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+#syncBtn.syncing svg{animation:spin 1s linear infinite}
+#syncBtn:disabled{opacity:.6;cursor:wait;pointer-events:none}
+.sync-badge{font-size:10px;color:var(--text-3);margin-left:6px;font-weight:500}
 .loader-text{font-size:13px;font-weight:600;color:var(--text-2)}
 
 /* =========================================
@@ -576,7 +579,7 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
 <div class="loading-overlay" id="loadingOverlay">
   <div class="loader">
     <div class="spinner"></div>
-    <div class="loader-text">Processing data…</div>
+    <div class="loader-text">Đang xử lý dữ liệu…</div>
   </div>
 </div>
 
@@ -850,7 +853,7 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
 <footer class="statusbar">
   <div class="statusbar-inner">
     <div class="status-dot" id="statusDot"></div>
-    <span id="statusText">Ready — Upload an Excel file to start</span>
+    <span id="statusText">Sẵn sàng — Bấm Cloud Sync hoặc tải file Excel để bắt đầu</span>
     <span style="margin-left:auto" id="statusTime">—</span>
   </div>
 </footer>
@@ -1813,13 +1816,49 @@ function setStatus(text, isIdle = false) {
   if (isIdle) dot.classList.add('idle');
   else dot.classList.remove('idle');
   document.getElementById('statusText').textContent = text;
-  document.getElementById('statusTime').textContent = new Date().toLocaleString('en-GB');
+  document.getElementById('statusTime').textContent = new Date().toLocaleString('vi-VN');
+}
+
+// ---- Shared helper: ingest workbook + reset UI state ----
+function applyWorkbook(wb, successMsg) {
+  S.raw = ingestWorkbook(wb);
+  S.filters = { year: 'all', quarter: 'all', month: 'all', category: 'all', gender: 'all', type: 'all' };
+  S.cashierSelected = [];
+  initFilters();
+  syncFilters();
+  destroyAllCharts();
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('dashContent').style.display = 'block';
+  renderAll();
+  setStatus(successMsg, false);
+}
+
+// ---- Fetch with timeout (returns response or throws) ----
+async function fetchWithTimeout(url, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal, cache: 'no-store' });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ---- Pre-process CSV text from Google Sheets ----
+function preprocessGSheetCsv(text) {
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+  // Fix EU-style decimal commas in quoted numbers: "5860000,86" -> 5860000.86
+  text = text.replace(/"(\d+),(\d+)"/g, '$1.$2');
+  // Convert US M/D/YYYY -> ISO YYYY-MM-DD so parseDate doesn't read as D/M/Y
+  text = text.replace(/(^|[,\n"\s])(\d{1,2})\/(\d{1,2})\/(\d{4})(?=[,\n"\s]|$)/g,
+    (_, pre, mo, d, y) => `${pre}${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+  return text;
 }
 
 async function loadFile(file) {
   const overlay = document.getElementById('loadingOverlay');
   overlay.classList.add('show');
-  setStatus('Loading data...', false);
+  setStatus('Đang tải dữ liệu…', false);
   try {
     const lower = (file.name || '').toLowerCase();
     let wb;
@@ -1831,21 +1870,12 @@ async function loadFile(file) {
       const buf = await file.arrayBuffer();
       wb = XLSX.read(buf, { type: 'array', cellDates: true });
     }
-    S.raw = ingestWorkbook(wb);
-    S.filters = { year: 'all', quarter: 'all', month: 'all', category: 'all', gender: 'all', type: 'all' };
-    S.cashierSelected = [];
-    initFilters();
-    syncFilters();
-    destroyAllCharts();
-    document.getElementById('emptyState').style.display = 'none';
-    document.getElementById('dashContent').style.display = 'block';
-    renderAll();
-    setStatus(`Loaded: ${file.name} · ${fmtN(S.raw.sales.length)} records`, false);
+    applyWorkbook(wb, `Đã tải: ${file.name} · ${fmtN(S.raw.sales.length)} dòng`);
   } catch (err) {
     console.error(err);
     destroyAllCharts();
-    setStatus(`Error: ${err.message}`, true);
-    alert(`⚠️ ${err.message}\n\nPlease check your Excel file and required columns:\n- DATE (transaction date)\n- BILL (0/1)\n- AMOUNT (revenue)\n- QUANTITY (units)\n\nRecommended for accurate month mapping: MM/YYYY`);
+    setStatus(`Lỗi: ${err.message}`, true);
+    alert(`⚠️ ${err.message}\n\nVui lòng kiểm tra file Excel và các cột bắt buộc:\n- DATE (ngày giao dịch)\n- BILL (0/1)\n- AMOUNT (doanh thu)\n- QUANTITY (số lượng)\n\nKhuyến nghị thêm cột MM/YYYY để map tháng chính xác.`);
   } finally {
     overlay.classList.remove('show');
   }
@@ -1853,44 +1883,45 @@ async function loadFile(file) {
 
 async function loadFromGSheets() {
   const overlay = document.getElementById('loadingOverlay');
+  const syncBtn = document.getElementById('syncBtn');
   overlay.classList.add('show');
-  setStatus('Đang tải từ Google Sheets…', false);
+  syncBtn.classList.add('syncing');
+  syncBtn.disabled = true;
+  setStatus('Đang đồng bộ từ Google Sheets…', false);
   try {
+    const cacheBuster = Date.now();
     const entries = await Promise.all(
       Object.entries(GSHEET_URLS).map(async ([name, url]) => {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Không tải được sheet: ${name}`);
-        let text = await res.text();
-        if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
-        // Fix EU-style decimal commas in quoted numbers: "5860000,86" -> 5860000.86
-        // Otherwise XLSX strips the comma and reads it as 586000086 (100x inflated).
-        text = text.replace(/"(\d+),(\d+)"/g, '$1.$2');
-        // Google Sheets exports dates as US M/D/YYYY. Convert to ISO YYYY-MM-DD
-        // so parseDate() doesn't misinterpret M/D as D/M when both <=12.
-        text = text.replace(/(^|[,\n"\s])(\d{1,2})\/(\d{1,2})\/(\d{4})(?=[,\n"\s]|$)/g,
-          (_, pre, mo, d, y) => `${pre}${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
-        const ws = XLSX.read(text, { type: 'string', cellDates: true }).Sheets['Sheet1'];
+        const res = await fetchWithTimeout(`${url}&_=${cacheBuster}`, 30000);
+        if (!res.ok) throw new Error(`Không tải được sheet "${name}" (HTTP ${res.status})`);
+        const text = preprocessGSheetCsv(await res.text());
+        const parsed = XLSX.read(text, { type: 'string', cellDates: true });
+        const ws = parsed.Sheets[parsed.SheetNames[0]];
         return [name, ws];
       })
     );
     const wb = { SheetNames: [], Sheets: {} };
     entries.forEach(([name, ws]) => { wb.SheetNames.push(name); wb.Sheets[name] = ws; });
-    S.raw = ingestWorkbook(wb);
-    S.filters = { year: 'all', quarter: 'all', month: 'all', category: 'all', gender: 'all', type: 'all' };
-    S.cashierSelected = [];
-    initFilters();
-    syncFilters();
-    destroyAllCharts();
-    document.getElementById('emptyState').style.display = 'none';
-    document.getElementById('dashContent').style.display = 'block';
-    renderAll();
-    const now = new Date().toLocaleString('vi-VN');
-    setStatus(`Đã đồng bộ Google Sheets · ${fmtN(S.raw.sales.length)} records · ${now}`, false);
+    const now = new Date();
+    applyWorkbook(wb, `Đồng bộ lúc ${now.toLocaleTimeString('vi-VN')} · ${fmtN(S.raw.sales.length)} dòng`);
+    syncBtn.title = `Đồng bộ lần cuối: ${now.toLocaleString('vi-VN')}`;
   } catch (err) {
     console.error(err);
-    setStatus(`Lỗi: ${err.message}`, true);
+    const msg = err.name === 'AbortError'
+      ? 'Quá thời gian chờ (30s). Kiểm tra mạng và thử lại.'
+      : err.message;
+    setStatus(`Lỗi đồng bộ: ${msg}`, true);
+    if (!S.raw.sales.length) {
+      // First load failed — show empty state so user has clear next action
+      document.getElementById('emptyState').style.display = 'flex';
+      document.getElementById('dashContent').style.display = 'none';
+    } else {
+      alert(`⚠️ Không đồng bộ được từ Google Sheets:\n${msg}\n\nDữ liệu hiện vẫn là phiên bản gần nhất đã tải.`);
+    }
   } finally {
     overlay.classList.remove('show');
+    syncBtn.classList.remove('syncing');
+    syncBtn.disabled = false;
   }
 }
 
@@ -2220,7 +2251,6 @@ function bindEvents() {
 
 bindEvents();
 document.getElementById('syncBtn').addEventListener('click', loadFromGSheets);
-setStatus('Đang tải dữ liệu từ Google Sheets…', false);
 loadFromGSheets();
 window.addEventListener('resize', () => { if (S.raw.sales.length) syncCharts(); });
 </script>
