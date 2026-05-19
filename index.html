@@ -1,0 +1,2488 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Sales Intelligence Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* TOKENS */
+:root {
+  /* LIGHT: Warm Stone */
+  --bg-rgb:      242,240,236;
+  --bg:          #f2f0ec;
+  --surface:     #faf9f7;
+  --surface-2:   #eceae5;
+  --border:      #dedad3;
+  --border-2:    #cac5bc;
+  --text:        #2c2620;
+  --text-2:      #5a524a;
+  --text-3:      #958d84;
+  --brand:       #2c2620;
+  --brand-mid:   #3558a8;
+  --brand-light: #5578d0;
+  --accent:      #b85c28;
+  --accent-2:    #d07838;
+  --green:       #2a7a50;
+  --green-light: #dff2ea;
+  --red:         #b83030;
+  --red-light:   #fce8e8;
+  --purple:      #6040a0;
+  --purple-light:#ede5f8;
+  --cyan:        #1a7888;
+  --cyan-light:  #d8f0f4;
+  --topbar-bg:   rgba(250,249,247,.90);
+  --shadow-sm:   0 1px 3px rgba(44,38,32,.05),0 2px 8px rgba(44,38,32,.06);
+  --shadow:      0 4px 20px rgba(44,38,32,.09),0 0 0 1px rgba(44,38,32,.03);
+  --shadow-lg:   0 16px 48px rgba(44,38,32,.12),0 0 0 1px rgba(44,38,32,.04);
+  --radius-sm:   9px;
+  --radius:      16px;
+  --radius-lg:   22px;
+  --font:        'Plus Jakarta Sans', system-ui, sans-serif;
+  --mono:        'DM Mono', monospace;
+}
+
+[data-theme="dark"] {
+  /* DARK: Slate Night */
+  --bg-rgb:      14,17,26;
+  --bg:          #0e1118;
+  --surface:     #161c28;
+  --surface-2:   #1c2235;
+  --border:      #252d44;
+  --border-2:    #303852;
+  --text:        #dde2f0;
+  --text-2:      #9aa4c0;
+  --text-3:      #606880;
+  --brand:       #7090e0;
+  --brand-mid:   #5878d8;
+  --brand-light: #849ee8;
+  --accent:      #e09858;
+  --accent-2:    #e8b070;
+  --green:       #38c080;
+  --green-light: #082818;
+  --red:         #e06070;
+  --red-light:   #280a10;
+  --purple:      #a888f0;
+  --purple-light:#1c1038;
+  --cyan:        #38b8c8;
+  --cyan-light:  #081820;
+  --topbar-bg:   rgba(14,17,26,.94);
+  --shadow-sm:   0 1px 3px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.03);
+  --shadow:      0 6px 24px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04);
+  --shadow-lg:   0 16px 48px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+/* RESET */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font);
+  background-color:var(--bg);
+  background-image:
+    radial-gradient(ellipse 110% 60% at 50% -10%, rgba(53,88,168,.07), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 25%, rgba(184,92,40,.05), transparent 50%),
+    radial-gradient(ellipse 50% 35% at 0% 85%, rgba(42,122,80,.04), transparent 45%);
+  color:var(--text);
+  font-size:15px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+[data-theme="dark"] body{
+  background-image:
+    radial-gradient(ellipse 100% 50% at 50% -5%, rgba(88,120,216,.12), transparent 52%),
+    radial-gradient(ellipse 60% 40% at 100% 20%, rgba(224,152,88,.07), transparent 48%),
+    radial-gradient(ellipse 55% 35% at 0% 88%, rgba(56,192,128,.05), transparent 44%);
+}
+button,input,select{font:inherit;outline:none}
+select{cursor:pointer}
+
+.app{min-height:100vh;display:flex;flex-direction:column}
+
+.topbar{
+  position:sticky;top:0;z-index:100;
+  background:var(--topbar-bg);
+  -webkit-backdrop-filter:saturate(160%) blur(14px);
+  backdrop-filter:saturate(160%) blur(14px);
+  border-bottom:1px solid var(--border);
+  box-shadow:var(--shadow-sm);
+}
+.topbar-inner{
+  max-width:1720px;margin:0 auto;
+  padding:0 20px;
+  display:flex;align-items:center;gap:16px;
+  min-height:60px;
+}
+.logo{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  text-decoration:none;color:inherit;
+  flex:0 0 auto;
+}
+.logo-icon{
+  width:44px;height:44px;
+  border-radius:10px;
+  display:block;
+  object-fit:contain;
+  background:var(--surface-2);
+  border:1px solid var(--border-2);
+  box-shadow:var(--shadow-sm);
+  flex:0 0 auto;
+}
+.logo-info{display:flex;flex-direction:column;gap:1px}
+.logo-text{font-size:18px;font-weight:800;letter-spacing:.6px;white-space:nowrap;line-height:1.1;color:var(--text)}
+.logo-sub{font-size:11px;color:var(--text-3);font-weight:400;white-space:nowrap;line-height:1.2}
+.divider{width:1px;height:32px;background:var(--border);flex:0 0 auto}
+
+.filters{
+  flex:1;
+  display:grid;
+  grid-template-columns:repeat(6,minmax(96px,1fr));
+  gap:6px;
+  align-items:end;
+}
+.filter-group{display:flex;flex-direction:column;gap:3px;min-width:110px}
+.filter-label{font-size:12px;font-weight:600;color:var(--text-2);letter-spacing:.1px;padding-left:2px}
+.filter-select{
+  appearance:none;
+  background:var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a94a6' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 8px center;
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:5px 26px 5px 8px;
+  font-size:13px;font-weight:400;
+  color:var(--text);
+  transition:border-color .15s,box-shadow .15s;
+  white-space:nowrap;
+  width:100%;
+}
+.filter-select:focus{border-color:var(--brand-light);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+.filter-select:hover{border-color:var(--border-2)}
+.filter-select.active-filter{
+  border-color:var(--brand-light);
+  background-color:rgba(61,125,214,.08);
+  color:var(--brand);
+  font-weight:600;
+  box-shadow:0 0 0 2px rgba(61,125,214,.18);
+}
+[data-theme="dark"] .filter-select.active-filter{
+  border-color:var(--brand);
+  background-color:rgba(96,165,250,.12);
+  color:var(--brand);
+}
+.filter-group.has-active .filter-label{
+  color:var(--brand-light);
+  font-weight:700;
+}
+
+.topbar-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto;margin-left:auto}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 12px;border-radius:var(--radius-sm);
+  font-size:13px;font-weight:600;cursor:pointer;
+  border:1px solid transparent;transition:all .15s;white-space:nowrap;
+}
+.btn-primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn-primary:hover{background:var(--brand-mid);border-color:var(--brand-mid);box-shadow:0 2px 8px rgba(10,36,99,.25)}
+.btn-ghost{background:transparent;color:var(--text-2);border-color:var(--border)}
+.btn-ghost:hover{background:var(--surface-2);border-color:var(--border-2)}
+.btn-icon{padding:6px;border-radius:var(--radius-sm);background:transparent;color:var(--text-2);border:1px solid var(--border);cursor:pointer;transition:all .15s;display:grid;place-items:center}
+.btn-icon:hover{background:var(--surface-2);border-color:var(--border-2)}
+.btn-icon svg{width:16px;height:16px}
+#fileInput{display:none}
+
+.summary-bar{
+  background:var(--surface-2);
+  border-bottom:1px solid var(--border);
+  padding:6px 16px;
+}
+.summary-bar-inner{
+  max-width:1720px;margin:0 auto;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+.summary-pill{
+  display:flex;align-items:center;gap:6px;
+  font-size:13px;color:var(--text-3);
+}
+.summary-pill strong{color:var(--text);font-weight:600}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--border-2)}
+
+.main{flex:1;max-width:1720px;width:100%;margin:0 auto;padding:14px}
+
+.section-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.section-title{font-size:15px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
+.section-title .icon{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;flex:0 0 auto}
+.section-title .icon svg{width:12px;height:12px}
+
+/* =========================================
+   KPI GRID
+   ========================================= */
+.kpi-grid{
+  display:grid;
+  grid-template-columns:repeat(9,minmax(0,1fr));
+  gap:8px;
+  margin-bottom:10px;
+}
+.kpi-card{min-width:0}
+.kpi-value{font-size:clamp(14px,1.2vw,20px)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi-label{font-size:clamp(10px,0.75vw,12px)!important}
+.kpi-sub{font-size:clamp(9px,0.65vw,11px)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:900px){.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.kpi-value.good{color:var(--green)}
+.kpi-value.warn{color:#d97706}
+.kpi-value.bad{color:#dc2626}
+.forecast-card{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;position:relative}
+.forecast-card-label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);font-weight:600}
+.forecast-card-name{font-size:12px;color:var(--text-2);margin-top:2px;font-weight:500}
+.forecast-card-value{font-size:20px;font-weight:800;color:var(--brand);margin-top:4px;font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.forecast-card-range{font-size:11px;color:var(--text-3);margin-top:2px;font-variant-numeric:tabular-nums}
+.forecast-card-vs{font-size:11px;color:var(--text-2);margin-top:6px;font-weight:500}
+.forecast-card-vs .up{color:var(--green)}
+.forecast-card-vs .down{color:#dc2626}
+@media(max-width:900px){.forecast-grid{grid-template-columns:1fr!important}}
+
+.kpi-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:14px 12px 12px;
+  position:relative;overflow:hidden;
+  box-shadow:var(--shadow-sm);
+  transition:box-shadow .2s,transform .2s;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;min-height:86px;
+}
+.kpi-card:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
+.kpi-accent-bar{position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--radius) var(--radius) 0 0}
+.kpi-header{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:7px;width:100%}
+.kpi-label{font-size:11px;font-weight:600;color:var(--text-3);letter-spacing:.4px;text-transform:uppercase}
+.kpi-icon{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;flex-shrink:0}
+.kpi-icon svg{width:13px;height:13px}
+.kpi-value{font-size:clamp(16px,1.5vw,22px);font-weight:800;letter-spacing:-.5px;color:var(--text);line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%}
+.kpi-sub{display:none}
+.kpi-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;padding:2px 6px;border-radius:20px;margin-top:5px}
+.kpi-delta.up{color:var(--green);background:var(--green-light)}
+.kpi-delta.down{color:var(--red);background:var(--red-light)}
+.kpi-delta.neutral{color:var(--text-3);background:var(--border)}
+
+/* =========================================
+   CHART ROWS
+   ========================================= */
+/* =========================================
+   MAIN DASHBOARD LAYOUT — 2 cột
+   ========================================= */
+.dash-layout{
+  display:grid;
+  grid-template-columns:1.25fr 1fr;
+  gap:10px;
+  align-items:start;
+}
+.dash-col-left,.dash-col-right{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  min-width:0;
+}
+.dash-row-2col{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  align-items:stretch;
+}
+.dash-row-2col > .chart-card{align-self:stretch}
+/* Promo card — height = right_col(928.5) − left_above_promo(542) − card_overhead(55.5) = 331px */
+#promoCard{flex:none}
+#promotionInfo{height:332px;overflow-y:auto;flex:none}
+
+/* Doughnut cards — fixed height */
+.dash-row-2col .split-inner{min-height:120px}
+
+/* Top Products card — fixed scroll area */
+#topProductCard{flex:none}
+#topProductList{height:260px;overflow-y:auto;flex:none;min-height:unset}
+
+@media(max-width:1280px){
+  .dash-layout{grid-template-columns:1fr}
+  .dash-row-2col{grid-template-columns:1fr}
+}
+
+/* =========================================
+   CHART CARD — 1 rule duy nhất
+   ========================================= */
+.chart-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:14px 16px 12px;
+  box-shadow:var(--shadow-sm);
+  position:relative;overflow:hidden;
+  transition:box-shadow .2s,border-color .2s;
+  display:flex;flex-direction:column;
+  min-width:0;
+}
+.chart-card:hover{box-shadow:var(--shadow);border-color:var(--border-2)}
+.chart-card::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:3px;
+  background:linear-gradient(90deg,var(--brand-mid),var(--brand-light));opacity:.85;
+}
+.chart-card-hd{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  gap:8px;margin-bottom:10px;flex-shrink:0;
+}
+.chart-card-title{font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px}
+.chart-card-sub{font-size:11px;color:var(--text-3);font-weight:400;margin-top:2px;line-height:1.4}
+.chart-wrap{position:relative;width:100%;height:260px;flex:none}
+.chart-wrap canvas{width:100% !important;height:100% !important}
+.chart-wrap--rev{height:300px}
+
+/* Chart tabs */
+.chart-tabs{display:flex;gap:4px;background:var(--surface-2);border-radius:8px;padding:3px;flex-shrink:0}
+.chart-tab{padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;color:var(--text-3);cursor:pointer;border:none;background:transparent;transition:all .15s}
+.chart-tab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
+
+/* =========================================
+   DOUGHNUT
+   ========================================= */
+.split-inner{display:flex;align-items:center;gap:12px;flex:1;min-height:0;overflow:hidden}
+.doughnut-wrap{
+  position:relative;flex:0 0 auto;
+  width:100px;height:100px;
+  display:flex;align-items:center;justify-content:center;
+}
+.doughnut-wrap canvas{width:100px !important;height:100px !important}
+.doughnut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
+.doughnut-center .d-val{font-size:13px;font-weight:800;color:var(--text)}
+.doughnut-center .d-lbl{font-size:10px;color:var(--text-3)}
+.legend-list{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}
+.legend-item{display:flex;align-items:center;gap:5px}
+.legend-dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.legend-name{flex:1;font-size:11px;color:var(--text-2);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.legend-pct{font-size:10px;color:var(--text-3);min-width:30px;text-align:right}
+
+/* =========================================
+   CASHIER
+   ========================================= */
+.cashier-picker{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;flex-shrink:0;min-height:32px}
+.cashier-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:4px 10px;cursor:pointer;transition:all .12s}
+.cashier-chip:hover{border-color:var(--brand-light);color:var(--text)}
+.cashier-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.cashier-chip input{width:12px;height:12px;flex:0 0 auto}
+
+/* =========================================
+   TOP PRODUCTS
+   ========================================= */
+#topProductList{padding-right:2px}
+.product-list{display:grid;grid-template-columns:1fr 1fr;gap:5px 8px;align-content:start}
+.promotion-list{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+.product-item{
+  display:grid;grid-template-columns:16px minmax(0,1fr) 76px;gap:5px;
+  align-items:start;padding:7px 8px;border-radius:9px;
+  transition:background .12s;border:1px solid transparent;
+  background:var(--surface-2);
+}
+.product-item:hover{background:var(--border);border-color:var(--border-2)}
+.p-info{min-width:0;display:flex;flex-direction:column;gap:1px}
+.card-icon{width:20px;height:20px;border-radius:5px;display:grid;place-items:center;background:var(--surface-2);border:1px solid var(--border);color:var(--brand-mid);font-size:11px}
+.p-rank{font-size:11px;font-weight:700;color:var(--text-3);text-align:center;font-variant-numeric:tabular-nums;padding-top:1px}
+.p-rank.top1{color:var(--accent)}
+.p-rank.top2{color:var(--text-2)}
+.p-rank.top3{color:var(--text-3)}
+.p-name{font-size:11px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.15}
+.p-meta{font-size:10px;color:var(--text-3);font-weight:400;line-height:1.1}
+.p-bar-wrap{height:4px;background:var(--border);border-radius:999px;margin-top:3px;overflow:hidden;width:100%}
+.p-bar{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-mid));border-radius:999px;transition:width .4s ease}
+.p-value{text-align:right;display:flex;flex-direction:column;align-items:flex-end}
+.p-amount{font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}
+.p-qty{font-size:10px;color:var(--text-3);font-weight:400;white-space:nowrap}
+
+/* =========================================
+   TABLE
+   ========================================= */
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden;margin-bottom:16px}
+.table-hd{padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.table-search{display:flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 10px;min-width:200px}
+.table-search svg{width:14px;height:14px;color:var(--text-3);flex:0 0 auto}
+.table-search input{background:transparent;border:none;color:var(--text);font-size:12px;width:100%}
+.table-search input::placeholder{color:var(--text-3)}
+.table-wrap{overflow-x:auto;max-height:420px;overflow-y:auto}
+table{width:100%;border-collapse:collapse}
+thead th{position:sticky;top:0;z-index:2;background:var(--surface-2);padding:9px 12px;font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;transition:background .1s}
+thead th:hover{background:var(--border);color:var(--text)}
+thead th .sort-icon{margin-left:4px;opacity:.4;font-size:10px}
+thead th.sorted .sort-icon{opacity:1;color:var(--brand)}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+tbody tr:hover{background:var(--surface-2)}
+tbody td{padding:8px 12px;font-size:13px;color:var(--text-2);white-space:nowrap}
+tbody td:first-child{font-family:var(--mono);font-size:11px}
+.td-amount{font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+.td-qty{font-variant-numeric:tabular-nums;font-weight:600}
+.td-badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:600}
+.tb-type{background:var(--purple-light);color:var(--purple)}
+.tb-gender-m{background:var(--cyan-light);color:var(--cyan)}
+.tb-gender-f{background:#fce7f3;color:#db2777}
+.tb-gender-u{background:var(--border);color:var(--text-3)}
+tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surface-2);color:var(--text);border-top:2px solid var(--border-2);white-space:nowrap}
+.table-footer{padding:10px 20px;font-size:12px;color:var(--text-3);border-top:1px solid var(--border)}
+
+/* =========================================
+   EMPTY STATE
+   ========================================= */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center}
+.empty-icon{width:72px;height:72px;background:linear-gradient(135deg,var(--surface-2),var(--border));border-radius:20px;display:grid;place-items:center;margin-bottom:16px;box-shadow:var(--shadow-sm)}
+.empty-icon svg{width:32px;height:32px;color:var(--text-3)}
+.empty-title{font-size:18px;font-weight:700;color:var(--text);margin-bottom:7px}
+.empty-desc{font-size:13px;color:var(--text-3);max-width:320px;line-height:1.6;margin-bottom:24px}
+.upload-zone{border:2px dashed var(--border-2);border-radius:var(--radius);padding:24px 40px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface)}
+.upload-zone:hover{border-color:var(--brand-light);background:rgba(59,130,246,.04)}
+.upload-zone.dragover{border-color:var(--brand);background:rgba(59,130,246,.08)}
+
+/* =========================================
+   STATUS BAR
+   ========================================= */
+.statusbar{background:var(--surface);border-top:1px solid var(--border);padding:6px 16px}
+.statusbar-inner{max-width:1720px;margin:0 auto;display:flex;align-items:center;gap:16px;font-size:12px;color:var(--text-3)}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex:0 0 auto}
+.status-dot.idle{background:var(--border-2)}
+
+/* =========================================
+   LOADING
+   ========================================= */
+.loading-overlay{position:fixed;inset:0;background:rgba(var(--bg-rgb,240,242,247),.9);display:none;place-items:center;z-index:999;backdrop-filter:blur(4px)}
+.loading-overlay.show{display:grid}
+.loader{display:flex;flex-direction:column;align-items:center;gap:12px;background:var(--surface);padding:28px 40px;border-radius:var(--radius);box-shadow:var(--shadow-lg);border:1px solid var(--border)}
+.spinner{width:32px;height:32px;border:3px solid var(--border-2);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#syncBtn:disabled{opacity:.6;cursor:wait;pointer-events:none}
+.sync-badge{font-size:10px;color:var(--text-3);margin-left:6px;font-weight:500}
+.loader-text{font-size:13px;font-weight:600;color:var(--text-2)}
+
+/* =========================================
+   YOY SECTION
+   ========================================= */
+.yoy-section{margin-bottom:12px}
+.yoy-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0;border-bottom:none}
+.yoy-label{font-size:13px;font-weight:700;color:var(--text-2);white-space:nowrap}
+.yoy-range-group{display:flex;align-items:center;gap:6px}
+.yoy-select{appearance:none;background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a94a6' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 8px center;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 22px 4px 8px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer;transition:border-color .15s}
+.yoy-select:focus{border-color:var(--brand-light);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+.yoy-metric-tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px;margin-left:auto}
+.yoy-metric-tab{padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600;color:var(--text-3);cursor:pointer;border:none;background:transparent;transition:all .15s;white-space:nowrap}
+.yoy-metric-tab.active{background:var(--brand);color:#fff;box-shadow:var(--shadow-sm)}
+.yoy-card{background:var(--surface);border:1px solid var(--border);border-radius:0 0 var(--radius) var(--radius);box-shadow:var(--shadow-sm)}
+.yoy-split-body{display:grid;grid-template-columns:1.4fr 2.2fr;gap:0;min-height:360px}
+.yoy-split-chart{padding:14px;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.yoy-split-table{padding:14px;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.yoy-split-label{font-size:12px;font-weight:800;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.yoy-year-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;align-content:start}
+.yoy-year-card{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.yoy-year-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--radius-sm) var(--radius-sm) 0 0;background:var(--card-accent,var(--brand-mid))}
+.yoy-year-card-head{font-size:12px;font-weight:900;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px}
+.yoy-year-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.yoy-year-metric-row{display:flex;flex-direction:column;justify-content:flex-start;padding:8px 9px;border:1px solid var(--border);border-radius:9px;background:var(--surface);min-height:54px}
+.yoy-year-metric-lbl{font-size:12px;color:var(--text-3);font-weight:700;line-height:1.2}
+.yoy-year-metric-val{font-size:14px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.15;margin-top:4px}
+.yoy-year-metric-delta{font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;margin-top:4px;display:inline-flex;align-self:flex-start}
+.yoy-year-metric-delta.empty{visibility:hidden}
+.yoy-year-metric-delta.up{color:var(--green);background:var(--green-light)}
+.yoy-year-metric-delta.down{color:var(--red);background:var(--red-light)}
+.yoy-chart-wrap{position:relative;flex:1;min-height:200px}
+.yoy-chart-wrap canvas{display:block;width:100% !important;height:100% !important}
+.yoy-table{width:100%;border-collapse:collapse;font-size:12px}
+.yoy-table thead th{position:sticky;top:0;z-index:1;background:var(--surface-2);padding:6px 10px;font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;text-align:right;border-bottom:1px solid var(--border-2);white-space:nowrap}
+.yoy-table thead th:first-child{text-align:left}
+.yoy-table tbody td{padding:5px 10px;color:var(--text-2);text-align:right;border-bottom:1px solid var(--border);white-space:nowrap;font-variant-numeric:tabular-nums}
+.yoy-table tbody td:first-child{text-align:left;font-weight:500;color:var(--text)}
+.yoy-table tbody tr:hover{background:var(--surface-2)}
+.yoy-table tfoot td{padding:6px 10px;font-size:11px;font-weight:700;color:var(--text);background:var(--surface-2);border-top:2px solid var(--border-2);text-align:right;white-space:nowrap;position:sticky;bottom:0}
+.yoy-table tfoot td:first-child{text-align:left}
+.yoy-delta-pos{color:var(--green);font-weight:600}
+.yoy-delta-neg{color:var(--red);font-weight:600}
+.yoy-delta-neu{color:var(--text-3)}
+@media(max-width:1280px){.yoy-split-body{grid-template-columns:1fr}.yoy-split-chart{border-right:none;border-bottom:1px solid var(--border)}}
+
+/* =========================================
+   SCROLLBAR + ANIMATIONS + RESPONSIVE
+   ========================================= */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-3)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.fade-in{animation:fadeIn .3s ease forwards}
+
+/* YOY filter badge */
+.yoy-filter-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--brand-mid);background:rgba(53,88,168,.08);border:1px solid rgba(53,88,168,.20);border-radius:20px;padding:2px 9px;white-space:nowrap}
+@media(max-width:900px){
+  .main{padding:12px}
+  .topbar-inner{flex-wrap:wrap;height:auto;padding:10px 14px;gap:8px}
+  .filters{grid-template-columns:repeat(3,1fr);gap:6px;width:100%}
+  .product-list{grid-template-columns:1fr}
+  .cashier-picker{grid-template-columns:1fr}
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ====== TOPBAR ====== -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="logo">
+      <img class="logo-icon" alt="HAZZYS TAKA" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAh1BMVEX///8SEhIAAAANDQ2urq4cHBwTExPQ0NAHBwf19vaysrJCQkILCwvy8/MTERLHycjg4ODt7e3Dw8PZ2dm5urqLi4tZWVmYmJgkJCSmpqY3Nzfp6emEhIQ8PDx9fX1dXV1xcXEuLi5JSUmTk5Nubm5mZmYfHx9aWlpGRkZQUFCeoJ8qKiqUl5YmlRT3AAAI2ElEQVR4nO2dbXuqOBCGYYIYFI8iqMVX0NpTdf//79tMQIQQ7O5RLjbs3B/aGkTzkGRm8lrLIgiCIAiCIAiCIAiCIAiCIAiCIAiCIAiCIAiiXZxlbFlBcg4sa7S8dp2bFvAAILBWAFvLkn/2jx2MLWsKEFnWBWyv6+y0wf5jYoUAU8tLD70UaMVwtL7BT70D7LvOSztcAdZg2+JHfxXavi3w7R4rzOmrwhXwTKAPSdd5aYfNXrRA5JbMus5LiwSbSddZIIj/Nd58f9xdTn0MuiXeCe0oBxl795E5A5a5Q9ZPiRssvzykYbyHHiMcw2l4QYmQgNu7qG1yXQPnx7MrBLoQD4TMXlmb8DOrn1wG3i44N2bDqOtcvZE53C2MnSmMsAz7NBI1A7sCRNgLjvtUiDffrpah6AjzUdJ1tt7ItlJLbRDVdjAdH7vO1jtZCBvjQ46opVsnWsNH17l6L0v4SFbxab+NRIG65x34NvTM6RdyJiCCNmyYsOkyPy0S3C0rTLvOSks8FPYy+rbKCvvk88s8FC66zkpLFBFOX4dMrWGhcNl1Vloiuivku66z0hLOXSH76jorLbEoFPqPxOl1v7x8H5ef12F3OXsXh8f8Uz4NPE+ygJVz+WtreqyzLrpSIGdnRilU+48Aq67z+Bpu0ZOCk7CsaTH+VtL4bfQgTqmvCItEo08Wo8GTbx5UlOj02bbLTe54NIhSS/HD3NUonP2sDwdzzB0ydv+RQhzN6Tqnf0rq/6wO4euuc/qnLPUNUQ5UVYfkTO0h7zUKhbj09377OagY2kPXWf1DrjWFAJdRoLlo6uRNpChksJzpr2LMYyLKLAZXJqEeldgFU81pxV1wN6xe3RQK/RVANzl8lXOpEH1ei85290hVBG6GjorH4D6aWli7vC3GcYyNvsOHQt2AYmy+Quvj0QfW+IN5DxQWIzVw0Vwdmq/QGxUadMMVQQ8UXr9yfwHagbU1N12hdb57dX1Y9hcYr/AW5dZU79CnPVA4GkgJbKC9fD1y0xVe9lk1bejjrnOPaLDCJct6EFpnYVkQGa/wAJGN1rRheg1WS264wj0kspo2Kdxl/WCDFW4BRs0KA9Et7IHCGN0F/9ZdFQpX2UJbcxWKnu0hEcXka23pBPysmhqsUHgDQI/QMAkM2fJMkxVGqJA1xjR4decbrVCEZbDHqWC9wpvPlyfQ9v9NIQTbH4um5uoV7ni+ithchTicBhhf6/sWS1HEU97UtzICnCQFD8tQq/AsFIZjbvDkk2XZjNnWN/+lVyjiHQjwh8EKU190nBL4pZ/KXghxm6vZCr+5ULh4ptCLzFZ45KJreH2m0BqCa7LC1Oe7ZoWf5isU/pCPRXSqt6UeZ0Lh3ORaGqQcu/fo2HUKhTvkYCXmluFk5YMP6/le7/GdGzD4cK5g7Fr+EQDz02iUgq2J2oaAO02c6AL6eSkD2OByC4hucktJLfL2vjBYmx+zxW5mKnRwTckiX2JaW2wR4tVDPnEDt05y+Cqz1Wm7H+ZbvBJ16ZoXr7b7aX44yMHQlRiS4SiOnWHT0rxZJK7OTdZHEARBEARBEP8J/vVuGE+9SfmEIBwOZ23tsZnwwaA03BBA5SUyE+9gSSUpYYMqdtZTdEBJH7hyNO5gD9y0/AFrcWV8/8prmnW3zu2Menjgs5KkCb6szqg4wJgPlSf8KZLK+PlUoaOkM4hleijSy6v8Ynydf+kIsvECmwGM25hx9MD+VVFYmzP65vJImnJSoh7Jk2TpjpLO7wX3iWdpFIOrHrBifCDGYREmj0zBbQ0tnOrzo8KhZnHQGQq4fPqbe3YfyLvy8UQPh3ce2/dxnXRe6qEUNtiftku8pY1DDH5UiNlhypT1fHQn+s1Ly0xDp0jHwZrSY1nhXFw+MoXbGfBIcETOJGe3T04An2/X9w8Ufvk2GzTuDvEYs/0vzZL8Q/WDvAErBB+wygb5t7PSqpzwsw17+pPCuciOOwLb158oJCucU0+XM8TlEsElRlljnoJr5xZIridue1/0TwpxQneLe3+1I9hY4XQrFL2Uqyf07Ljty/HFG3/cMgG1ib+fHxROgLmiCW7B1Z7zccby0EiP61ZDFt01s7ePGQ1c9t/y9ihPaS+KQpFVfOBDeJwvUEImnzUfKmwT48r7z9j8JoGPDbJouCtcbQy7No9+k5IWUc4oVhTiBBO2mTXXNbcx147dewu0nLGSKldwbBdQtcs4/2FzgG1rUwBe5mnLbqykEN2VPNLrKsqydj6bXDSj2dCMWnhaS0arxLlyy0ZKRJ9/aWnLaWV7fW2PgchUVgsnyqOXiEbEdFOIn5WmVvoqlomp3rLPN9cCpK1MOEqFzL/Dqgrdwobi1LUScKxAbyWkR9ctzMx2otSOlwoW+ckFvJVzmTy5xvCjgJUVSmfoTZAIXMUlBuLRs4HGR1/qsW0OtlvduT1e9A169W/gqS3FnYYsb6CuOqkrJ4E1RnDeYGAt2XB/NQTXYYJdDG2lf5Fn/jBQ2mgl39Kc6M5RwtNdGk7FmOOXNRmUcMD08dGLPFMYq1ao/IQPDTP1cSmuVnmqMIv0Gu58gWcKhRNkFUdSesKyLmrO98RQvPHMyOcKvQbn8yJPFIbgMh7OQslsJkxnaen6Wu/s5d7ERntRVximj/q8abDNL/JEITrDpPLOh0scNTzvoHGBO1JTOBN1pKgXDW70VZoVYnBZMfpllzhAw7fejXPW8eM9NrsV6btql1ZVGAwwVk1XoWdt5AoVfnt/D7FZ4VztFGJC7v9WWajF78Bf2VuGanq1Z6QqnBzx/X7Rzlkbi4yaFQpjqbQK0d3PvFkAyhk1d4VH1b9Ud9XU2+GqfA5TO/+QYIJPb1p9KRXO8K9qJIr/GUFmOQGVrPZGtfSqtZ1jUtXjz5LHSW/nVrYveI7jxJvqS+n1ZrHjKOFHIC6iXfBiRyUr9qiWXi2UjbgxVmV488XyuLskjsFnZxEEQRAEQRAEQRAEQRAEQRAEQRAEQRAEQRAEQRAEQRAEQRAEQRDEG/gbzlxryt7BS1kAAAAASUVORK5CYII="/>
+      <div class="logo-info">
+        <div class="logo-text">HAZZYS TAKA</div>
+        <div class="logo-sub">Retail Performance Dashboard</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+
+    <div class="filters" id="filterBar">
+      <div class="filter-group">
+        <div class="filter-label">Year</div>
+        <select class="filter-select" id="fYear"><option value="all">All Years</option></select>
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Quarter</div>
+        <select class="filter-select" id="fQuarter"><option value="all">All Quarters</option></select>
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Month</div>
+        <select class="filter-select" id="fMonth"><option value="all">All Months</option></select>
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Gender</div>
+        <select class="filter-select" id="fGender"><option value="all">All Gender</option></select>
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Product Type</div>
+        <select class="filter-select" id="fType"><option value="all">All Types</option></select>
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Category</div>
+        <select class="filter-select" id="fCategory"><option value="all">All Categories</option></select>
+      </div>
+    </div>
+
+    <div class="topbar-actions">
+      <button class="btn-icon" id="resetBtn" title="Reset filters">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8a6 6 0 1 0 .75-2.9"/><path d="M2 3.5V8h4.5"/></svg>
+      </button>
+      <button class="btn-icon" id="themeBtn" title="Toggle dark mode">
+        <svg id="themeIconSun" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/><line x1="3.2" y1="3.2" x2="4.6" y2="4.6"/><line x1="11.4" y1="11.4" x2="12.8" y2="12.8"/><line x1="12.8" y1="3.2" x2="11.4" y2="4.6"/><line x1="4.6" y1="11.4" x2="3.2" y2="12.8"/></svg>
+        <svg id="themeIconMoon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="display:none"><path d="M14 10A6 6 0 0 1 6 2a6 6 0 1 0 8 8Z"/></svg>
+      </button>
+      <button class="btn btn-ghost" id="syncBtn" title="Đồng bộ dữ liệu trực tiếp từ Google Sheets">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 11.5a3.5 3.5 0 1 1 .5-6.95A4.5 4.5 0 0 1 13.5 7.5a2.5 2.5 0 0 1-.5 4.95"/><path d="M8 8v5"/><path d="M5.5 10.5L8 8l2.5 2.5"/></svg>
+        Cloud Sync
+      </button>
+      <label class="btn btn-primary" for="fileInput" title="Tải lên file Excel từ máy tính">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1H3.5A1.5 1.5 0 0 0 2 2.5v11A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V6"/><path d="M9 1v5h5"/><path d="M8 12V8"/><path d="M6 10l2-2 2 2"/></svg>
+        Upload File
+      </label>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsm,.csv">
+    </div>
+  </div>
+</header>
+
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loader">
+    <div class="spinner"></div>
+    <div class="loader-text">Đang xử lý dữ liệu…</div>
+  </div>
+</div>
+
+<!-- ====== MAIN ====== -->
+<main class="main" id="mainContent">
+
+  <!-- EMPTY STATE (shown before upload) -->
+  <div class="empty-state" id="emptyState">
+    <div class="empty-icon">
+      <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="4" width="24" height="24" rx="4"/><line x1="4" y1="12" x2="28" y2="12"/><line x1="4" y1="20" x2="28" y2="20"/><line x1="12" y1="12" x2="12" y2="28"/></svg>
+    </div>
+    <div class="empty-title">Sales Intelligence Dashboard</div>
+    <div class="empty-desc">Upload your sales Excel file to start analyzing.<br>Supports .xlsx, .xls, .xlsm, .csv</div>
+    <label class="upload-zone" for="fileInput" id="dropZone">
+      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:6px">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="vertical-align:middle;margin-right:6px"><path d="M3 13v4h14v-4M10 3v10M6 7l4-4 4 4"/></svg>
+        Drag & drop file here or click to select
+      </div>
+      <div style="font-size:11px;color:var(--text-3)">Required: Date, Bill No., Bill (0/1), UPC, Type, Gender, Amount, Qty. Optional: Store, Category</div>
+    </label>
+  </div>
+
+  <!-- DASHBOARD CONTENT -->
+  <div id="dashContent" style="display:none">
+
+    <!-- KPI CARDS -->
+    <div class="kpi-grid" id="kpiGrid">
+      <div class="kpi-card">
+        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#0a2463,#1a56a8)"></div>
+        <div class="kpi-header">
+          <div class="kpi-label">Revenue</div>
+          <div class="kpi-icon" style="background:#eff6ff;color:#1a56a8">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 9l4-4 3 3 4-4 3 2"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kSales">—</div>
+        <div class="kpi-sub" id="kSalesSub">Total revenue</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#475569,#94a3b8)"></div>
+        <div class="kpi-header">
+          <div class="kpi-label">Target</div>
+          <div class="kpi-icon" style="background:#f1f5f9;color:#475569">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="1" fill="currentColor"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kTarget">—</div>
+        <div class="kpi-sub" id="kTargetSub">Mục tiêu doanh thu</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-accent-bar" id="kAchieveBar" style="background:linear-gradient(90deg,#16a34a,#4ade80)"></div>
+        <div class="kpi-header">
+          <div class="kpi-label">% Đạt Target</div>
+          <div class="kpi-icon" style="background:#dcfce7;color:#16a34a">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 13l4-4 3 3 5-6"/><path d="M10 6h4v4"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kAchieve">—</div>
+        <div class="kpi-sub" id="kAchieveSub">Doanh thu / Target</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#0891b2,#22d3ee)"></div>
+        <div class="kpi-header">
+          <div class="kpi-label">Bills</div>
+          <div class="kpi-icon" style="background:#cffafe;color:#0891b2">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2h10v12H3z"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kBills">—</div>
+        <div class="kpi-sub" id="kBillsSub">Total bills</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#059669,#10b981)"></div>
+        <div class="kpi-header">
+          <div class="kpi-label">Units Sold</div>
+          <div class="kpi-icon" style="background:#d1fae5;color:#059669">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kQty">—</div>
+        <div class="kpi-sub" id="kQtySub">Items sold</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#db2777,#f472b6)"></div>
+        <div class="kpi-header">
+          <div class="kpi-label">Traffic</div>
+          <div class="kpi-icon" style="background:#fce7f3;color:#db2777">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="5" r="2"/><circle cx="10" cy="5" r="2"/><path d="M2 14c0-3 2-5 4-5h4c2 0 4 2 4 5"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kTraffic">—</div>
+        <div class="kpi-sub" id="kTrafficSub">Store traffic</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#0ea5e9,#38bdf8)"></div>
+        <div class="kpi-header">
+          <div class="kpi-label">Conversion Rate</div>
+          <div class="kpi-icon" style="background:#e0f2fe;color:#0369a1">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 8A6 6 0 1 1 8 2"/><path d="M14 2l-4 4 4 0V2z"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kCVR">—</div>
+        <div class="kpi-sub" id="kCVRSub">Bills / Traffic</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#7c3aed,#a78bfa)"></div>
+        <div class="kpi-header">
+          <div class="kpi-label">UPT</div>
+          <div class="kpi-icon" style="background:#ede9fe;color:#7c3aed">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kUPT">—</div>
+        <div class="kpi-sub" id="kUPTSub">Items / Bill</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#f59e0b,#fbbf24)"></div>
+        <div class="kpi-header">
+          <div class="kpi-label">ATV</div>
+          <div class="kpi-icon" style="background:#fef3c7;color:#d97706">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4h12l-1 8H3L2 4z"/><path d="M6 4V3a2 2 0 0 1 4 0v1"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="kATV">—</div>
+        <div class="kpi-sub" id="kATVSub">Revenue / Bill</div>
+      </div>
+    </div>
+
+    <!-- MAIN LAYOUT: 2 cột trái/phải -->
+    <div class="dash-layout">
+
+      <!-- LEFT COL -->
+      <div class="dash-col-left">
+
+        <!-- Revenue Performance -->
+        <div class="chart-card" >
+          <div class="chart-card-hd">
+            <div>
+              <div class="chart-card-title"><span class="card-icon">📈</span> Revenue Performance</div>
+            </div>
+            <div class="chart-tabs">
+              <button class="chart-tab active" onclick="switchRevChart('monthly',this)">Monthly</button>
+              <button class="chart-tab" onclick="switchRevChart('cumulative',this)">Cumulative</button>
+            </div>
+          </div>
+          <div class="chart-wrap" style="height:280px">
+            <canvas id="chartRevenue"></canvas>
+          </div>
+        </div>
+
+        <!-- Type + Gender row -->
+        <div class="dash-row-2col" >
+          <div class="chart-card">
+            <div class="chart-card-hd">
+              <div class="chart-card-title"><span class="card-icon">🧩</span> By Product Type</div>
+            </div>
+            <div class="split-inner">
+              <div class="doughnut-wrap">
+                <canvas id="chartType"></canvas>
+                <div class="doughnut-center"><div class="d-val" id="dTypeVal">—</div><div class="d-lbl">Total</div></div>
+              </div>
+              <div class="legend-list" id="legendType"></div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-hd">
+              <div class="chart-card-title"><span class="card-icon">👥</span> By Gender</div>
+            </div>
+            <div class="split-inner">
+              <div class="doughnut-wrap">
+                <canvas id="chartGender"></canvas>
+                <div class="doughnut-center"><div class="d-val" id="dGenderVal">—</div><div class="d-lbl">Total</div></div>
+              </div>
+              <div class="legend-list" id="legendGender"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Promotion -->
+        <div class="chart-card" id="promoCard">
+          <div class="chart-card-hd">
+            <div class="chart-card-title"><span class="card-icon">🏷️</span> Revenue by Promotion</div>
+          </div>
+          <div id="promotionInfo"></div>
+        </div>
+
+      </div><!-- /col-left -->
+
+      <!-- RIGHT COL -->
+      <div class="dash-col-right">
+
+        <!-- Top Products -->
+        <div class="chart-card" id="topProductCard">
+          <div class="chart-card-hd">
+            <div class="chart-card-title"><span class="card-icon">🏆</span> Top Products</div>
+          </div>
+          <div class="product-list" id="topProductList" style="align-content:start"></div>
+        </div>
+
+        <!-- Bills & Traffic -->
+        <div class="chart-card" >
+          <div class="chart-card-hd">
+            <div class="chart-card-title"><span class="card-icon">🚶</span> Bills & Traffic Trend</div>
+          </div>
+          <div class="chart-wrap" style="height:200px">
+            <canvas id="chartTraffic"></canvas>
+          </div>
+        </div>
+
+        <!-- Cashier -->
+        <div class="chart-card">
+          <div class="chart-card-hd">
+            <div class="chart-card-title"><span class="card-icon">🧑‍💼</span> Revenue by Cashier</div>
+          </div>
+          <div class="cashier-picker" id="cashierPicker"></div>
+          <div class="chart-wrap" style="height:220px">
+            <canvas id="chartCashierBar"></canvas>
+          </div>
+        </div>
+
+      </div><!-- /col-right -->
+
+    </div><!-- /dash-layout -->
+
+    <div style="margin-bottom:10px"></div>
+
+    <!-- FORECAST SECTION -->
+    <div class="panel" id="forecastSection" style="margin-bottom:10px">
+      <div class="panel-head" style="padding:12px 16px 8px;border-bottom:1px solid var(--border)">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">📈 Dự báo doanh thu</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px" id="forecastMethod">Đang tính...</div>
+      </div>
+      <div class="forecast-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px">
+        <div class="forecast-card" data-period="month">
+          <div class="forecast-card-label">Tháng tiếp theo</div>
+          <div class="forecast-card-name" id="fcMonthName">—</div>
+          <div class="forecast-card-value" id="fcMonthValue">—</div>
+          <div class="forecast-card-range" id="fcMonthRange">—</div>
+          <div class="forecast-card-vs" id="fcMonthVs">—</div>
+        </div>
+        <div class="forecast-card" data-period="quarter">
+          <div class="forecast-card-label">Quý tiếp theo</div>
+          <div class="forecast-card-name" id="fcQuarterName">—</div>
+          <div class="forecast-card-value" id="fcQuarterValue">—</div>
+          <div class="forecast-card-range" id="fcQuarterRange">—</div>
+          <div class="forecast-card-vs" id="fcQuarterVs">—</div>
+        </div>
+        <div class="forecast-card" data-period="year">
+          <div class="forecast-card-label">Cả năm (ước tính)</div>
+          <div class="forecast-card-name" id="fcYearName">—</div>
+          <div class="forecast-card-value" id="fcYearValue">—</div>
+          <div class="forecast-card-range" id="fcYearRange">—</div>
+          <div class="forecast-card-vs" id="fcYearVs">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- YOY COMPARISON SECTION -->
+    <div class="yoy-section" id="yoySection">
+      <div class="yoy-controls">
+        <span class="yoy-label">📊 Year-over-Year Comparison</span>
+        <span id="yoyFilterBadge" style="display:none"></span>
+        <div class="yoy-range-group">
+          <span class="yoy-label" style="font-weight:400;color:var(--text-3)">Period:</span>
+          <select class="yoy-select" id="yoyRangeType" onchange="onYoyRangeChange()">
+            <option value="month">By Month</option>
+            <option value="quarter">By Quarter</option>
+            <option value="ytd">YTD</option>
+            <option value="custom">Custom Range</option>
+          </select>
+        </div>
+        <div class="yoy-range-group" id="yoyMonthRow">
+          <span class="yoy-label" style="font-weight:400;color:var(--text-3)">Month:</span>
+          <select class="yoy-select" id="yoyMonth"></select>
+        </div>
+        <div class="yoy-range-group" id="yoyQuarterRow" style="display:none">
+          <span class="yoy-label" style="font-weight:400;color:var(--text-3)">Quarter:</span>
+          <select class="yoy-select" id="yoyQuarter">
+            <option value="1">Q1</option><option value="2">Q2</option>
+            <option value="3">Q3</option><option value="4">Q4</option>
+          </select>
+        </div>
+        <div class="yoy-range-group" id="yoyCustomRow" style="display:none">
+          <span class="yoy-label" style="font-weight:400;color:var(--text-3)">From:</span>
+          <select class="yoy-select" id="yoyCustomFrom"></select>
+          <span class="yoy-label" style="font-weight:400;color:var(--text-3)">→ To:</span>
+          <select class="yoy-select" id="yoyCustomTo"></select>
+        </div>
+        <div class="yoy-metric-tabs" id="yoyMetricTabs">
+          <button class="yoy-metric-tab active" data-metric="revenue" onclick="setYoyMetric('revenue',this)">Revenue</button>
+          <button class="yoy-metric-tab" data-metric="bills" onclick="setYoyMetric('bills',this)">Bills</button>
+          <button class="yoy-metric-tab" data-metric="qty" onclick="setYoyMetric('qty',this)">Qty</button>
+          <button class="yoy-metric-tab" data-metric="atv" onclick="setYoyMetric('atv',this)">ATV</button>
+          <button class="yoy-metric-tab" data-metric="cvr" onclick="setYoyMetric('cvr',this)">CVR%</button>
+        </div>
+      </div>
+      <div class="yoy-card">
+        <div class="yoy-split-body">
+          <div class="yoy-split-chart">
+            <div class="yoy-split-label">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12l4-5 3 3 4-6 3 3"/></svg>
+              Trend Chart
+            </div>
+            <div class="yoy-chart-wrap"><canvas id="chartYoy"></canvas></div>
+          </div>
+          <div class="yoy-split-table">
+            <div class="yoy-split-label">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="1" width="14" height="14" rx="2"/><line x1="1" y1="6" x2="15" y2="6"/><line x1="1" y1="11" x2="15" y2="11"/><line x1="6" y1="6" x2="6" y2="15"/></svg>
+              Summary
+            </div>
+            <!-- Year summary cards: all metrics per year -->
+            <div id="yoyKpiRow" class="yoy-year-summary"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+  </div><!-- /dashContent -->
+
+</main>
+
+<!-- STATUS BAR -->
+<footer class="statusbar">
+  <div class="statusbar-inner">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Sẵn sàng — Bấm Cloud Sync hoặc tải file Excel để bắt đầu</span>
+    <span style="margin-left:auto" id="statusTime">—</span>
+  </div>
+</footer>
+
+</div><!-- /app -->
+
+<script>
+const S = {
+  raw: { sales: [], targets: [] },
+  filters: { year: 'all', quarter: 'all', month: 'all', category: 'all', gender: 'all', type: 'all' },
+  charts: {},
+  revMode: 'monthly',
+  cashierSelected: [],
+};
+
+const PALETTE = {
+  multi: ['#1a56a8', '#059669', '#f59e0b', '#7c3aed', '#0891b2', '#db2777', '#dc2626', '#d97706'],
+  gender: ['#1a56a8', '#db2777', '#f59e0b', '#6b7280']
+};
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Bill flag column 0/1 */
+const BILL_FIELD_ALIASES = ['bill', 'billflag', 'bill_flag', 'billno', 'bill_no', 'billnumber', 'billind', 'isbill', 'billindicator'];
+
+const GSHEET_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_o4DriGGI9UCdY6WG4FF0TDW67SY42iK21mP61v-V69eSv33aM5L9i1Qq65ciyA/pub?output=csv&gid=';
+const GSHEET_URLS = {
+  'sale data':  GSHEET_BASE + '708074341',
+  'target':     GSHEET_BASE + '2141567532',
+};
+
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function num(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  if (v === null || v === undefined) return 0;
+  let s = String(v).trim();
+  if (!s) return 0;
+  let negative = false;
+  if (s.startsWith('(') && s.endsWith(')')) {
+    negative = true;
+    s = s.slice(1, -1);
+  }
+  s = s.replace(/[₫đ]/gi, '').replace(/\s+/g, '').replace(/[^0-9,.\-]/g, '');
+  if (!s) return 0;
+
+  // 1.234.567,89 -> 1234567.89
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  // 1,234,567.89 -> 1234567.89
+  } else if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) {
+    s = s.replace(/,/g, '');
+  // 1234567,89 -> 1234567.89
+  } else if (/^-?\d+,\d+$/.test(s)) {
+    s = s.replace(',', '.');
+  } else {
+    s = s.replace(/,/g, '');
+  }
+
+  const n = Number(s);
+  if (!Number.isFinite(n)) return 0;
+  return negative ? -n : n;
+}
+function fmtVND(v) { return `${new Intl.NumberFormat('vi-VN').format(Math.round(num(v)))} ₫`; }
+function fmtN(v) { return new Intl.NumberFormat('vi-VN').format(Math.round(num(v))); }
+function fmtPct(v) { return `${num(v).toFixed(1)}%`; }
+function fmtVNDShort(v) {
+  const n = num(v), a = Math.abs(n);
+  if (a >= 1e9)  return `${(n / 1e9).toFixed(a >= 10e9 ? 1 : 2)} B ₫`;
+  if (a >= 1e6)  return `${(n / 1e6).toFixed(1)} M ₫`;
+  if (a >= 1e3)  return `${(n / 1e3).toFixed(0)} K ₫`;
+  return `${Math.round(n)} ₫`;
+}
+function fmtShort(v) {
+  const n = num(v), a = Math.abs(n);
+  if (a >= 1e9) return `${(n / 1e9).toFixed(a >= 10e9 ? 1 : 2)}B`;
+  if (a >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (a >= 1e3) return `${(n / 1e3).toFixed(0)}K`;
+  return String(Math.round(n));
+}
+function esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
+function monthLabelYY(d) { return `${MONTH_NAMES[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`; }
+function localDateKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+
+function normalizeText(v) {
+  const base = String(v ?? '').trim().toUpperCase();
+  return base || 'UNKNOWN';
+}
+function normalizeGender(v) {
+  const g = normalizeText(v).replace(/\s+/g, '');
+  if (['M', 'MEN', 'MALE', 'NAM'].includes(g)) return 'MEN';
+  if (['F', 'WOMEN', 'FEMALE', 'NU', 'NỮ'].includes(g)) return 'WOMEN';
+  return 'UNKNOWN';
+}
+function normalizeGroup(v) {
+  return normalizeText(v).replace(/\s+/g, ' ');
+}
+function styleKey9(v) {
+  const raw = String(v ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!raw) return 'UNKNOWN';
+  return raw.slice(0, 9);
+}
+function deriveCategory(rawCategory, infoCategory, typeValue, productKey) {
+  const product = String(productKey || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (product.length >= 4) return product.slice(2, 4);
+  const primary = normalizeGroup(rawCategory || infoCategory);
+  if (primary !== 'UNKNOWN') return primary;
+  const t = normalizeGroup(typeValue);
+  if (t !== 'UNKNOWN') return t;
+  return 'UNKNOWN';
+}
+
+function parseDate(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    return new Date(v.getFullYear(), v.getMonth(), v.getDate());
+  }
+  // Excel serial number (raw:true path)
+  if (typeof v === 'number') {
+    try {
+      const o = XLSX.SSF.parse_date_code(v);
+      if (o) return new Date(o.y, o.m - 1, o.d);
+    } catch (_) {}
+  }
+  const s = String(v).trim();
+  if (!s) return null;
+  const datePart = s.split(/\s+/)[0].replace(/\./g, '/');
+  const dmY = datePart.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmY) {
+    const a = Number(dmY[1]);
+    const b = Number(dmY[2]);
+    const y = Number(dmY[3]);
+    if (b > 12) return new Date(y, a - 1, b);
+    return new Date(y, b - 1, a);
+  }
+  const dmY2 = datePart.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/);
+  if (dmY2) {
+    const a = Number(dmY2[1]);
+    const b = Number(dmY2[2]);
+    const y = 2000 + Number(dmY2[3]);
+    if (b > 12) return new Date(y, a - 1, b);
+    return new Date(y, b - 1, a);
+  }
+  // ISO format YYYY-MM-DD
+  const Ymd = datePart.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (Ymd) return new Date(Number(Ymd[1]), Number(Ymd[2]) - 1, Number(Ymd[3]));
+  return null;
+}
+
+function parseMonthText(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (v instanceof Date && !Number.isNaN(v.getTime())) return new Date(v.getFullYear(), v.getMonth(), 1);
+  if (typeof v === 'number') {
+    try {
+      const o = XLSX.SSF.parse_date_code(v);
+      if (o) return new Date(o.y, o.m - 1, 1);
+    } catch (_) {}
+  }
+  const s = String(v).trim();
+  if (!s) return null;
+  const normalized = s.replace(/\./g, '/').replace(/\-/g, '/');
+  const mmyyyy = normalized.match(/^(\d{1,2})\/(\d{4})$/);
+  if (mmyyyy) {
+    const m = Number(mmyyyy[1]);
+    const y = Number(mmyyyy[2]);
+    if (m >= 1 && m <= 12) return new Date(y, m - 1, 1);
+  }
+  const yyyymm = normalized.match(/^(\d{4})\/(\d{1,2})$/);
+  if (yyyymm) {
+    const y = Number(yyyymm[1]);
+    const m = Number(yyyymm[2]);
+    if (m >= 1 && m <= 12) return new Date(y, m - 1, 1);
+  }
+  const asDate = parseDate(s);
+  if (asDate) return new Date(asDate.getFullYear(), asDate.getMonth(), 1);
+  return null;
+}
+
+function parseMonthFromRow(row, aliases) {
+  for (const alias of aliases) {
+    const d = parseMonthText(readField(row, [alias]));
+    if (d) return d;
+  }
+  return null;
+}
+
+function parseTargetMonth(row) {
+  return parseMonthFromRow(row, ['mm/yyyy', 'm/yyyy', 'mm-yyyy', 'm-yyyy', 'monthyear', 'month_year', 'month', 'date', 'period', '월', '月']);
+}
+
+function flattenMergedRows(sheet) {
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+  const merges = sheet['!merges'] || [];
+  merges.forEach((merge) => {
+    const top = rows[merge.s.r]?.[merge.s.c];
+    for (let r = merge.s.r; r <= merge.e.r; r += 1) {
+      rows[r] = rows[r] || [];
+      for (let c = merge.s.c; c <= merge.e.c; c += 1) {
+        if (rows[r][c] === null || rows[r][c] === undefined || rows[r][c] === '') rows[r][c] = top;
+      }
+    }
+  });
+  return rows;
+}
+
+function rowsToObjects(rows, fallbackPrefix = 'COL') {
+  if (!rows || rows.length < 2) return [];
+  const rawHeader = (rows[0] || []).map((h, i) => {
+    const v = String(h ?? '').trim();
+    return v ? v : `${fallbackPrefix}_${i + 1}`;
+  });
+  return rows.slice(1).filter((r) => r && r.some((v) => v !== null && v !== undefined && String(v).trim() !== '')).map((r) => {
+    const o = {};
+    rawHeader.forEach((h, i) => { o[h] = r?.[i]; });
+    return o;
+  });
+}
+
+function canonKey(s) {
+  return String(s ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function readField(row, aliases) {
+  const keys = Object.keys(row || {});
+  const keyMap = new Map(keys.map((k) => [canonKey(k), k]));
+  for (const alias of aliases) {
+    const hit = keyMap.get(canonKey(alias));
+    if (hit) return row[hit];
+  }
+  return '';
+}
+
+function validateRequiredSalesColumns(salesRows) {
+  if (!salesRows.length) throw new Error('Sales data sheet is empty.');
+  const headerSet = new Set(Object.keys(salesRows[0]).map((k) => canonKey(k)));
+  const requiredMap = {
+    Date: ['date', 'trans_date', 'transdate'],
+    Amount: ['amount', 'sales', 'revenue', 'netamount', 'net_amount', 'total'],
+    Qty: ['qty', 'quantity', 'pcs', 'count'],
+    Bill: BILL_FIELD_ALIASES
+  };
+  const missing = Object.entries(requiredMap).filter(([, aliases]) => !aliases.some((a) => headerSet.has(canonKey(a)))).map(([k]) => k);
+  if (missing.length) throw new Error(`Missing required columns: ${missing.join(', ')}.`);
+}
+
+function ingestWorkbook(wb) {
+  const sheets = {};
+  (wb.SheetNames || []).forEach((n) => { sheets[n.toLowerCase()] = flattenMergedRows(wb.Sheets[n]); });
+  const pickSheet = (keys) => {
+    for (const k of keys) {
+      const hit = Object.keys(sheets).find((n) => n.includes(k));
+      if (hit) return sheets[hit];
+    }
+    return [];
+  };
+
+  const salesRowsRaw = pickSheet(['sale data', 'sales data', 'transaction', 'sale', 'data']) || Object.values(sheets)[0] || [];
+  const targetRowsRaw = pickSheet(['target', 'kpi']) || [];
+  const masterRowsRaw = pickSheet(['master', 'catalog', 'product', 'inventory']) || [];
+
+  const salesRaw = rowsToObjects(salesRowsRaw, 'SALES_COL');
+  const targetRaw = rowsToObjects(targetRowsRaw, 'TARGET_COL');
+  const masterRaw = rowsToObjects(masterRowsRaw, 'MASTER_COL');
+  validateRequiredSalesColumns(salesRaw);
+
+  const catalog = {};
+  const catalogByStyle = {};
+  masterRaw.forEach((r) => {
+    const skuRaw = String(readField(r, ['SKU', 'sku', 'UPC', 'upc']) || '').trim();
+    if (!skuRaw) return;
+    const sku = normalizeGroup(skuRaw);
+    const style = styleKey9(skuRaw);
+    const info = {
+      type: readField(r, ['TYPE', 'type']),
+      gender: readField(r, ['GENDER', 'gender']),
+      category: readField(r, ['CATEGORY', 'category']),
+      store: readField(r, ['STORE', 'store'])
+    };
+    catalog[sku] = info;
+    catalogByStyle[style] = info;
+  });
+
+  const sales = salesRaw.map((r) => {
+    const sku = String(readField(r, ['sku', 'itemcode', 'code']) || '').trim();
+    const upc = String(readField(r, ['upc', 'barcode', 'ean']) || '').trim();
+    const rawProduct = sku || upc;
+    const p9 = styleKey9(rawProduct);
+    const info = catalog[normalizeGroup(rawProduct)] || catalogByStyle[p9] || {};
+    const txDate = parseDate(readField(r, ['date', 'trans_date', 'transdate', '날짜', '日付']));
+    const monthDate = parseMonthFromRow(r, ['mm/yyyy', 'm/yyyy', 'mm-yyyy', 'm-yyyy', 'monthyear', 'month_year', 'month']);
+    const date = txDate || monthDate;
+    if (!date) return null;
+    const baseMonth = monthDate || date;
+    const billFlag = num(readField(r, BILL_FIELD_ALIASES));
+    const rawCat = readField(r, ['category', 'catogory', 'cat', 'division', 'dept', 'department']);
+    const store = normalizeGroup(readField(r, ['store', 'storename', 'store_name', 'shop', 'branch']) || info.store || '');
+    return {
+      date,
+      dateStr: localDateKey(date),
+      year: String(baseMonth.getFullYear()),
+      quarter: `Q${Math.ceil((baseMonth.getMonth() + 1) / 3)}`,
+      monthIndex: baseMonth.getMonth() + 1,
+      monthKey: monthKey(baseMonth),
+      monthLabelYY: monthLabelYY(baseMonth),
+      billFlag,
+      store,
+      sku: sku,
+      upc: normalizeGroup(upc),
+      productKey: p9,
+      type: normalizeGroup(readField(r, ['type', 'itemtype', 'product_type', 'producttype']) || info.type),
+      gender: normalizeGender(readField(r, ['gender', 'sex']) || info.gender),
+      promotion: normalizeGroup(readField(r, ['promotion', 'promo', 'program', 'campaign'])),
+      cashier: normalizeGroup(readField(r, ['cashier', 'staff', 'employee', 'seller'])),
+      category: deriveCategory(rawCat, info.category, readField(r, ['type', 'itemtype', 'product_type', 'producttype']) || info.type, rawProduct),
+      qty: num(readField(r, ['qty', 'quantity', 'pcs', 'count'])),
+      amount: num(readField(r, ['amount', 'sales', 'revenue', 'netamount', 'net_amount', 'price', 'total']))
+    };
+  }).filter(Boolean);
+
+  const targets = targetRaw.map((r) => {
+    const date = parseTargetMonth(r);
+    if (!date) return null;
+    return {
+      monthKey: monthKey(date),
+      year: String(date.getFullYear()),
+      monthIndex: date.getMonth() + 1,
+      monthLabelYY: monthLabelYY(date),
+      target: num(readField(r, ['target', 'kpi', 'budget', 'plan'])),
+      traffic: num(readField(r, ['traffic', 'trafic', 'visitors', 'footfall'])),
+      store: normalizeGroup(readField(r, ['store', 'storename', 'shop']))
+    };
+  }).filter(Boolean);
+
+  return { sales, targets };
+}
+
+function filteredSalesRows() {
+  const f = S.filters;
+  return S.raw.sales.filter((r) => {
+    if (f.year !== 'all' && r.year !== f.year) return false;
+    if (f.quarter !== 'all' && r.quarter !== f.quarter) return false;
+    if (f.month !== 'all' && String(r.monthIndex).padStart(2, '0') !== f.month) return false;
+    if (f.category !== 'all' && r.category !== f.category) return false;
+    if (f.gender !== 'all' && r.gender !== f.gender) return false;
+    if (f.type !== 'all' && r.type !== f.type) return false;
+    return true;
+  });
+}
+
+function filteredTargetsRows() {
+  const f = S.filters;
+  return S.raw.targets.filter((t) => {
+    if (f.year !== 'all' && t.year !== f.year) return false;
+    if (f.month !== 'all' && String(t.monthIndex).padStart(2, '0') !== f.month) return false;
+    if (f.quarter !== 'all' && `Q${Math.ceil(t.monthIndex / 3)}` !== f.quarter) return false;
+    return true;
+  });
+}
+
+function safeGroupSum(rows, key) {
+  const map = new Map();
+  rows.forEach((r) => {
+    const k = normalizeGroup(r[key]);
+    map.set(k, num(map.get(k)) + num(r.amount));
+  });
+  return [...map.entries()].map(([label, value]) => ({ label, value: num(value) })).sort((a, b) => b.value - a.value);
+}
+
+function aggregate() {
+  const rows = filteredSalesRows();
+  const targets = filteredTargetsRows();
+  const monthMap = new Map();
+
+  rows.forEach((r) => {
+    if (!monthMap.has(r.monthKey)) {
+      monthMap.set(r.monthKey, {
+        monthKey: r.monthKey,
+        monthIndex: r.monthIndex,
+        monthLabelYY: r.monthLabelYY,
+        year: r.year,
+        actual: 0,
+        target: 0,
+        traffic: 0,
+        qty: 0,
+        bills: 0
+      });
+    }
+    const m = monthMap.get(r.monthKey);
+    m.actual += num(r.amount);
+    m.qty += num(r.qty);
+    m.bills += num(r.billFlag);
+  });
+
+  targets.forEach((t) => {
+    if (!monthMap.has(t.monthKey)) {
+      monthMap.set(t.monthKey, {
+        monthKey: t.monthKey,
+        monthIndex: t.monthIndex,
+        monthLabelYY: t.monthLabelYY,
+        year: t.year,
+        actual: 0,
+        target: 0,
+        traffic: 0,
+        qty: 0,
+        bills: 0
+      });
+    }
+    const m = monthMap.get(t.monthKey);
+    m.target += num(t.target);
+    m.traffic += num(t.traffic);
+  });
+
+  const months = [...monthMap.values()].sort((a, b) => a.monthKey.localeCompare(b.monthKey)).map((m) => {
+    const billCount = num(m.bills);
+    const actual = num(m.actual);
+    const traffic = num(m.traffic);
+    const qty = num(m.qty);
+    return {
+      ...m,
+      billCount,
+      actual,
+      traffic,
+      target: num(m.target),
+      qty,
+      cvr: traffic > 0 ? (billCount / traffic) * 100 : 0,
+      atv: billCount > 0 ? actual / billCount : 0,
+      upt: billCount > 0 ? qty / billCount : 0
+    };
+  });
+  const totalSales = rows.reduce((s, r) => s + num(r.amount), 0);
+  const qty = rows.reduce((s, r) => s + num(r.qty), 0);
+  const bills = rows.reduce((s, r) => s + (num(r.billFlag) > 0 ? num(r.billFlag) : 0), 0);
+  const traffic = months.reduce((s, m) => s + num(m.traffic), 0);
+  const target = months.reduce((s, m) => s + num(m.target), 0);
+  const cvr = traffic > 0 ? (bills / traffic) * 100 : 0;
+  const atv = bills > 0 ? totalSales / bills : 0;
+  const upt = bills > 0 ? qty / bills : 0;
+  const topProducts = (() => {
+    const map = new Map();
+    rows.forEach((r) => {
+      const key = normalizeGroup(r.productKey || r.sku || r.upc);
+      const p = map.get(key) || { sku: key, type: r.type, gender: r.gender, value: 0, qty: 0 };
+      p.value += num(r.amount);
+      p.qty += num(r.qty);
+      map.set(key, p);
+    });
+    return [...map.values()].sort((a, b) => b.value - a.value).slice(0, 30);
+  })();
+  const promotionStats = (() => {
+    const map = new Map();
+    rows.forEach((r) => {
+      const key = normalizeGroup(r.promotion);
+      const p = map.get(key) || { label: key, amount: 0, qty: 0, bills: 0 };
+      p.amount += num(r.amount);
+      p.qty += num(r.qty);
+      p.bills += num(r.billFlag) > 0 ? num(r.billFlag) : 0;
+      map.set(key, p);
+    });
+    return [...map.values()].sort((a, b) => b.amount - a.amount);
+  })();
+  const cashierStats = (() => {
+    const map = new Map();
+    rows.forEach((r) => {
+      const key = normalizeGroup(r.cashier);
+      if (!key || key === 'UNKNOWN') return;
+      const p = map.get(key) || { label: key, amount: 0, qty: 0, bills: 0 };
+      p.amount += num(r.amount);
+      p.qty += num(r.qty);
+      p.bills += num(r.billFlag) > 0 ? num(r.billFlag) : 0;
+      map.set(key, p);
+    });
+    return [...map.values()].sort((a, b) => b.amount - a.amount);
+  })();
+
+  const sortedDates = rows.map((r) => r.date).sort((a, b) => a - b);
+  const rangeFrom = sortedDates[0]?.toLocaleDateString('vi-VN') || '—';
+  const rangeTo = sortedDates[sortedDates.length - 1]?.toLocaleDateString('vi-VN') || '—';
+
+  return {
+    rows, months, totalSales, qty, bills, traffic, target, cvr, atv, upt, topProducts, byType: safeGroupSum(rows, 'type'),
+    byGender: safeGroupSum(rows, 'gender'), promotionStats, cashierStats, rangeFrom, rangeTo
+  };
+}
+
+function destroyChart(key) {
+  if (S.charts[key]) {
+    try { S.charts[key].destroy(); } catch (_) {}
+    S.charts[key] = null;
+  }
+}
+function destroyAllCharts() {
+  Object.keys(S.charts).forEach((k) => destroyChart(k));
+}
+
+function safeDataset(values, fallbackLen) {
+  const arr = (values || []).map((v) => num(v));
+  return arr.length ? arr : new Array(fallbackLen).fill(0);
+}
+function safeLabels(labels) {
+  return labels && labels.length ? labels : ['No Data'];
+}
+
+function baseOptions(yFmt, ttFmt, showLegend = false) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    plugins: {
+      legend: {
+        display: showLegend,
+        labels: {
+          color: css('--text-2'),
+          boxWidth: 10,
+          padding: 12,
+          font: { size: 11 }
+        }
+      },
+      tooltip: {
+        enabled: true,
+        backgroundColor: css('--surface'),
+        titleColor: css('--text-2'),
+        bodyColor: css('--text-2'),
+        borderColor: css('--border'),
+        borderWidth: 1,
+        padding: 10,
+        callbacks: {
+          label: (ctx) => (ttFmt ? ttFmt(ctx) : `${ctx.dataset.label || ''}: ${num(ctx.raw)}`)
+        }
+      }
+    },
+    scales: {
+      x: { grid: { color: css('--border'), drawBorder: false }, ticks: { color: css('--text-3'), font: { size: 11 } } },
+      y: {
+        beginAtZero: true,
+        grid: { color: css('--border'), drawBorder: false },
+        ticks: { color: css('--text-3'), font: { size: 11 }, callback: (v) => (yFmt ? yFmt(v) : v) }
+      }
+    }
+  };
+}
+
+function renderNoDataLegend(legendId) {
+  document.getElementById(legendId).innerHTML = '<div class="legend-item"><div class="legend-name">No Data</div></div>';
+}
+
+// External HTML tooltip — renders in body so it can overflow small chart containers
+function externalTooltipHandler(context) {
+  let el = document.getElementById('chartjs-ext-tooltip');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'chartjs-ext-tooltip';
+    el.style.cssText = 'position:fixed;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--text-2);pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.15);opacity:0;transition:opacity .12s;white-space:nowrap';
+    document.body.appendChild(el);
+  }
+  const tt = context.tooltip;
+  if (!tt || tt.opacity === 0) { el.style.opacity = 0; return; }
+  const title = (tt.title || []).join(' ');
+  const body  = (tt.body  || []).map(b => b.lines.join('<br>')).join('<br>');
+  el.innerHTML = (title ? `<div style="font-weight:600;margin-bottom:2px;color:var(--text)">${title}</div>` : '') + body;
+  const rect = context.chart.canvas.getBoundingClientRect();
+  let x = rect.left + tt.caretX + 12;
+  let y = rect.top  + tt.caretY - 4;
+  // Keep inside viewport
+  const elRect = el.getBoundingClientRect();
+  if (x + elRect.width > window.innerWidth - 8) x = rect.left + tt.caretX - elRect.width - 12;
+  if (y + elRect.height > window.innerHeight - 8) y = window.innerHeight - elRect.height - 8;
+  if (y < 8) y = 8;
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  el.style.opacity = 1;
+}
+
+function renderDoughnut(chartKey, canvasId, centerId, legendId, data, colors) {
+  destroyChart(chartKey);
+  const clean = (data || []).filter((x) => num(x.value) > 0);
+  const total = clean.reduce((s, x) => s + num(x.value), 0);
+  document.getElementById(centerId).textContent = total > 0 ? fmtShort(total) : 'No Data';
+  if (total <= 0) {
+    renderNoDataLegend(legendId);
+    return;
+  }
+
+  S.charts[chartKey] = new Chart(document.getElementById(canvasId), {
+    type: 'doughnut',
+    data: {
+      labels: clean.map((x) => x.label),
+      datasets: [{
+        data: clean.map((x) => num(x.value)),
+        backgroundColor: clean.map((_, i) => colors[i % colors.length]),
+        borderColor: css('--surface'),
+        borderWidth: 2,
+        hoverOffset: 5
+      }]
+    },
+    options: {
+      responsive: false,
+      maintainAspectRatio: true,
+      cutout: '68%',
+      animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          enabled: false,
+          external: externalTooltipHandler,
+          callbacks: {
+            label: (ctx) => {
+              const value = num(ctx.raw);
+              const pct = total > 0 ? (value / total) * 100 : 0;
+              return `${ctx.label}: ${fmtVND(value)} (${fmtPct(pct)})`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  document.getElementById(legendId).innerHTML = clean.slice(0, 6).map((x, i) => {
+    const pct = total > 0 ? (num(x.value) / total) * 100 : 0;
+    return `
+      <div class="legend-item">
+        <div class="legend-dot" style="background:${colors[i % colors.length]}"></div>
+        <div class="legend-name" title="${esc(x.label)}">${esc(x.label)}</div>
+        <div class="legend-pct">${fmtPct(pct)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderPromotionInfo(m) {
+  const el = document.getElementById('promotionInfo');
+  const list = (m.promotionStats || []).filter((x) => num(x.amount) > 0).slice(0, 12);
+  if (!list.length) {
+    el.innerHTML = '<div style="padding:14px 16px;color:var(--text-3);font-size:12px;text-align:center">No Data</div>';
+    return;
+  }
+  const maxVal = num(list[0].amount) || 1;
+  const totalVal = list.reduce((s, x) => s + num(x.amount), 0);
+  el.innerHTML = `<div class="product-list promotion-list">${list.map((x, i) => `
+    <div class="product-item">
+      <div class="p-rank ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}">${i + 1}</div>
+      <div class="p-info">
+        <div class="p-name" title="${esc(x.label)}">${esc(x.label)}</div>
+        <div class="p-meta">${fmtN(x.qty)} units · ${fmtN(x.bills)} bills</div>
+        <div class="p-bar-wrap"><div class="p-bar" style="width:${Math.max(6, (num(x.amount) / maxVal) * 100)}%"></div></div>
+      </div>
+      <div class="p-value">
+        <div class="p-amount">${fmtShort(x.amount)}</div>
+        <div class="p-qty">${fmtPct(totalVal > 0 ? (num(x.amount) / totalVal) * 100 : 0)}</div>
+      </div>
+    </div>
+  `).join('')}</div>`;
+}
+
+function renderCashierBar(m) {
+  const picker = document.getElementById('cashierPicker');
+  const all = m.cashierStats || [];
+  const names = all.map((x) => x.label);
+  const shown = all.slice(0, 20);
+  const listRevTotal = shown.reduce((s, x) => s + num(x.amount), 0);
+  if (!names.length) {
+    picker.innerHTML = '<div style="font-size:11px;color:var(--text-3)">No cashier data</div>';
+    destroyChart('cashier');
+    return;
+  }
+
+  S.cashierSelected = S.cashierSelected.filter((n) => names.includes(n));
+  if (!S.cashierSelected.length) S.cashierSelected = names.slice(0, Math.min(8, names.length));
+
+  picker.innerHTML = shown.map((x, i) => `
+    <label class="cashier-chip">
+      <input type="checkbox" data-cashier-idx="${i}" ${S.cashierSelected.includes(x.label) ? 'checked' : ''}>
+      <span>${esc(x.label)} (${fmtPct(listRevTotal > 0 ? (num(x.amount) / listRevTotal) * 100 : 0)})</span>
+    </label>
+  `).join('');
+
+  picker.querySelectorAll('input[data-cashier-idx]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      S.cashierSelected = [...picker.querySelectorAll('input[data-cashier-idx]:checked')]
+        .map((x) => shown[Number(x.getAttribute('data-cashier-idx'))]?.label)
+        .filter(Boolean);
+      renderCashierBar(m);
+    });
+  });
+
+  let selected = all.filter((x) => S.cashierSelected.includes(x.label));
+  if (!selected.length && names.length) {
+    S.cashierSelected = [names[0]];
+    return renderCashierBar(m);
+  }
+  destroyChart('cashier');
+  S.charts.cashier = new Chart(document.getElementById('chartCashierBar'), {
+    type: 'bar',
+    data: {
+      labels: selected.map((x) => x.label),
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Revenue',
+          data: selected.map((x) => x.amount),
+          yAxisID: 'y',
+          backgroundColor: css('--brand-mid'),
+          borderRadius: 6,
+          maxBarThickness: 48,
+          categoryPercentage: 0.65,
+          barPercentage: 0.9,
+          order: 2
+        },
+        {
+          type: 'line',
+          label: 'Units',
+          data: selected.map((x) => x.qty),
+          yAxisID: 'y1',
+          borderColor: css('--accent'),
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 5,
+          tension: 0.25,
+          order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          align: 'end',
+          labels: {
+            color: css('--text-2'),
+            boxWidth: 10,
+            padding: 10,
+            font: { size: 11 }
+          }
+        },
+        tooltip: {
+          enabled: true,
+          backgroundColor: css('--surface'),
+          titleColor: css('--text-2'),
+          bodyColor: css('--text-2'),
+          borderColor: css('--border'),
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            label: (ctx) => {
+              const label = ctx.dataset.label || '';
+              const raw = num(ctx.raw);
+              if (label === 'Revenue') {
+                return `Revenue: ${fmtVND(raw)}`;
+              }
+              if (label === 'Units') {
+                return `Units: ${fmtN(raw)}`;
+              }
+              return `${label}: ${raw}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: css('--border'), drawBorder: false },
+          ticks: { color: css('--text-3'), font: { size: 11 }, maxRotation: 45, minRotation: 0 }
+        },
+        y: {
+          type: 'linear',
+          position: 'left',
+          beginAtZero: true,
+          grace: '8%',
+          title: { display: true, text: 'Revenue', color: css('--text-3'), font: { size: 11 } },
+          grid: { color: css('--border'), drawBorder: false },
+          ticks: { color: css('--text-3'), font: { size: 11 }, callback: (v) => fmtShort(v) }
+        },
+        y1: {
+          type: 'linear',
+          position: 'right',
+          beginAtZero: true,
+          grace: '8%',
+          title: { display: true, text: 'Units', color: css('--text-3'), font: { size: 11 } },
+          grid: { drawOnChartArea: false },
+          ticks: { color: css('--accent'), font: { size: 11 }, callback: (v) => fmtN(v) }
+        }
+      }
+    }
+  });
+}
+
+function renderCharts(m) {
+  const labels = safeLabels(m.months.map((x) => x.monthLabelYY));
+  const hasData = m.months.length > 0;
+  const actual = safeDataset(m.months.map((x) => x.actual), labels.length);
+  const target = safeDataset(m.months.map((x) => x.target), labels.length);
+  const bills = safeDataset(m.months.map((x) => x.billCount), labels.length);
+  const traffic = safeDataset(m.months.map((x) => x.traffic), labels.length);
+
+  destroyChart('rev');
+  const revData = S.revMode === 'cumulative' ? actual.reduce((acc, x, i) => [...acc, x + (acc[i - 1] || 0)], []) : actual;
+  const tgtData = S.revMode === 'cumulative' ? target.reduce((acc, x, i) => [...acc, x + (acc[i - 1] || 0)], []) : target;
+  const revOptions = baseOptions((v) => fmtShort(v), (ctx) => `${ctx.dataset.label}: ${fmtVND(ctx.raw)}`);
+  revOptions.layout = { padding: { top: 4, right: 8, bottom: 2, left: 2 } };
+  revOptions.scales.x.grid = { color: css('--border'), drawBorder: false };
+  revOptions.scales.x.ticks.color = css('--text-3');
+  revOptions.scales.x.ticks.font = { size: 11 };
+  revOptions.scales.x.ticks.maxRotation = labels.length > 10 ? 40 : 0;
+  revOptions.scales.x.ticks.minRotation = 0;
+  revOptions.scales.x.ticks.autoSkip = true;
+  revOptions.scales.x.ticks.autoSkipPadding = 4;
+  revOptions.scales.y.grace = '6%';
+  S.charts.rev = new Chart(document.getElementById('chartRevenue'), {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Actual',
+          data: revData,
+          backgroundColor: revData.map((v, i) => (v >= num(tgtData[i]) && num(tgtData[i]) > 0 ? css('--green') : css('--brand-mid'))),
+          borderRadius: 6,
+          maxBarThickness: 44,
+          categoryPercentage: 0.72,
+          barPercentage: 0.88,
+          order: 2
+        },
+        {
+          type: 'line',
+          label: 'Target',
+          data: tgtData,
+          borderColor: css('--accent'),
+          borderWidth: 2,
+          borderDash: [5, 4],
+          pointRadius: 3,
+          tension: 0.25,
+          order: 1,
+          spanGaps: true
+        }
+      ]
+    },
+    options: revOptions
+  });
+
+  destroyChart('traffic');
+  S.charts.traffic = new Chart(document.getElementById('chartTraffic'), {
+    data: {
+      labels,
+      datasets: [
+        { type: 'bar', label: 'Bills', data: bills, backgroundColor: css('--brand-mid'), borderRadius: 4 },
+        { type: 'line', label: 'Traffic', data: traffic, borderColor: css('--green'), borderWidth: 2, pointRadius: 3, tension: 0.2 }
+      ]
+    },
+    options: baseOptions((v) => fmtShort(v), (ctx) => `${ctx.dataset.label}: ${fmtN(ctx.raw)}`)
+  });
+
+  renderDoughnut('type', 'chartType', 'dTypeVal', 'legendType', m.byType, PALETTE.multi);
+  renderDoughnut('gender', 'chartGender', 'dGenderVal', 'legendGender', m.byGender, PALETTE.gender);
+  renderPromotionInfo(m);
+  renderCashierBar(m);
+
+  if (!hasData) return;
+}
+
+function renderKPIs(m) {
+  document.getElementById('kSales').textContent = fmtVNDShort(m.totalSales);
+  document.getElementById('kBills').textContent = fmtN(m.bills);
+  document.getElementById('kQty').textContent = fmtN(m.qty);
+  document.getElementById('kTraffic').textContent = fmtN(m.traffic);
+  document.getElementById('kCVR').textContent = fmtPct(m.cvr);
+  document.getElementById('kUPT').textContent = num(m.upt).toFixed(2);
+  document.getElementById('kATV').textContent = fmtVNDShort(m.atv);
+
+  // Target + Achievement %
+  const target = num(m.target);
+  const tgtEl = document.getElementById('kTarget');
+  const achEl = document.getElementById('kAchieve');
+  const achSub = document.getElementById('kAchieveSub');
+  const achBar = document.getElementById('kAchieveBar');
+
+  tgtEl.textContent = target > 0 ? fmtVNDShort(target) : '—';
+  achEl.classList.remove('good', 'warn', 'bad');
+
+  if (target > 0) {
+    const pct = (num(m.totalSales) / target) * 100;
+    achEl.textContent = fmtPct(pct);
+    const gap = num(m.totalSales) - target;
+    achSub.textContent = (gap >= 0 ? 'Vượt ' : 'Thiếu ') + fmtVNDShort(Math.abs(gap));
+    let cls, grad;
+    if (pct >= 100)      { cls = 'good'; grad = 'linear-gradient(90deg,#16a34a,#4ade80)'; }
+    else if (pct >= 80)  { cls = 'warn'; grad = 'linear-gradient(90deg,#d97706,#fbbf24)'; }
+    else                 { cls = 'bad';  grad = 'linear-gradient(90deg,#dc2626,#f87171)'; }
+    achEl.classList.add(cls);
+    achBar.style.background = grad;
+  } else {
+    achEl.textContent = '—';
+    achSub.textContent = 'Chưa có target';
+    achBar.style.background = 'linear-gradient(90deg,#94a3b8,#cbd5e1)';
+  }
+}
+
+function renderTopProducts(m) {
+  const el = document.getElementById('topProductList');
+  if (!m.topProducts.length) {
+    el.innerHTML = '<div style="padding:14px 16px;color:var(--text-3);font-size:12px;text-align:center">No Data</div>';
+    return;
+  }
+  const list = m.topProducts.slice(0, 30);
+  const maxVal = num(list[0].value) || 1;
+  el.innerHTML = list.map((p, i) => `
+    <div class="product-item">
+      <div class="p-rank ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}">${i + 1}</div>
+      <div class="p-info">
+        <div class="p-name" title="${esc(p.sku)}">${esc(p.sku)}</div>
+        <div class="p-meta">${esc(p.type)} · ${esc(p.gender)}</div>
+        <div class="p-bar-wrap"><div class="p-bar" style="width:${Math.max(6, (num(p.value) / maxVal) * 100)}%"></div></div>
+      </div>
+      <div class="p-value">
+        <div class="p-amount">${fmtShort(p.value)}</div>
+        <div class="p-qty">${fmtN(p.qty)} pcs</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function initFilters() {
+  initYoyFilters();
+  const s = S.raw.sales;
+  const options = (arr, id, allLabel, includeUnknown = false) => {
+    const values = [...new Set(arr.filter((v) => v && (includeUnknown || v !== 'UNKNOWN')))].sort();
+    document.getElementById(id).innerHTML = `<option value="all">${allLabel}</option>${values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('')}`;
+  };
+  options(s.map((r) => r.year), 'fYear', 'All Years');
+  options(s.map((r) => r.quarter), 'fQuarter', 'All Quarters');
+  const monthValues = [...new Set(s.map((r) => Number(r.monthIndex)).filter((v) => Number.isFinite(v) && v >= 1 && v <= 12))]
+    .sort((a, b) => a - b);
+  document.getElementById('fMonth').innerHTML = `<option value="all">All Months</option>${monthValues.map((m) => {
+    const value = String(m).padStart(2, '0');
+    return `<option value="${value}">${MONTH_NAMES[m - 1]}</option>`;
+  }).join('')}`;
+  options(s.map((r) => r.category), 'fCategory', 'All Categories', true);
+  options(s.map((r) => r.gender), 'fGender', 'All Gender');
+  options(s.map((r) => r.type), 'fType', 'All Types');
+}
+
+function syncFilters() {
+  document.getElementById('fYear').value = S.filters.year;
+  document.getElementById('fQuarter').value = S.filters.quarter;
+  document.getElementById('fMonth').value = S.filters.month;
+  document.getElementById('fCategory').value = S.filters.category;
+  document.getElementById('fGender').value = S.filters.gender;
+  document.getElementById('fType').value = S.filters.type;
+  highlightActiveFilters();
+}
+
+function highlightActiveFilters() {
+  [['fYear','year'],['fQuarter','quarter'],['fMonth','month'],['fGender','gender'],['fType','type'],['fCategory','category']]
+    .forEach(([id, key]) => {
+      const sel = document.getElementById(id);
+      const group = sel?.closest('.filter-group');
+      const isActive = S.filters[key] !== 'all';
+      sel?.classList.toggle('active-filter', isActive);
+      group?.classList.toggle('has-active', isActive);
+    });
+}
+
+function syncCharts() {
+  Object.values(S.charts).forEach(ch => {
+    if (ch && typeof ch.resize === 'function') { try { ch.resize(); } catch(_) {} }
+  });
+}
+
+function renderAll() {
+  if (!S.raw.sales.length) return;
+  const m = aggregate();
+  renderKPIs(m);
+  renderCharts(m);
+  renderTopProducts(m);
+  renderYoy();
+  renderForecast();
+  requestAnimationFrame(() => syncCharts());
+}
+
+// ===== REVENUE FORECAST =====
+// Builds monthly revenue history from ALL sales (ignoring filters so forecast
+// reflects the business as a whole). Uses two methods:
+//  - Seasonal: same-month-last-year × recent YoY growth (preferred when prior-year data exists)
+//  - Linear:   trailing 6-month average × monthly growth rate (fallback)
+function buildMonthlyHistory() {
+  const map = new Map();
+  S.raw.sales.forEach(r => {
+    const d = r.date; if (!d) return;
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    map.set(key, (map.get(key) || 0) + num(r.amount));
+  });
+  return [...map.entries()].sort((a,b) => a[0] < b[0] ? -1 : 1)
+    .map(([k, v]) => ({ key: k, y: Number(k.slice(0,4)), m: Number(k.slice(5,7)), value: v }));
+}
+
+function forecastMonth(history, targetY, targetM) {
+  // Try seasonal: same month last year × growth
+  const sameLastYear = history.find(h => h.y === targetY - 1 && h.m === targetM);
+  if (sameLastYear && sameLastYear.value > 0) {
+    // Compute average YoY growth using up to 3 most recent complete-year-pairs
+    const pairs = [];
+    history.forEach(h => {
+      const prev = history.find(p => p.y === h.y - 1 && p.m === h.m);
+      if (prev && prev.value > 0) pairs.push(h.value / prev.value);
+    });
+    const recent = pairs.slice(-3);
+    const growth = recent.length ? recent.reduce((s,v)=>s+v,0) / recent.length : 1;
+    return { value: sameLastYear.value * growth, method: 'seasonal', growth };
+  }
+  // Fallback: linear trend from trailing 6 months
+  const tail = history.slice(-6);
+  if (!tail.length) return { value: 0, method: 'none' };
+  const avg = tail.reduce((s, h) => s + h.value, 0) / tail.length;
+  if (tail.length < 2) return { value: avg, method: 'flat' };
+  const growthRate = (tail[tail.length-1].value / tail[0].value) ** (1 / (tail.length - 1));
+  return { value: avg * (Number.isFinite(growthRate) ? growthRate : 1), method: 'linear' };
+}
+
+function renderForecast() {
+  const history = buildMonthlyHistory();
+  const methodEl = document.getElementById('forecastMethod');
+  if (history.length < 2) {
+    methodEl.textContent = 'Chưa đủ dữ liệu để dự báo (cần ≥ 2 tháng)';
+    ['fcMonthValue','fcQuarterValue','fcYearValue'].forEach(id =>
+      document.getElementById(id).textContent = '—');
+    return;
+  }
+
+  const last = history[history.length - 1];
+  // Next month
+  let nm = last.m + 1, ny = last.y;
+  if (nm > 12) { nm = 1; ny++; }
+  const fc1 = forecastMonth(history, ny, nm);
+
+  // Next quarter (3 months after the next month)
+  let q = [];
+  let cy = ny, cm = nm;
+  for (let i = 0; i < 3; i++) {
+    q.push(forecastMonth(history, cy, cm));
+    cm++; if (cm > 12) { cm = 1; cy++; }
+  }
+  const quarterTotal = q.reduce((s, f) => s + f.value, 0);
+
+  // Current year: actual months so far + forecast remaining months
+  const currentYear = last.y;
+  const monthsActualThisYear = history.filter(h => h.y === currentYear);
+  const actualSum = monthsActualThisYear.reduce((s, h) => s + h.value, 0);
+  let yearForecast = actualSum;
+  const lastActualMonth = Math.max(...monthsActualThisYear.map(h => h.m));
+  for (let m = lastActualMonth + 1; m <= 12; m++) {
+    yearForecast += forecastMonth(history, currentYear, m).value;
+  }
+
+  // Method label
+  const methodLabels = { seasonal: 'theo mùa vụ (YoY)', linear: 'theo trend gần đây', flat: 'theo trung bình', none: 'không đủ dữ liệu' };
+  const primaryMethod = methodLabels[fc1.method] || fc1.method;
+  methodEl.textContent = `Phương pháp: ${primaryMethod} · Lịch sử: ${history.length} tháng (${history[0].key} → ${last.key})`;
+
+  // Confidence ±15% (loose band — adjust based on data variability later)
+  const band = (v) => `${fmtVNDShort(v * 0.85)} – ${fmtVNDShort(v * 1.15)}`;
+  const vsText = (forecastVal, baseVal, baseLabel) => {
+    if (!baseVal || baseVal <= 0) return `<span style="color:var(--text-3)">Chưa có ${baseLabel} để so</span>`;
+    const pct = ((forecastVal - baseVal) / baseVal) * 100;
+    const cls = pct >= 0 ? 'up' : 'down';
+    const sign = pct >= 0 ? '↑' : '↓';
+    return `<span class="${cls}">${sign} ${fmtPct(Math.abs(pct))}</span> vs ${baseLabel}`;
+  };
+
+  // Tháng tiếp theo
+  document.getElementById('fcMonthName').textContent = `${MONTH_NAMES[nm-1]} ${ny}`;
+  document.getElementById('fcMonthValue').textContent = fmtVNDShort(fc1.value);
+  document.getElementById('fcMonthRange').textContent = `Khoảng: ${band(fc1.value)}`;
+  document.getElementById('fcMonthVs').innerHTML = vsText(fc1.value, last.value, `${MONTH_NAMES[last.m-1]} ${last.y}`);
+
+  // Quý tiếp theo
+  const qStart = `${MONTH_NAMES[nm-1]} ${ny}`;
+  const qEndM = ((nm - 1 + 2) % 12) + 1;
+  const qEndY = nm + 2 > 12 ? ny + 1 : ny;
+  document.getElementById('fcQuarterName').textContent = `${qStart} → ${MONTH_NAMES[qEndM-1]} ${qEndY}`;
+  document.getElementById('fcQuarterValue').textContent = fmtVNDShort(quarterTotal);
+  document.getElementById('fcQuarterRange').textContent = `Khoảng: ${band(quarterTotal)}`;
+  // Compare with last 3 actual months
+  const lastQ = history.slice(-3).reduce((s, h) => s + h.value, 0);
+  document.getElementById('fcQuarterVs').innerHTML = vsText(quarterTotal, lastQ, '3 tháng gần nhất');
+
+  // Cả năm
+  document.getElementById('fcYearName').textContent = `Năm ${currentYear}`;
+  document.getElementById('fcYearValue').textContent = fmtVNDShort(yearForecast);
+  document.getElementById('fcYearRange').textContent = `Thực tế ${monthsActualThisYear.length}/12 tháng + dự báo ${12 - monthsActualThisYear.length} tháng`;
+  const prevYearSum = history.filter(h => h.y === currentYear - 1).reduce((s, h) => s + h.value, 0);
+  document.getElementById('fcYearVs').innerHTML = vsText(yearForecast, prevYearSum, `năm ${currentYear - 1}`);
+}
+
+function switchRevChart(mode, btn) {
+  S.revMode = mode;
+  document.querySelectorAll('.chart-tab').forEach((t) => t.classList.remove('active'));
+  btn.classList.add('active');
+  if (!S.raw.sales.length) return;
+  const m = aggregate();
+  renderCharts(m);
+}
+window.switchRevChart = switchRevChart;
+
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.getElementById('themeIconSun').style.display = isDark ? '' : 'none';
+  document.getElementById('themeIconMoon').style.display = isDark ? 'none' : '';
+  if (S.raw.sales.length) renderAll();
+}
+
+async function onUpload(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  await loadFile(file);
+  e.target.value = '';
+}
+
+function setStatus(text, isIdle = false) {
+  const dot = document.getElementById('statusDot');
+  if (isIdle) dot.classList.add('idle');
+  else dot.classList.remove('idle');
+  document.getElementById('statusText').textContent = text;
+  document.getElementById('statusTime').textContent = new Date().toLocaleString('vi-VN');
+}
+
+// ---- Shared helper: ingest workbook + reset UI state ----
+function applyWorkbook(wb, successMsg) {
+  S.raw = ingestWorkbook(wb);
+  S.filters = { year: 'all', quarter: 'all', month: 'all', category: 'all', gender: 'all', type: 'all' };
+  S.cashierSelected = [];
+  initFilters();
+  syncFilters();
+  destroyAllCharts();
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('dashContent').style.display = 'block';
+  renderAll();
+  setStatus(successMsg, false);
+}
+
+// ---- Fetch with timeout (returns response or throws) ----
+async function fetchWithTimeout(url, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal, cache: 'no-store' });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ---- Pre-process CSV text from Google Sheets ----
+function preprocessGSheetCsv(text) {
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+  // Fix EU-style decimal commas in quoted numbers: "5860000,86" -> 5860000.86
+  text = text.replace(/"(\d+),(\d+)"/g, '$1.$2');
+  // Convert US M/D/YYYY -> ISO YYYY-MM-DD so parseDate doesn't read as D/M/Y
+  text = text.replace(/(^|[,\n"\s])(\d{1,2})\/(\d{1,2})\/(\d{4})(?=[,\n"\s]|$)/g,
+    (_, pre, mo, d, y) => `${pre}${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+  return text;
+}
+
+async function loadFile(file) {
+  const overlay = document.getElementById('loadingOverlay');
+  overlay.classList.add('show');
+  setStatus('Đang tải dữ liệu…', false);
+  try {
+    const lower = (file.name || '').toLowerCase();
+    let wb;
+    if (lower.endsWith('.csv')) {
+      let text = await file.text();
+      if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+      wb = XLSX.read(text, { type: 'string', cellDates: true });
+    } else {
+      const buf = await file.arrayBuffer();
+      wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    }
+    applyWorkbook(wb, `Đã tải: ${file.name} · ${fmtN(S.raw.sales.length)} dòng`);
+  } catch (err) {
+    console.error(err);
+    destroyAllCharts();
+    setStatus(`Lỗi: ${err.message}`, true);
+    alert(`⚠️ ${err.message}\n\nVui lòng kiểm tra file Excel và các cột bắt buộc:\n- DATE (ngày giao dịch)\n- BILL (0/1)\n- AMOUNT (doanh thu)\n- QUANTITY (số lượng)\n\nKhuyến nghị thêm cột MM/YYYY để map tháng chính xác.`);
+  } finally {
+    overlay.classList.remove('show');
+  }
+}
+
+async function loadFromGSheets() {
+  const overlay = document.getElementById('loadingOverlay');
+  const syncBtn = document.getElementById('syncBtn');
+  overlay.classList.add('show');
+  syncBtn.disabled = true;
+  setStatus('Đang đồng bộ từ Google Sheets…', false);
+  try {
+    const cacheBuster = Date.now();
+    const entries = await Promise.all(
+      Object.entries(GSHEET_URLS).map(async ([name, url]) => {
+        const res = await fetchWithTimeout(`${url}&_=${cacheBuster}`, 30000);
+        if (!res.ok) throw new Error(`Không tải được sheet "${name}" (HTTP ${res.status})`);
+        const text = preprocessGSheetCsv(await res.text());
+        const parsed = XLSX.read(text, { type: 'string', cellDates: true });
+        const ws = parsed.Sheets[parsed.SheetNames[0]];
+        return [name, ws];
+      })
+    );
+    const wb = { SheetNames: [], Sheets: {} };
+    entries.forEach(([name, ws]) => { wb.SheetNames.push(name); wb.Sheets[name] = ws; });
+    const now = new Date();
+    applyWorkbook(wb, `Đồng bộ lúc ${now.toLocaleTimeString('vi-VN')} · ${fmtN(S.raw.sales.length)} dòng`);
+    syncBtn.title = `Đồng bộ lần cuối: ${now.toLocaleString('vi-VN')}`;
+  } catch (err) {
+    console.error(err);
+    const msg = err.name === 'AbortError'
+      ? 'Quá thời gian chờ (30s). Kiểm tra mạng và thử lại.'
+      : err.message;
+    setStatus(`Lỗi đồng bộ: ${msg}`, true);
+    if (!S.raw.sales.length) {
+      // First load failed — show empty state so user has clear next action
+      document.getElementById('emptyState').style.display = 'flex';
+      document.getElementById('dashContent').style.display = 'none';
+    } else {
+      alert(`⚠️ Không đồng bộ được từ Google Sheets:\n${msg}\n\nDữ liệu hiện vẫn là phiên bản gần nhất đã tải.`);
+    }
+  } finally {
+    overlay.classList.remove('show');
+    syncBtn.disabled = false;
+  }
+}
+
+// ======== DIMENSION FILTER HELPER (shared by dashboard + YOY) ========
+function applyDimFilters(rows) {
+  const f = S.filters;
+  return rows.filter(r => {
+    if (f.category !== 'all' && r.category !== f.category) return false;
+    if (f.gender   !== 'all' && r.gender   !== f.gender)   return false;
+    if (f.type     !== 'all' && r.type     !== f.type)     return false;
+    return true;
+  });
+}
+
+// ======== YOY COMPARISON ========
+const YOY = { metric: 'revenue', rangeType: 'month', month: 1, quarter: 1, customFrom: 1, customTo: 1 };
+window.setYoyMetric = function(metric, btn) {
+  YOY.metric = metric;
+  document.querySelectorAll('.yoy-metric-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  renderYoy();
+};
+window.onYoyRangeChange = function() {
+  YOY.rangeType = document.getElementById('yoyRangeType').value;
+  document.getElementById('yoyMonthRow').style.display   = YOY.rangeType === 'month'   ? '' : 'none';
+  document.getElementById('yoyQuarterRow').style.display = YOY.rangeType === 'quarter' ? '' : 'none';
+  document.getElementById('yoyCustomRow').style.display  = YOY.rangeType === 'custom'  ? '' : 'none';
+  renderYoy();
+};
+
+function initYoyFilters() {
+  const months = [...new Set(S.raw.sales.map(r => r.monthIndex).filter(v => v >= 1 && v <= 12))].sort((a,b)=>a-b);
+  const mOpts = months.map(m => `<option value="${m}">${MONTH_NAMES[m-1]}</option>`).join('');
+  document.getElementById('yoyMonth').innerHTML = mOpts;
+  document.getElementById('yoyCustomFrom').innerHTML = mOpts;
+  document.getElementById('yoyCustomTo').innerHTML = mOpts;
+  if (months.length) {
+    YOY.month = months[months.length - 1];
+    document.getElementById('yoyMonth').value = YOY.month;
+    YOY.customFrom = months[0];
+    YOY.customTo   = months[months.length - 1];
+    document.getElementById('yoyCustomFrom').value = YOY.customFrom;
+    document.getElementById('yoyCustomTo').value   = YOY.customTo;
+  }
+  document.getElementById('yoyMonth').addEventListener('change', e => { YOY.month = +e.target.value; renderYoy(); });
+  document.getElementById('yoyQuarter').addEventListener('change', e => { YOY.quarter = +e.target.value; renderYoy(); });
+  document.getElementById('yoyCustomFrom').addEventListener('change', e => { YOY.customFrom = +e.target.value; renderYoy(); });
+  document.getElementById('yoyCustomTo').addEventListener('change', e => { YOY.customTo = +e.target.value; renderYoy(); });
+}
+
+function getYoyRows(year) {
+  const rows = applyDimFilters(S.raw.sales).filter(r => r.year === String(year));
+  const rt = YOY.rangeType;
+  if (rt === 'month')   return rows.filter(r => r.monthIndex === YOY.month);
+  if (rt === 'quarter') return rows.filter(r => Math.ceil(r.monthIndex / 3) === YOY.quarter);
+  if (rt === 'ytd')     return rows;
+  if (rt === 'custom') {
+    const lo = Math.min(YOY.customFrom, YOY.customTo);
+    const hi = Math.max(YOY.customFrom, YOY.customTo);
+    return rows.filter(r => r.monthIndex >= lo && r.monthIndex <= hi);
+  }
+  return rows;
+}
+
+function getYoyTargetRows(year) {
+  return S.raw.targets.filter(t => {
+    if (t.year !== String(year)) return false;
+    const rt = YOY.rangeType;
+    if (rt === 'month')   return t.monthIndex === YOY.month;
+    if (rt === 'quarter') return Math.ceil(t.monthIndex / 3) === YOY.quarter;
+    if (rt === 'ytd')     return true;
+    if (rt === 'custom') {
+      const lo = Math.min(YOY.customFrom, YOY.customTo);
+      const hi = Math.max(YOY.customFrom, YOY.customTo);
+      return t.monthIndex >= lo && t.monthIndex <= hi;
+    }
+    return true;
+  });
+}
+
+function calcYoyMetrics(year) {
+  const rows = getYoyRows(year);
+  const tgts = getYoyTargetRows(year);
+  const revenue = rows.reduce((s,r) => s + num(r.amount), 0);
+  const qty     = rows.reduce((s,r) => s + num(r.qty), 0);
+  const bills   = rows.reduce((s,r) => s + (num(r.billFlag) > 0 ? num(r.billFlag) : 0), 0);
+  const traffic = tgts.reduce((s,t) => s + num(t.traffic), 0);
+  const target  = tgts.reduce((s,t) => s + num(t.target), 0);
+  const atv  = bills > 0 ? revenue / bills : 0;
+  const upt  = bills > 0 ? qty / bills : 0;
+  const cvr  = traffic > 0 ? (bills / traffic) * 100 : 0;
+  return { revenue, qty, bills, traffic, target, atv, upt, cvr, rows };
+}
+
+function getMetricVal(m, metric) {
+  if (metric === 'revenue') return m.revenue;
+  if (metric === 'bills')   return m.bills;
+  if (metric === 'qty')     return m.qty;
+  if (metric === 'atv')     return m.atv;
+  if (metric === 'cvr')     return m.cvr;
+  return 0;
+}
+
+function fmtMetricVal(v, metric) {
+  if (metric === 'revenue') return fmtVNDShort(v);
+  if (metric === 'atv')     return fmtVNDShort(v);
+  if (metric === 'cvr')     return fmtPct(v);
+  return fmtN(v);
+}
+
+function metricLabel(metric) {
+  return { revenue:'Revenue', bills:'Bills', qty:'Qty', atv:'ATV', cvr:'CVR%' }[metric] || metric;
+}
+
+function getYoyMonthlyData(year, months) {
+  const rows = getYoyRows(year);
+  const tgts = getYoyTargetRows(year);
+  return months.map(m => {
+    const mr = rows.filter(r => r.monthIndex === m);
+    const mt = tgts.filter(t => t.monthIndex === m);
+    const revenue = mr.reduce((s,r) => s + num(r.amount), 0);
+    const qty     = mr.reduce((s,r) => s + num(r.qty), 0);
+    const bills   = mr.reduce((s,r) => s + (num(r.billFlag) > 0 ? num(r.billFlag) : 0), 0);
+    const traffic = mt.reduce((s,t) => s + num(t.traffic), 0);
+    const atv  = bills > 0 ? revenue / bills : 0;
+    const cvr  = traffic > 0 ? (bills / traffic) * 100 : 0;
+    return { revenue, qty, bills, atv, cvr };
+  });
+}
+
+function renderYoy() {
+  const section = document.getElementById('yoySection');
+  if (!S.raw.sales.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  const allYears = [...new Set(S.raw.sales.map(r => r.year))].sort();
+  if (allYears.length < 1) return;
+
+  const metric = YOY.metric;
+  const metricsPerYear = {};
+  allYears.forEach(y => { metricsPerYear[y] = calcYoyMetrics(y); });
+
+  // Ẩn các năm không có data trong kỳ đang xem (revenue=0, bills=0, qty=0)
+  const years = allYears.filter(y => {
+    const m = metricsPerYear[y];
+    return m.revenue > 0 || m.bills > 0 || m.qty > 0;
+  });
+
+  // ── Year summary cards (all metrics per year) ──
+  const YEAR_COLORS = [
+    { accent:'#3558a8', bg:'rgba(53,88,168,.07)',  border:'rgba(53,88,168,.20)',  head:'#3558a8' },
+    { accent:'#2a7a50', bg:'rgba(42,122,80,.07)',  border:'rgba(42,122,80,.22)',  head:'#2a7a50' },
+    { accent:'#b85c28', bg:'rgba(184,92,40,.07)',  border:'rgba(184,92,40,.22)',  head:'#b85c28' },
+    { accent:'#6040a0', bg:'rgba(96,64,160,.07)',  border:'rgba(96,64,160,.20)',  head:'#6040a0' },
+  ];
+  let kpiHtml = '';
+  years.forEach((y, i) => {
+    const m = metricsPerYear[y];
+    const prev = i > 0 ? metricsPerYear[years[i-1]] : null;
+    const c = YEAR_COLORS[i % YEAR_COLORS.length];
+    const mkDelta = (cur, prv) => {
+      if (!prv || prv <= 0) return '<span class="yoy-year-metric-delta empty">&nbsp;</span>';
+      const pct = ((cur - prv) / prv) * 100;
+      const cls = pct > 0 ? 'up' : pct < 0 ? 'down' : 'neu';
+      const arrow = pct > 0 ? '▲' : pct < 0 ? '▼' : '•';
+      return `<span class="yoy-year-metric-delta ${cls}">${arrow}${Math.abs(pct).toFixed(1)}%</span>`;
+    };
+    const rows = [
+      { lbl: 'Revenue', val: fmtVNDShort(m.revenue), delta: prev ? mkDelta(m.revenue, prev.revenue) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'Target',    val: fmtVNDShort(m.target),  delta: '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'Bills',     val: fmtN(m.bills),          delta: prev ? mkDelta(m.bills, prev.bills) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'Traffic',   val: fmtN(m.traffic),        delta: prev ? mkDelta(m.traffic, prev.traffic) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'CVR',       val: fmtPct(m.cvr),          delta: prev ? mkDelta(m.cvr, prev.cvr) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'ATV',       val: fmtVNDShort(m.atv),     delta: prev ? mkDelta(m.atv, prev.atv) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'UPT',       val: (m.upt||0).toFixed(2),  delta: prev ? mkDelta(m.upt, prev.upt) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'Qty',       val: fmtN(m.qty),            delta: prev ? mkDelta(m.qty, prev.qty) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+    ];
+    kpiHtml += `
+      <div class="yoy-year-card" style="background:${c.bg};border-color:${c.border};--card-accent:${c.accent}">
+        <div class="yoy-year-card-head" style="color:${c.head};font-size:16px;letter-spacing:.5px">${y}</div>
+        <div class="yoy-year-metrics">
+          ${rows.map(r => `
+            <div class="yoy-year-metric-row" style="border-color:${c.border}">
+              <span class="yoy-year-metric-lbl">${r.lbl}</span>
+              <span class="yoy-year-metric-val">${r.val}</span>
+              ${r.delta}
+            </div>`).join('')}
+        </div>
+      </div>`;
+  });
+  document.getElementById('yoyKpiRow').innerHTML = kpiHtml;
+
+  // ── Filter badge: show active dimension filters ──
+  const _fb = document.getElementById('yoyFilterBadge');
+  if (_fb) {
+    const _dims = [
+      S.filters.gender   !== 'all' ? S.filters.gender   : null,
+      S.filters.type     !== 'all' ? S.filters.type     : null,
+      S.filters.category !== 'all' ? S.filters.category : null,
+    ].filter(Boolean);
+    if (_dims.length) {
+      _fb.style.display = '';
+      _fb.innerHTML = `<span class="yoy-filter-badge">🔍 ${_dims.map(esc).join(' · ')}</span>`;
+    } else {
+      _fb.style.display = 'none';
+      _fb.innerHTML = '';
+    }
+  }
+
+  // ── Chart: bar/line per year ──
+  const rt = YOY.rangeType;
+  const needMonthly = (rt === 'ytd' || rt === 'custom' || rt === 'month');
+  destroyChart('yoy');
+
+  if (needMonthly) {
+    let mLo = 1, mHi = 12;
+    if (rt === 'month')   { mLo = mHi = YOY.month; }
+    if (rt === 'custom')  { mLo = Math.min(YOY.customFrom, YOY.customTo); mHi = Math.max(YOY.customFrom, YOY.customTo); }
+    const monthRange = [];
+    for (let m = mLo; m <= mHi; m++) monthRange.push(m);
+    const labels = monthRange.map(m => MONTH_NAMES[m-1]);
+
+    const COLORS = ['#1a56a8','#059669','#f59e0b','#7c3aed','#0891b2','#db2777'];
+    const datasets = years.map((y, i) => {
+      const data = getYoyMonthlyData(y, monthRange);
+      return {
+        type: 'bar',
+        label: y,
+        data: data.map(d => getMetricVal(d, metric)),
+        backgroundColor: COLORS[i % COLORS.length] + 'cc',
+        borderColor: COLORS[i % COLORS.length],
+        borderWidth: 1,
+        borderRadius: 4
+      };
+    });
+
+    S.charts.yoy = new Chart(document.getElementById('chartYoy'), {
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: {
+          legend: { display: true, labels: { color: css('--text-2'), boxWidth: 12, padding: 14, font: { size: 13 } } },
+          tooltip: {
+            backgroundColor: css('--surface'), titleColor: css('--text'), bodyColor: css('--text-2'),
+            borderColor: css('--border'), borderWidth: 1, padding: 10,
+            callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtMetricVal(ctx.raw, metric)}` }
+          }
+        },
+        scales: {
+          x: { grid: { color: css('--border') }, ticks: { color: css('--text-3'), font: { size: 13 } } },
+          y: { beginAtZero: true, grid: { color: css('--border') },
+               ticks: { color: css('--text-3'), font: { size: 12 }, callback: v => fmtMetricVal(v, metric) } }
+        }
+      }
+    });
+
+
+  } else {
+    // Quarter view: bar per quarter per year
+    const quarters = [1,2,3,4];
+    const labels = quarters.map(q => `Q${q}`);
+    const COLORS = ['#1a56a8','#059669','#f59e0b','#7c3aed','#0891b2','#db2777'];
+    const datasets = years.map((y, i) => {
+      const data = quarters.map(q => {
+        const mr = applyDimFilters(S.raw.sales).filter(r => r.year===y && Math.ceil(r.monthIndex/3)===q);
+        const mt = S.raw.targets.filter(t => t.year===y && Math.ceil(t.monthIndex/3)===q);
+        const revenue = mr.reduce((s,r)=>s+num(r.amount),0);
+        const qty     = mr.reduce((s,r)=>s+num(r.qty),0);
+        const bills   = mr.reduce((s,r)=>s+(num(r.billFlag)>0?num(r.billFlag):0),0);
+        const traffic = mt.reduce((s,t)=>s+num(t.traffic),0);
+        const atv = bills>0?revenue/bills:0;
+        const cvr = traffic>0?(bills/traffic)*100:0;
+        return getMetricVal({revenue,qty,bills,atv,cvr},metric);
+      });
+      return { type:'bar', label:y, data, backgroundColor:COLORS[i%COLORS.length]+'cc', borderColor:COLORS[i%COLORS.length], borderWidth:1, borderRadius:4 };
+    });
+    S.charts.yoy = new Chart(document.getElementById('chartYoy'), {
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: {
+          legend: { display:true, labels:{ color:css('--text-2'), boxWidth:12, padding:14, font:{size:13} } },
+          tooltip: { backgroundColor:css('--surface'), titleColor:css('--text'), bodyColor:css('--text-2'), borderColor:css('--border'), borderWidth:1, padding:10,
+            callbacks:{ label: ctx=>`${ctx.dataset.label}: ${fmtMetricVal(ctx.raw,metric)}` } }
+        },
+        scales: {
+          x: { grid:{color:css('--border')}, ticks:{color:css('--text-3'),font:{size:13}} },
+          y: { beginAtZero:true, grid:{color:css('--border')}, ticks:{color:css('--text-3'),font:{size:13}, callback:v=>fmtMetricVal(v,metric)} }
+        }
+      }
+    });
+  }
+}
+window.renderYoy = renderYoy;
+
+function bindEvents() {
+  [['fYear', 'year'], ['fQuarter', 'quarter'], ['fMonth', 'month'], ['fCategory', 'category'], ['fGender', 'gender'], ['fType', 'type']]
+    .forEach(([id, key]) => {
+      document.getElementById(id).addEventListener('change', (e) => {
+        S.filters[key] = e.target.value;
+        highlightActiveFilters();
+        renderAll();
+      });
+    });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    S.filters = { year: 'all', quarter: 'all', month: 'all', category: 'all', gender: 'all', type: 'all' };
+    S.revMode = 'monthly';
+    S.cashierSelected = [];
+    syncFilters();
+    renderAll();
+  });
+
+  document.getElementById('fileInput').addEventListener('change', onUpload);
+  document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+
+  const dz = document.getElementById('dropZone');
+  if (dz) {
+    ['dragover', 'dragenter'].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add('dragover'); }));
+    ['dragleave', 'drop'].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove('dragover'); }));
+    dz.addEventListener('drop', (e) => {
+      const f = e.dataTransfer?.files?.[0];
+      if (f) loadFile(f);
+    });
+  }
+}
+
+bindEvents();
+document.getElementById('syncBtn').addEventListener('click', loadFromGSheets);
+loadFromGSheets();
+window.addEventListener('resize', () => { if (S.raw.sales.length) syncCharts(); });
+</script>
+</body>
+</html>
