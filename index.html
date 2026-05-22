@@ -947,8 +947,7 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 const BILL_FIELD_ALIASES = ['bill', 'billflag', 'bill_flag', 'billno', 'bill_no', 'billnumber', 'billind', 'isbill', 'billindicator'];
 
 const GSHEET_URLS = {
-  'sale data': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT1crTHmD1Z5svqyGnu5FATk0Uxy2qoGEa4Faq_ayyiDa710qOq-NrAHHLvcYNBI_2RgMAUclr-UlVl/pub?gid=1200115649&single=true&output=csv',
-  'target':    'https://docs.google.com/spreadsheets/d/e/2PACX-1vT1crTHmD1Z5svqyGnu5FATk0Uxy2qoGEa4Faq_ayyiDa710qOq-NrAHHLvcYNBI_2RgMAUclr-UlVl/pub?gid=64950622&single=true&output=csv',
+  'sale data': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT1crTHmD1Z5svqyGnu5FATk0Uxy2qoGEa4Faq_ayyiDa710qOq-NrAHHLvcYNBI_2RgMAUclr-UlVl/pub?output=csv'
 };
 
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
@@ -2119,10 +2118,10 @@ async function loadFromGSheets() {
   syncBtn.disabled = true;
   setStatus('Đang đồng bộ từ Google Sheets…', false);
   try {
-    const cacheBuster = Date.now();
+    // KHÔNG nối thêm biến cacheBuster vào link nữa để tránh lỗi với Google API
     const entries = await Promise.all(
       Object.entries(GSHEET_URLS).map(async ([name, url]) => {
-        const res = await fetchWithTimeout(`${url}&_=${cacheBuster}`, 30000);
+        const res = await fetchWithTimeout(url, 30000);
         if (!res.ok) throw new Error(`Không tải được sheet "${name}" (HTTP ${res.status})`);
         const text = preprocessGSheetCsv(await res.text());
         const parsed = XLSX.read(text, { type: 'string', cellDates: true });
