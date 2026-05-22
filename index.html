@@ -2483,6 +2483,52 @@ bindEvents();
 document.getElementById('syncBtn').addEventListener('click', loadFromGSheets);
 loadFromGSheets();
 window.addEventListener('resize', () => { if (S.raw.sales.length) syncCharts(); });
+  // --- ĐOẠN CODE TỰ ĐỘNG ĐỒNG BỘ GOOGLE SHEETS ---
+async function loadDataFromGoogleSheet() {
+  const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_o4DriGGI9UCdY6WG4FF0TDW67SY42iK21mP61v-V69eSv33aM5L9i1Qq65ciyA/pub?output=csv';
+  
+  try {
+    console.log("Đang tải dữ liệu từ Google Sheets...");
+    const response = await fetch(csvUrl);
+    if (!response.ok) throw new Error('Không thể kết nối tới Google Sheets');
+    
+    const csvText = await response.text();
+    
+    // Sử dụng thư viện SheetJS (XLSX) có sẵn trong file của bạn để dịch dữ liệu
+    const workbook = XLSX.read(csvText, { type: 'string' });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+    if (jsonData && jsonData.length > 0) {
+      // Đổ dữ liệu vào đối tượng trạng thái S của Dashboard
+      if (typeof S !== 'undefined') {
+        // Gán vào cả rawData và data để đảm bảo khớp với cấu trúc code hiện tại của bạn
+        S.rawData = jsonData;
+        S.data = jsonData; 
+        
+        // Gọi các hàm có sẵn trong index.html của bạn để cập nhật bộ lọc và vẽ lại biểu đồ
+        if (typeof syncFilters === 'function') syncFilters();
+        if (typeof highlightActiveFilters === 'function') highlightActiveFilters();
+        if (typeof renderAll === 'function') renderAll();
+        
+        console.log("Đồng bộ dữ liệu thành công! Số dòng nhận được:", jsonData.length);
+      }
+    } else {
+      console.warn("Cảnh báo: Không tìm thấy dữ liệu trong file Sheet.");
+    }
+  } catch (error) {
+    console.error("Lỗi khi tự động tải dữ liệu:", error);
+  }
+}
+
+// Chạy hàm tải dữ liệu ngay khi trình duyệt load xong giao diện
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', loadDataFromGoogleSheet);
+} else {
+  loadDataFromGoogleSheet();
+}
+// --- KẾT THÚC ĐOẠN CODE ĐỒNG BỘ ---
 </script>
 </body>
 </html>
