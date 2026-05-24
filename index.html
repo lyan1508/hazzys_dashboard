@@ -946,10 +946,11 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 /** Bill flag column 0/1 */
 const BILL_FIELD_ALIASES = ['bill', 'billflag', 'bill_flag', 'billno', 'bill_no', 'billnumber', 'billind', 'isbill', 'billindicator'];
 
-const GSHEET_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_o4DriGGI9UCdY6WG4FF0TDW67SY42iK21mP61v-V69eSv33aM5L9i1Qq65ciyA/pub?output=csv&gid=';
+// Published CSV (no GID): https://docs.google.com/spreadsheets/d/e/2PACX-1vT1crTHmD1Z5svqyGnu5FATk0Uxy2qoGEa4Faq_ayyiDa710qOq-NrAHHLvcYNBI_2RgMAUclr-UlVl/pub?output=csv
+const GSHEET_BASE = 'https://docs.google.com/spreadsheets/d/1EN7e-w_tuTWQ2cREWY4MRnXRaW3gJMOVvqNJvOC3QeA/export?format=csv&gid=';
 const GSHEET_URLS = {
-  'sale data':  GSHEET_BASE + '708074341',
-  'target':     GSHEET_BASE + '2141567532',
+  'sale data':  GSHEET_BASE + '1200115649',
+  'target':     GSHEET_BASE + '64950622',
 };
 
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
