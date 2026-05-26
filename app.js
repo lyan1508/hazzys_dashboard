@@ -1437,14 +1437,8 @@ function switchRevChart(mode, btn) {
 }
 window.switchRevChart = switchRevChart;
 
-function toggleTheme() {
-  const html = document.documentElement;
-  const isDark = html.getAttribute('data-theme') === 'dark';
-  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
-  document.getElementById('themeIconSun').style.display = isDark ? '' : 'none';
-  document.getElementById('themeIconMoon').style.display = isDark ? 'none' : '';
-  if (S.raw.sales.length) renderAll();
-}
+// Dark-mode only — theme toggle removed
+function toggleTheme() {}
 
 async function onUpload(e) {
   const file = e.target.files?.[0];
@@ -2068,28 +2062,56 @@ function aggregateInventory() {
     })).sort((a, b) => b.stock - a.stock);
   })();
 
-  // Stockout alerts: stock > 0 OR stock == 0 with recent sales, AND projected to run out in ≤ 30 days
-  const stockoutAlerts = filtered
-    .filter((r) => r.hasRecentSales && (r.closing === 0 || r.daysOfStock <= 30))
-    .map((r) => ({
-      sku: r.sku,
-      stock: r.closing,
-      sales30: r.sales30,
-      daysLeft: r.daysOfStock,
-      severity: r.closing === 0 ? 'critical' : r.daysOfStock <= 7 ? 'critical' : r.daysOfStock <= 14 ? 'warn' : 'ok',
+  // Aggregate per 9-char product model (Brand+Cat+Year+Season+Design) — sum across size/color variants
+  const byStyle = (() => {
+    const map = new Map();
+    filtered.forEach((r) => {
+      const k = r.styleKey;
+      if (!k || k === 'UNKNOWN') return;
+      const p = map.get(k) || { sku: k, stock: 0, opening: 0, received: 0, out: 0, sales30: 0, sales90: 0 };
+      p.stock    += num(r.closing);
+      p.opening  += num(r.opening);
+      p.received += num(r.received);
+      p.out      += num(r.out);
+      p.sales30  += num(r.sales30);
+      p.sales90  += num(r.sales90);
+      map.set(k, p);
+    });
+    return [...map.values()].map((p) => {
+      const dailyVel    = p.sales30 / 30;
+      const daysOfStock = dailyVel > 0 ? p.stock / dailyVel : (p.stock > 0 ? 999 : 0);
+      return {
+        ...p,
+        dailyVel,
+        daysOfStock,
+        hasRecentSales: p.sales30 > 0,
+        isAging: p.stock >= 3 && p.sales90 < (p.stock * 0.2),
+      };
+    });
+  })();
+
+  // Stockout alerts (style-level): recent sales AND projected to run out in ≤ 30 days (or already out)
+  const stockoutAlerts = byStyle
+    .filter((p) => p.hasRecentSales && (p.stock === 0 || p.daysOfStock <= 30))
+    .map((p) => ({
+      sku: p.sku,
+      stock: p.stock,
+      sales30: p.sales30,
+      daysLeft: p.daysOfStock,
+      severity: p.stock === 0 ? 'critical' : p.daysOfStock <= 7 ? 'critical' : p.daysOfStock <= 14 ? 'warn' : 'ok',
     }))
     .sort((a, b) => a.daysLeft - b.daysLeft)
     .slice(0, 50);
 
-  // Aging: stock >= 3, sales in last 90 days < 20% of stock
-  const aging = filtered
-    .filter((r) => r.isAging)
-    .map((r) => ({
-      sku: r.sku,
-      stock: r.closing,
-      sales90: r.sales90,
-      daysOfStock: r.daysOfStock,
-      severity: r.sales90 === 0 ? 'critical' : r.daysOfStock > 365 ? 'critical' : r.daysOfStock > 180 ? 'warn' : 'ok',
+  // Aging (style-level): stock ≥ 3 and 90-day sales < 20% of stock
+  const aging = byStyle
+    .filter((p) => p.isAging)
+    .map((p) => ({
+      sku: p.sku,
+      stock: p.stock,
+      sales90: p.sales90,
+      daysOfStock: p.daysOfStock,
+      severity: p.sales90 === 0 ? 'critical' : p.daysOfStock > 365 ? 'critical' : p.daysOfStock > 180 ? 'warn' : 'ok',
     }))
     .sort((a, b) => b.stock - a.stock)
     .slice(0, 50);
@@ -2124,15 +2146,13 @@ function renderInventory() {
   const meta = S.raw.inventoryMeta || {};
   const headSub = document.getElementById('invHeadSub');
   const periodStr = meta.periodFrom ? `${meta.periodFrom} → ${meta.periodTo}` : '—';
-  headSub.textContent = `${meta.store || 'All stores'} · Stock period: ${periodStr} · ${fmtN(m.totalSku)} SKUs (14-char only)`;
+  headSub.textContent = `${meta.store || 'All stores'} · ${periodStr}`;
 
   // KPIs
   document.getElementById('invKpiSkuVal').textContent = fmtN(m.totalSku);
   document.getElementById('invKpiStockVal').textContent = fmtN(m.totalStock);
-  document.getElementById('invKpiStockSub').textContent = `Out ${fmtN(m.totalOut)} / In ${fmtN(m.totalReceived)}`;
   document.getElementById('invKpiSellThroughVal').textContent = fmtPct(m.sellThrough);
   document.getElementById('invKpiAtRiskVal').textContent = fmtN(m.atRiskCount);
-  document.getElementById('invKpiAtRiskSub').textContent = `${m.stockoutAlerts.length} stockout · ${m.aging.length} aging`;
 
   // Color KPIs based on health
   const sellKpi = document.getElementById('invKpiSellThrough');
@@ -2279,7 +2299,7 @@ function bindEvents() {
 
   document.getElementById('fileInput').addEventListener('change', onUpload);
   document.getElementById('invFileInput').addEventListener('change', onInventoryUpload);
-  document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+  // theme toggle removed — dark mode only
 
   const dz = document.getElementById('dropZone');
   if (dz) {
