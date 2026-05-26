@@ -680,6 +680,33 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
 .tab-pane.active{display:block}
 
 /* =========================================
+   TAB 2/3/4 — fit one screen (no scroll)
+   ========================================= */
+/* Forecast tab: tighten pace + forecast cards */
+.tab-pane[data-tab-pane="forecast"] .pace-grid{padding:10px;gap:8px}
+.tab-pane[data-tab-pane="forecast"] .pace-card{padding:10px 12px;gap:5px}
+.tab-pane[data-tab-pane="forecast"] .panel-head{padding:10px 14px 6px!important}
+.tab-pane[data-tab-pane="forecast"] .forecast-grid{padding:10px!important;gap:8px!important}
+.tab-pane[data-tab-pane="forecast"] .forecast-card{padding:10px 12px}
+
+/* Product tab: 2-row compact layout — keep promo as side panel via internal scroll */
+.tab-pane[data-tab-pane="product"] #topProductList{height:calc(100vh - 560px);min-height:240px;max-height:360px}
+.tab-pane[data-tab-pane="product"] #abcCard .chart-wrap{height:calc(100vh - 580px)!important;min-height:200px;max-height:320px}
+.tab-pane[data-tab-pane="product"] #promotionInfo{max-height:200px;overflow-y:auto}
+.tab-pane[data-tab-pane="product"] #promoCard{padding-top:10px;padding-bottom:10px}
+
+/* Staff tab: side-by-side chart + matrix to halve vertical footprint */
+.tab-pane[data-tab-pane="staff"]{display:none}
+.tab-pane[data-tab-pane="staff"].active{display:grid!important;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch}
+.tab-pane[data-tab-pane="staff"] > .chart-card{margin-bottom:0!important}
+.tab-pane[data-tab-pane="staff"] .chart-wrap{height:calc(100vh - 420px)!important;min-height:240px;max-height:420px}
+.tab-pane[data-tab-pane="staff"] .matrix-wrap{max-height:calc(100vh - 360px);min-height:280px}
+.tab-pane[data-tab-pane="staff"] .cashier-picker{max-height:70px;overflow-y:auto}
+@media(max-width:1100px){
+  .tab-pane[data-tab-pane="staff"].active{grid-template-columns:1fr}
+}
+
+/* =========================================
    FONT NORMALIZATION — apply consistent scale to existing components
    ========================================= */
 .chart-card-title{font-size:var(--fs-md);font-weight:700}
@@ -718,4 +745,80 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
 .pace-row{font-size:var(--fs-xs)}
 .pace-status{font-size:var(--fs-xs)}
 .statusbar-inner{font-size:var(--fs-sm)}
+
+/* =========================================
+   GLOBAL FONT UNIFICATION + READABILITY
+   ========================================= */
+/* Force a single sans-serif family across the entire app */
+*,*::before,*::after{font-family:var(--font)}
+button,input,select,textarea,table,th,td{font-family:var(--font)}
+
+/* Mono font ONLY for product/SKU code cells where it aids alignment */
+.matrix-table tbody td:first-child,
+.inv-table tbody td:first-child,
+tbody td:first-child{font-family:var(--mono)}
+
+/* Lift sub-12px text up to readable sizes without breaking the grid */
+.inv-table{font-size:var(--fs-sm)}
+.inv-table thead th{font-size:var(--fs-xs);padding:7px 10px;letter-spacing:.3px}
+.inv-table tbody td{font-size:var(--fs-sm);padding:7px 10px;color:var(--text-2)}
+.inv-table tbody td:first-child{font-size:var(--fs-sm);color:var(--text);font-weight:600;letter-spacing:.2px}
+.inv-badge{font-size:var(--fs-xs);padding:2px 8px}
+
+.matrix-table{font-size:var(--fs-sm)}
+.matrix-table thead th{font-size:var(--fs-xs);padding:7px 10px}
+.matrix-table tbody td{font-size:var(--fs-sm);padding:7px 10px}
+.matrix-table tbody td:first-child{font-size:var(--fs-sm);letter-spacing:.2px}
+.matrix-table tfoot td{font-size:var(--fs-sm)}
+
+/* Product list — bigger product code so users can actually read it */
+.p-name{font-size:var(--fs-sm);letter-spacing:.2px}
+.p-meta{font-size:var(--fs-xs)}
+.p-amount{font-size:var(--fs-md)}
+
+/* Doughnut center labels — boost from 10/13px */
+.doughnut-center .d-val{font-size:var(--fs-md)}
+.doughnut-center .d-lbl{font-size:var(--fs-xs)}
+.legend-name{font-size:var(--fs-sm)}
+.legend-pct{font-size:var(--fs-xs);min-width:36px}
+
+/* DOW heatmap — readable cells */
+.dow-cell-day{font-size:var(--fs-xs)}
+.dow-cell-rev{font-size:var(--fs-md);font-weight:800}
+.dow-cell-meta{font-size:var(--fs-xs)}
+
+/* Cashier chips */
+.cashier-chip{font-size:var(--fs-xs);padding:5px 11px}
+
+/* Forecast / pace metadata */
+.forecast-card-range,.forecast-card-vs{font-size:var(--fs-xs)}
+.pace-row{font-size:var(--fs-sm)}
+.pace-row strong{font-size:var(--fs-sm)}
+
+/* Inventory KPI cards — tighten label hierarchy */
+.inv-kpi-lbl{font-size:var(--fs-xs);letter-spacing:.4px}
+.inv-kpi-val{font-size:var(--fs-num-md)}
+.inv-kpi-sub{font-size:var(--fs-xs);color:var(--text-3)}
+.inv-head-sub{font-size:var(--fs-xs)}
+.inv-card-sub{font-size:var(--fs-xs)}
+.inv-empty{font-size:var(--fs-md)}
+
+/* YoY metric tabs and labels */
+.yoy-metric-tab{font-size:var(--fs-xs)}
+.yoy-year-card-head{font-size:var(--fs-xs)}
+.yoy-year-metric-lbl{font-size:var(--fs-xs)}
+.yoy-year-metric-val{font-size:var(--fs-md)}
+.yoy-year-metric-delta{font-size:var(--fs-xs)}
+
+/* Chart tabs (Monthly/Cumulative, Rev/Bills/ATV) */
+.chart-tab{font-size:var(--fs-xs)}
+
+/* ABC chips */
+.abc-chip-val{font-size:var(--fs-num-sm)}
+
+/* Status pills */
+.pace-status{font-size:var(--fs-xs);padding:3px 9px}
+
+/* Tooltips and hover boxes — ensure system font, not browser default */
+[role="tooltip"],.tooltip{font-family:var(--font)}
 

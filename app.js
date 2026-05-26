@@ -430,12 +430,13 @@ function aggregate() {
   const atv = bills > 0 ? totalSales / bills : 0;
   const upt = bills > 0 ? qty / bills : 0;
   const topProducts = (() => {
+    // Group by 9-char product model code (Brand+Cat+Year+Season+Design),
+    // requiring a valid 14-char Hazzys SKU as the source row.
     const map = new Map();
     rows.forEach((r) => {
-      // Use raw SKU (not styleKey9) so we preserve full 14-char codes
-      const raw = String(r.sku || r.upc || '').trim();
+      const raw = String(r.sku || r.upc || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (raw.length !== 14) return;
-      const key = normalizeGroup(raw);
+      const key = raw.slice(0, 9);
       const p = map.get(key) || { sku: key, type: r.type, gender: r.gender, value: 0, qty: 0 };
       p.value += num(r.amount);
       p.qty += num(r.qty);
@@ -473,13 +474,13 @@ function aggregate() {
   const rangeFrom = sortedDates[0]?.toLocaleDateString('vi-VN') || '—';
   const rangeTo = sortedDates[sortedDates.length - 1]?.toLocaleDateString('vi-VN') || '—';
 
-  // ── ABC / Pareto over ALL SKUs (14-char only) ──
+  // ── ABC / Pareto over 9-char product model codes (source: valid 14-char SKUs) ──
   const abcAll = (() => {
     const map = new Map();
     rows.forEach((r) => {
-      const raw = String(r.sku || r.upc || '').trim();
+      const raw = String(r.sku || r.upc || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (raw.length !== 14) return;
-      const key = normalizeGroup(raw);
+      const key = raw.slice(0, 9);
       const p = map.get(key) || { sku: key, value: 0, qty: 0 };
       p.value += num(r.amount);
       p.qty += num(r.qty);
@@ -2010,11 +2011,13 @@ function aggregateInventory() {
     // Aging: high stock + low recent sales
     const isAging = stock >= 3 && sales90 < (stock * 0.2);
 
+    // Derive category directly from the 14-char SKU (pos 3-4) — never UNKNOWN for valid Hazzys codes
+    const skuCat = deriveCategory('', salesInfo.category, salesInfo.type, r.sku);
     return {
       ...r,
       type: salesInfo.type || 'UNKNOWN',
       gender: salesInfo.gender || 'UNKNOWN',
-      category: salesInfo.category || 'UNKNOWN',
+      category: skuCat,
       sales30, sales90, dailyVel,
       daysOfStock,
       sellThrough,
@@ -2024,9 +2027,12 @@ function aggregateInventory() {
     };
   });
 
+  // Drop any UNKNOWN-category rows from inventory stats per user request
+  const known = enriched.filter((r) => r.category && r.category !== 'UNKNOWN');
+
   // Apply dimension filters (category/gender/type from main filter bar) — only those that make sense
   const f = S.filters;
-  const filtered = enriched.filter((r) => {
+  const filtered = known.filter((r) => {
     if (f.category !== 'all' && r.category !== f.category) return false;
     if (f.gender !== 'all' && r.gender !== f.gender) return false;
     if (f.type !== 'all' && r.type !== f.type) return false;
