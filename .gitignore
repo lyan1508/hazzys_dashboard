@@ -1,0 +1,22 @@
+# Excel data files (chứa dữ liệu sales nhạy cảm — KHÔNG push lên public repo)
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs / temp
+*.log
+*.tmp
+*.bak
