@@ -2103,19 +2103,16 @@ function renderInventory() {
   const section = document.getElementById('invSection');
   const empty = document.getElementById('invEmpty');
   const content = document.getElementById('invContent');
-  const tabs = document.getElementById('invMetricTabs');
   if (!section) return;
 
   const m = aggregateInventory();
   if (!m) {
     empty.style.display = '';
     content.style.display = 'none';
-    tabs.style.display = 'none';
     return;
   }
   empty.style.display = 'none';
   content.style.display = '';
-  tabs.style.display = '';
 
   // Header sub-text
   const meta = S.raw.inventoryMeta || {};

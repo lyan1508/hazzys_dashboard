@@ -293,9 +293,9 @@ select{cursor:pointer}
   align-items:stretch;
 }
 .dash-row-2col > .chart-card{align-self:stretch}
-/* Promo card — height = right_col(928.5) − left_above_promo(542) − card_overhead(55.5) = 331px */
+/* Promo card — full-width, scroll inside */
 #promoCard{flex:none}
-#promotionInfo{height:332px;overflow-y:auto;flex:none}
+#promotionInfo{max-height:380px;overflow-y:auto;flex:none}
 
 /* Doughnut cards — fixed height */
 .dash-row-2col .split-inner{min-height:120px}
@@ -578,6 +578,16 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
 .dow-cell.peak{border-color:var(--green);box-shadow:0 0 0 1px var(--green)}
 .dow-cell.low{border-color:var(--red-light)}
 @media(max-width:900px){.dow-strip{grid-template-columns:repeat(2,1fr)}}
+
+/* DOW in narrow column (half-width within overview row) — tighter padding */
+.overview-row .dow-section .dow-strip{padding:8px;gap:5px}
+.overview-row .dow-section .dow-cell{padding:8px 4px}
+.overview-row .dow-section .dow-cell-rev{font-size:var(--fs-sm)}
+.overview-row .dow-section .dow-cell-meta{font-size:10px}
+
+/* Top Products list — taller in product tab where it's half-width */
+.tab-pane[data-tab-pane="product"] #topProductList{height:420px}
+.tab-pane[data-tab-pane="product"] .product-list{grid-template-columns:1fr}
 @media(max-width:900px){
   .main{padding:12px}
   .topbar-inner{flex-wrap:wrap;height:auto;padding:10px 14px;gap:8px}
