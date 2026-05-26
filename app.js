@@ -16,11 +16,12 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 /** Bill flag column 0/1 */
 const BILL_FIELD_ALIASES = ['bill', 'billflag', 'bill_flag', 'billno', 'bill_no', 'billnumber', 'billind', 'isbill', 'billindicator'];
 
-// Published CSV (no GID): https://docs.google.com/spreadsheets/d/e/2PACX-1vT1crTHmD1Z5svqyGnu5FATk0Uxy2qoGEa4Faq_ayyiDa710qOq-NrAHHLvcYNBI_2RgMAUclr-UlVl/pub?output=csv
+// Spreadsheet must be shared "Anyone with the link can view" for these to work.
 const GSHEET_BASE = 'https://docs.google.com/spreadsheets/d/1EN7e-w_tuTWQ2cREWY4MRnXRaW3gJMOVvqNJvOC3QeA/export?format=csv&gid=';
 const GSHEET_URLS = {
-  'sale data':  GSHEET_BASE + '1200115649',
-  'target':     GSHEET_BASE + '64950622',
+  'sale data':  GSHEET_BASE + '838438088',
+  'target':     GSHEET_BASE + '1777284102',
+  'inventory':  GSHEET_BASE + '621023957',
 };
 
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
@@ -1547,7 +1548,14 @@ async function loadFromGSheets() {
       Object.entries(GSHEET_URLS).map(async ([name, url]) => {
         const res = await fetchWithTimeout(`${url}&_=${cacheBuster}`, 30000);
         if (!res.ok) throw new Error(`Failed to fetch sheet "${name}" (HTTP ${res.status})`);
-        const text = preprocessGSheetCsv(await res.text());
+        const rawText = await res.text();
+        // Google returns an HTML login page (not CSV) when the sheet is not
+        // shared "Anyone with the link". Detect it so the user gets a real error.
+        const head = rawText.slice(0, 256).trim().toLowerCase();
+        if (head.startsWith('<!doctype') || head.startsWith('<html') || head.includes('<title>sign in')) {
+          throw new Error(`Sheet "${name}" is not publicly accessible. In Google Sheets → Share → set "Anyone with the link – Viewer".`);
+        }
+        const text = preprocessGSheetCsv(rawText);
         const parsed = XLSX.read(text, { type: 'string', cellDates: true });
         const ws = parsed.Sheets[parsed.SheetNames[0]];
         return [name, ws];
