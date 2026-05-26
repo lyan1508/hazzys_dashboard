@@ -432,7 +432,10 @@ function aggregate() {
   const topProducts = (() => {
     const map = new Map();
     rows.forEach((r) => {
-      const key = normalizeGroup(r.productKey || r.sku || r.upc);
+      // Use raw SKU (not styleKey9) so we preserve full 14-char codes
+      const raw = String(r.sku || r.upc || '').trim();
+      if (raw.length !== 14) return;
+      const key = normalizeGroup(raw);
       const p = map.get(key) || { sku: key, type: r.type, gender: r.gender, value: 0, qty: 0 };
       p.value += num(r.amount);
       p.qty += num(r.qty);
@@ -470,11 +473,13 @@ function aggregate() {
   const rangeFrom = sortedDates[0]?.toLocaleDateString('vi-VN') || '—';
   const rangeTo = sortedDates[sortedDates.length - 1]?.toLocaleDateString('vi-VN') || '—';
 
-  // ── ABC / Pareto over ALL SKUs (not just top 30) ──
+  // ── ABC / Pareto over ALL SKUs (14-char only) ──
   const abcAll = (() => {
     const map = new Map();
     rows.forEach((r) => {
-      const key = normalizeGroup(r.productKey || r.sku || r.upc);
+      const raw = String(r.sku || r.upc || '').trim();
+      if (raw.length !== 14) return;
+      const key = normalizeGroup(raw);
       const p = map.get(key) || { sku: key, value: 0, qty: 0 };
       p.value += num(r.amount);
       p.qty += num(r.qty);
@@ -518,9 +523,9 @@ function aggregate() {
 
   // ── DOW stats: Mon..Sun (display order) ──
   const dowStats = (() => {
-    const DAY_NAMES_VI = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    const DAY_NAMES_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const buckets = [0,1,2,3,4,5,6].map((d) => ({
-      dow: d, label: DAY_NAMES_VI[d], revenue: 0, qty: 0, bills: 0, dates: new Set()
+      dow: d, label: DAY_NAMES_EN[d], revenue: 0, qty: 0, bills: 0, dates: new Set()
     }));
     rows.forEach((r) => {
       if (!r.date) return;
@@ -950,7 +955,7 @@ function renderKPIs(m) {
     const pct = (num(m.totalSales) / target) * 100;
     achEl.textContent = fmtPct(pct);
     const gap = num(m.totalSales) - target;
-    achSub.textContent = (gap >= 0 ? 'Vượt ' : 'Thiếu ') + fmtVNDShort(Math.abs(gap));
+    achSub.textContent = (gap >= 0 ? 'Over ' : 'Under ') + fmtVNDShort(Math.abs(gap));
     let cls, grad;
     if (pct >= 100)      { cls = 'good'; grad = 'linear-gradient(90deg,#16a34a,#4ade80)'; }
     else if (pct >= 80)  { cls = 'warn'; grad = 'linear-gradient(90deg,#d97706,#fbbf24)'; }
@@ -959,7 +964,7 @@ function renderKPIs(m) {
     achBar.style.background = grad;
   } else {
     achEl.textContent = '—';
-    achSub.textContent = 'Chưa có target';
+    achSub.textContent = 'No target set';
     achBar.style.background = 'linear-gradient(90deg,#94a3b8,#cbd5e1)';
   }
 }
@@ -1069,10 +1074,10 @@ function renderAbcPareto(m) {
     return `<div class="abc-chip tier-${tier.toLowerCase()}">
       <div class="abc-chip-lbl">${lbl}</div>
       <div class="abc-chip-val">${fmtN(cnt)} SKU</div>
-      <div class="abc-chip-sub">${fmtPct(pctSku)} SKU · ${fmtPct(pctRev)} doanh thu</div>
+      <div class="abc-chip-sub">${fmtPct(pctSku)} of SKUs · ${fmtPct(pctRev)} of revenue</div>
     </div>`;
   };
-  sumEl.innerHTML = tierCard('A', 'Tier A · 80%') + tierCard('B', 'Tier B · +15%') + tierCard('C', 'Tier C · đuôi');
+  sumEl.innerHTML = tierCard('A', 'Tier A · top 80%') + tierCard('B', 'Tier B · next 15%') + tierCard('C', 'Tier C · tail');
 
   // Chart: top 25 SKU bar + cumulative % line
   const top = abc.arr.slice(0, 25);
@@ -1139,6 +1144,7 @@ function renderCashierMatrix(m) {
     foot.innerHTML = '';
     return;
   }
+  // (sorted by revPerDay desc inside aggregate)
   body.innerHTML = data.map((c) => `
     <tr>
       <td title="${esc(c.label)}">${esc(c.label)}</td>
@@ -1160,7 +1166,7 @@ function renderCashierMatrix(m) {
   const avgAtv = totBills > 0 ? totAmount / totBills : 0;
   const avgUpt = totBills > 0 ? totQty / totBills : 0;
   foot.innerHTML = `<tr>
-    <td>TỔNG / TB</td>
+    <td>TOTAL / AVG</td>
     <td>${fmtN(totDays)}</td>
     <td>${fmtN(totBills)}</td>
     <td>${avgBillsPerDay.toFixed(1)}</td>
@@ -1178,14 +1184,14 @@ function renderTargetPace() {
   const ctxEl = document.getElementById('paceContext');
   const allDates = S.raw.sales.map((r) => r.date).filter(Boolean);
   if (!allDates.length) {
-    ctxEl.textContent = 'Chưa có dữ liệu sales';
+    ctxEl.textContent = 'No sales data';
     return;
   }
   const latest = new Date(Math.max(...allDates.map((d) => +d)));
   const cy = latest.getFullYear();
   const cm = latest.getMonth() + 1;
   const cq = Math.ceil(cm / 3);
-  ctxEl.textContent = `Mốc tham chiếu: dữ liệu gần nhất ${latest.toLocaleDateString('vi-VN')} · đo tốc độ chạy của tháng/quý/năm hiện tại`;
+  ctxEl.textContent = `Reference: latest data ${latest.toLocaleDateString('en-GB')} · measuring run-rate for current month/quarter/year`;
 
   const sumActual = (filterFn) => S.raw.sales.filter(filterFn).reduce((s, r) => s + num(r.amount), 0);
   const sumTarget = (filterFn) => S.raw.targets.filter(filterFn).reduce((s, t) => s + num(t.target), 0);
@@ -1199,7 +1205,7 @@ function renderTargetPace() {
     const daysLeft = Math.max(0, daysTotal - daysElapsed);
     const required = target > 0 && daysLeft > 0 ? Math.max(0, (target - actual) / daysLeft) : 0;
     document.getElementById(`pace${prefix}Required`).textContent = target > 0
-      ? (daysLeft > 0 ? `${fmtVNDShort(required)} / ngày × ${daysLeft} ngày` : 'Hết kỳ')
+      ? (daysLeft > 0 ? `${fmtVNDShort(required)} / day × ${daysLeft} days` : 'Period ended')
       : '—';
 
     const pctActual = target > 0 ? (actual / target) * 100 : 0;
@@ -1212,15 +1218,15 @@ function renderTargetPace() {
     const statusEl = document.getElementById(`pace${prefix}Status`);
     statusEl.classList.remove('ahead', 'onpace', 'behind', 'idle');
     if (target <= 0) {
-      statusEl.textContent = 'Chưa có target';
+      statusEl.textContent = 'No target';
       statusEl.classList.add('idle');
       bar.style.background = 'var(--text-3)';
     } else {
       const ratio = expected > 0 ? actual / expected : 1;
       let label, cls, color;
-      if (ratio >= 1.05)      { label = `↑ Vượt pace ${fmtPct((ratio-1)*100)}`; cls = 'ahead';  color = css('--green'); }
-      else if (ratio >= 0.95) { label = `≈ Đúng pace ${fmtPct((ratio-1)*100)}`; cls = 'onpace'; color = css('--brand-mid'); }
-      else                    { label = `↓ Chậm pace ${fmtPct((1-ratio)*100)}`; cls = 'behind'; color = css('--red'); }
+      if (ratio >= 1.05)      { label = `↑ Above pace ${fmtPct((ratio-1)*100)}`; cls = 'ahead';  color = css('--green'); }
+      else if (ratio >= 0.95) { label = `≈ On pace ${fmtPct((ratio-1)*100)}`; cls = 'onpace'; color = css('--brand-mid'); }
+      else                    { label = `↓ Below pace ${fmtPct((1-ratio)*100)}`; cls = 'behind'; color = css('--red'); }
       statusEl.textContent = label;
       statusEl.classList.add(cls);
       bar.style.background = color;
@@ -1257,7 +1263,7 @@ function renderTargetPace() {
   const yDaysElapsed = Math.floor((latest - startOfYear) / 86400000) + 1;
   const yActual = sumActual((r) => r.year === String(cy));
   const yTarget = sumTarget((t) => t.year === String(cy));
-  setCard('Year', `Năm ${cy}`, yActual, yTarget, yDaysElapsed, yDaysTotal);
+  setCard('Year', `Year ${cy}`, yActual, yTarget, yDaysElapsed, yDaysTotal);
 }
 
 // ===== DOW HEATMAP =====
@@ -1275,8 +1281,8 @@ function renderDowHeatmap(m) {
   const data = m.dowStats || [];
   const hasData = data.some((d) => d.dayCount > 0);
   if (!hasData) {
-    strip.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-3);font-size:12px;padding:20px">No Data</div>';
-    ctxEl.textContent = 'Chưa có dữ liệu';
+    strip.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-3);font-size:var(--fs-sm);padding:20px">No Data</div>';
+    ctxEl.textContent = 'No data';
     return;
   }
   const valFn = (d) => DOW_METRIC === 'bills' ? d.billsPerDay : DOW_METRIC === 'atv' ? d.atv : d.revPerDay;
@@ -1289,8 +1295,8 @@ function renderDowHeatmap(m) {
 
   const totalRev = data.reduce((s, d) => s + d.revenue, 0);
   const totalDays = data.reduce((s, d) => s + d.dayCount, 0);
-  const metricLbl = DOW_METRIC === 'bills' ? 'Bills/ngày' : DOW_METRIC === 'atv' ? 'ATV' : 'Doanh thu/ngày';
-  ctxEl.textContent = `${metricLbl} · ${fmtN(totalDays)} ngày dữ liệu · Tổng doanh thu ${fmtVNDShort(totalRev)} · Đỉnh: ${data[peakIdx].label}`;
+  const metricLbl = DOW_METRIC === 'bills' ? 'Bills/day' : DOW_METRIC === 'atv' ? 'ATV' : 'Revenue/day';
+  ctxEl.textContent = `${metricLbl} · ${fmtN(totalDays)} days of data · Total revenue ${fmtVNDShort(totalRev)} · Peak: ${data[peakIdx].label}`;
 
   strip.innerHTML = data.map((d, i) => {
     const v = valFn(d);
@@ -1301,7 +1307,7 @@ function renderDowHeatmap(m) {
       <div class="dow-cell-fill" style="height:${Math.max(6, intensity * 100)}%;opacity:${0.35 + intensity * 0.5}"></div>
       <div class="dow-cell-day">${d.label}</div>
       <div class="dow-cell-rev">${d.dayCount > 0 ? fmtFn(v) : '—'}</div>
-      <div class="dow-cell-meta">${fmtN(d.dayCount)} ngày<br>${fmtPct(pctRev)} tổng rev</div>
+      <div class="dow-cell-meta">${fmtN(d.dayCount)} days<br>${fmtPct(pctRev)} of total</div>
     </div>`;
   }).join('');
 }
@@ -1349,7 +1355,7 @@ function renderForecast() {
   const history = buildMonthlyHistory();
   const methodEl = document.getElementById('forecastMethod');
   if (history.length < 2) {
-    methodEl.textContent = 'Chưa đủ dữ liệu để dự báo (cần ≥ 2 tháng)';
+    methodEl.textContent = 'Not enough data to forecast (need ≥ 2 months)';
     ['fcMonthValue','fcQuarterValue','fcYearValue'].forEach(id =>
       document.getElementById(id).textContent = '—');
     return;
@@ -1381,43 +1387,43 @@ function renderForecast() {
   }
 
   // Method label
-  const methodLabels = { seasonal: 'theo mùa vụ (YoY)', linear: 'theo trend gần đây', flat: 'theo trung bình', none: 'không đủ dữ liệu' };
+  const methodLabels = { seasonal: 'seasonal (YoY)', linear: 'recent trend', flat: 'average', none: 'insufficient data' };
   const primaryMethod = methodLabels[fc1.method] || fc1.method;
-  methodEl.textContent = `Phương pháp: ${primaryMethod} · Lịch sử: ${history.length} tháng (${history[0].key} → ${last.key})`;
+  methodEl.textContent = `Method: ${primaryMethod} · History: ${history.length} months (${history[0].key} → ${last.key})`;
 
   // Confidence ±15% (loose band — adjust based on data variability later)
   const band = (v) => `${fmtVNDShort(v * 0.85)} – ${fmtVNDShort(v * 1.15)}`;
   const vsText = (forecastVal, baseVal, baseLabel) => {
-    if (!baseVal || baseVal <= 0) return `<span style="color:var(--text-3)">Chưa có ${baseLabel} để so</span>`;
+    if (!baseVal || baseVal <= 0) return `<span style="color:var(--text-3)">No ${baseLabel} baseline</span>`;
     const pct = ((forecastVal - baseVal) / baseVal) * 100;
     const cls = pct >= 0 ? 'up' : 'down';
     const sign = pct >= 0 ? '↑' : '↓';
     return `<span class="${cls}">${sign} ${fmtPct(Math.abs(pct))}</span> vs ${baseLabel}`;
   };
 
-  // Tháng tiếp theo
+  // Next month
   document.getElementById('fcMonthName').textContent = `${MONTH_NAMES[nm-1]} ${ny}`;
   document.getElementById('fcMonthValue').textContent = fmtVNDShort(fc1.value);
-  document.getElementById('fcMonthRange').textContent = `Khoảng: ${band(fc1.value)}`;
+  document.getElementById('fcMonthRange').textContent = `Range: ${band(fc1.value)}`;
   document.getElementById('fcMonthVs').innerHTML = vsText(fc1.value, last.value, `${MONTH_NAMES[last.m-1]} ${last.y}`);
 
-  // Quý tiếp theo
+  // Next quarter
   const qStart = `${MONTH_NAMES[nm-1]} ${ny}`;
   const qEndM = ((nm - 1 + 2) % 12) + 1;
   const qEndY = nm + 2 > 12 ? ny + 1 : ny;
   document.getElementById('fcQuarterName').textContent = `${qStart} → ${MONTH_NAMES[qEndM-1]} ${qEndY}`;
   document.getElementById('fcQuarterValue').textContent = fmtVNDShort(quarterTotal);
-  document.getElementById('fcQuarterRange').textContent = `Khoảng: ${band(quarterTotal)}`;
+  document.getElementById('fcQuarterRange').textContent = `Range: ${band(quarterTotal)}`;
   // Compare with last 3 actual months
   const lastQ = history.slice(-3).reduce((s, h) => s + h.value, 0);
-  document.getElementById('fcQuarterVs').innerHTML = vsText(quarterTotal, lastQ, '3 tháng gần nhất');
+  document.getElementById('fcQuarterVs').innerHTML = vsText(quarterTotal, lastQ, 'last 3 months');
 
-  // Cả năm
-  document.getElementById('fcYearName').textContent = `Năm ${currentYear}`;
+  // Year
+  document.getElementById('fcYearName').textContent = `Year ${currentYear}`;
   document.getElementById('fcYearValue').textContent = fmtVNDShort(yearForecast);
-  document.getElementById('fcYearRange').textContent = `Thực tế ${monthsActualThisYear.length}/12 tháng + dự báo ${12 - monthsActualThisYear.length} tháng`;
+  document.getElementById('fcYearRange').textContent = `Actual ${monthsActualThisYear.length}/12 months + forecast ${12 - monthsActualThisYear.length} months`;
   const prevYearSum = history.filter(h => h.y === currentYear - 1).reduce((s, h) => s + h.value, 0);
-  document.getElementById('fcYearVs').innerHTML = vsText(yearForecast, prevYearSum, `năm ${currentYear - 1}`);
+  document.getElementById('fcYearVs').innerHTML = vsText(yearForecast, prevYearSum, `${currentYear - 1}`);
 }
 
 function switchRevChart(mode, btn) {
@@ -1493,7 +1499,7 @@ function preprocessGSheetCsv(text) {
 async function loadFile(file) {
   const overlay = document.getElementById('loadingOverlay');
   overlay.classList.add('show');
-  setStatus('Đang tải dữ liệu…', false);
+  setStatus('Loading data…', false);
   try {
     const lower = (file.name || '').toLowerCase();
     let wb;
@@ -1505,12 +1511,12 @@ async function loadFile(file) {
       const buf = await file.arrayBuffer();
       wb = XLSX.read(buf, { type: 'array', cellDates: true });
     }
-    applyWorkbook(wb, `Đã tải: ${file.name} · ${fmtN(S.raw.sales.length)} dòng`);
+    applyWorkbook(wb, `Loaded: ${file.name} · ${fmtN(S.raw.sales.length)} rows`);
   } catch (err) {
     console.error(err);
     destroyAllCharts();
-    setStatus(`Lỗi: ${err.message}`, true);
-    alert(`⚠️ ${err.message}\n\nVui lòng kiểm tra file Excel và các cột bắt buộc:\n- DATE (ngày giao dịch)\n- BILL (0/1)\n- AMOUNT (doanh thu)\n- QUANTITY (số lượng)\n\nKhuyến nghị thêm cột MM/YYYY để map tháng chính xác.`);
+    setStatus(`Error: ${err.message}`, true);
+    alert(`⚠️ ${err.message}\n\nPlease check the Excel file and required columns:\n- DATE (transaction date)\n- BILL (0/1)\n- AMOUNT (revenue)\n- QUANTITY (qty)\n\nRecommended: add a MM/YYYY column for accurate month mapping.`);
   } finally {
     overlay.classList.remove('show');
   }
@@ -1521,13 +1527,13 @@ async function loadFromGSheets() {
   const syncBtn = document.getElementById('syncBtn');
   overlay.classList.add('show');
   syncBtn.disabled = true;
-  setStatus('Đang đồng bộ từ Google Sheets…', false);
+  setStatus('Syncing from Google Sheets…', false);
   try {
     const cacheBuster = Date.now();
     const entries = await Promise.all(
       Object.entries(GSHEET_URLS).map(async ([name, url]) => {
         const res = await fetchWithTimeout(`${url}&_=${cacheBuster}`, 30000);
-        if (!res.ok) throw new Error(`Không tải được sheet "${name}" (HTTP ${res.status})`);
+        if (!res.ok) throw new Error(`Failed to fetch sheet "${name}" (HTTP ${res.status})`);
         const text = preprocessGSheetCsv(await res.text());
         const parsed = XLSX.read(text, { type: 'string', cellDates: true });
         const ws = parsed.Sheets[parsed.SheetNames[0]];
@@ -1537,20 +1543,20 @@ async function loadFromGSheets() {
     const wb = { SheetNames: [], Sheets: {} };
     entries.forEach(([name, ws]) => { wb.SheetNames.push(name); wb.Sheets[name] = ws; });
     const now = new Date();
-    applyWorkbook(wb, `Đồng bộ lúc ${now.toLocaleTimeString('vi-VN')} · ${fmtN(S.raw.sales.length)} dòng`);
-    syncBtn.title = `Đồng bộ lần cuối: ${now.toLocaleString('vi-VN')}`;
+    applyWorkbook(wb, `Synced at ${now.toLocaleTimeString('en-GB')} · ${fmtN(S.raw.sales.length)} rows`);
+    syncBtn.title = `Last synced: ${now.toLocaleString('en-GB')}`;
   } catch (err) {
     console.error(err);
     const msg = err.name === 'AbortError'
-      ? 'Quá thời gian chờ (30s). Kiểm tra mạng và thử lại.'
+      ? 'Timed out (30s). Check network and retry.'
       : err.message;
-    setStatus(`Lỗi đồng bộ: ${msg}`, true);
+    setStatus(`Sync error: ${msg}`, true);
     if (!S.raw.sales.length) {
       // First load failed — show empty state so user has clear next action
       document.getElementById('emptyState').style.display = 'flex';
       document.getElementById('dashContent').style.display = 'none';
     } else {
-      alert(`⚠️ Không đồng bộ được từ Google Sheets:\n${msg}\n\nDữ liệu hiện vẫn là phiên bản gần nhất đã tải.`);
+      alert(`⚠️ Could not sync from Google Sheets:\n${msg}\n\nKeeping the previously loaded data.`);
     }
   } finally {
     overlay.classList.remove('show');
@@ -1697,7 +1703,7 @@ function renderYoy() {
   const metricsPerYear = {};
   allYears.forEach(y => { metricsPerYear[y] = calcYoyMetrics(y); });
 
-  // Ẩn các năm không có data trong kỳ đang xem (revenue=0, bills=0, qty=0)
+  // Hide years with no data in the viewed period (revenue=0, bills=0, qty=0)
   const years = allYears.filter(y => {
     const m = metricsPerYear[y];
     return m.revenue > 0 || m.bills > 0 || m.qty > 0;
@@ -1906,7 +1912,9 @@ function parseInventoryWorkbook(wb) {
       const row = grid[r] || [];
       const sku = String(row[colIdx.sku] ?? '').trim();
       if (!sku) continue;
-      // Skip TOTAL / summary rows (often have aggregated SKU prefix or no clear ID)
+      // Only keep 14-character SKUs (full Hazzys product codes incl. color+size)
+      if (sku.length !== 14) continue;
+      // Skip TOTAL / summary rows
       if (/^(tổng|total|t\.cộng)/i.test(sku)) continue;
       rows.push({
         sku: sku,
@@ -1922,32 +1930,9 @@ function parseInventoryWorkbook(wb) {
     if (rows.length) break;
   }
 
-  if (!rows.length) throw new Error('Không tìm thấy sheet Tồn Kho hợp lệ. File cần header "Mã SKU" và "Tồn cuối kỳ".');
+  if (!rows.length) throw new Error('No valid stock sheet found. File must contain headers "Mã SKU" and "Tồn cuối kỳ", and 14-char SKU codes.');
 
-  // Dedupe by styleKey9: prefer style-level rows (SKU length ≤ 9). If only variants exist, sum them.
-  const byStyle = new Map();
-  rows.forEach((r) => {
-    const key = r.styleKey || r.sku;
-    const existing = byStyle.get(key);
-    const isStyleRow = r.sku.length <= 9;
-    if (!existing) {
-      byStyle.set(key, { ...r, _isStyle: isStyleRow });
-    } else if (isStyleRow && !existing._isStyle) {
-      // Replace: style-level row wins over variant
-      byStyle.set(key, { ...r, _isStyle: true });
-    } else if (!existing._isStyle && !isStyleRow) {
-      // Both variant rows: sum
-      existing.opening += r.opening;
-      existing.received += r.received;
-      existing.out += r.out;
-      existing.closing += r.closing;
-      existing.transitOut += r.transitOut;
-      existing.incoming += r.incoming;
-    }
-    // else: keep existing style-level row
-  });
-
-  return { rows: [...byStyle.values()], meta };
+  return { rows, meta };
 }
 
 async function onInventoryUpload(e) {
@@ -1960,7 +1945,7 @@ async function onInventoryUpload(e) {
 async function loadInventoryFile(file) {
   const overlay = document.getElementById('loadingOverlay');
   overlay.classList.add('show');
-  setStatus('Đang xử lý file tồn kho…', false);
+  setStatus('Processing stock file…', false);
   try {
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { type: 'array', cellDates: true });
@@ -1968,11 +1953,11 @@ async function loadInventoryFile(file) {
     S.raw.inventory = rows;
     S.raw.inventoryMeta = meta;
     renderInventory();
-    const periodStr = meta.periodFrom ? ` · Kỳ: ${meta.periodFrom} → ${meta.periodTo}` : '';
-    setStatus(`Đã tải tồn kho: ${fmtN(rows.length)} SKU${periodStr}`, false);
+    const periodStr = meta.periodFrom ? ` · Period: ${meta.periodFrom} → ${meta.periodTo}` : '';
+    setStatus(`Stock loaded: ${fmtN(rows.length)} SKUs${periodStr}`, false);
   } catch (err) {
     console.error(err);
-    setStatus(`Lỗi tải tồn kho: ${err.message}`, true);
+    setStatus(`Stock load error: ${err.message}`, true);
     alert(`⚠️ ${err.message}`);
   } finally {
     overlay.classList.remove('show');
@@ -1984,25 +1969,33 @@ function aggregateInventory() {
   const inv = S.raw.inventory || [];
   if (!inv.length) return null;
 
-  // Build per-style index from sales for category/type lookup AND velocity
+  // Build per-SKU index from sales: prefer exact 14-char match, fall back to styleKey9.
+  const salesBySku = new Map();
   const salesByStyle = new Map();
   S.raw.sales.forEach((r) => {
-    const key = r.productKey || styleKey9(r.sku || r.upc);
-    if (!key) return;
-    const p = salesByStyle.get(key) || { key, type: r.type, gender: r.gender, category: r.category, sales90: 0, sales30: 0, salesAll: 0 };
-    p.salesAll += num(r.qty);
-    if (r.date) {
-      const today = new Date();
-      const daysAgo = (today - r.date) / 86400000;
-      if (daysAgo <= 30) p.sales30 += num(r.qty);
-      if (daysAgo <= 90) p.sales90 += num(r.qty);
-    }
-    salesByStyle.set(key, p);
+    const raw = String(r.sku || r.upc || '').trim();
+    const exactKey = raw.length === 14 ? normalizeGroup(raw) : null;
+    const styleKey = r.productKey || styleKey9(raw);
+    const updateBucket = (map, key) => {
+      if (!key) return;
+      const p = map.get(key) || { key, type: r.type, gender: r.gender, category: r.category, sales90: 0, sales30: 0, salesAll: 0 };
+      p.salesAll += num(r.qty);
+      if (r.date) {
+        const today = new Date();
+        const daysAgo = (today - r.date) / 86400000;
+        if (daysAgo <= 30) p.sales30 += num(r.qty);
+        if (daysAgo <= 90) p.sales90 += num(r.qty);
+      }
+      map.set(key, p);
+    };
+    updateBucket(salesBySku, exactKey);
+    updateBucket(salesByStyle, styleKey);
   });
 
-  // Enrich each inventory row
+  // Enrich each inventory row — exact 14-char SKU join first, fall back to style-level
   const enriched = inv.map((r) => {
-    const salesInfo = salesByStyle.get(r.styleKey) || {};
+    const skuKey = normalizeGroup(r.sku);
+    const salesInfo = salesBySku.get(skuKey) || salesByStyle.get(r.styleKey) || {};
     const stock = r.closing;
     const sales30 = num(salesInfo.sales30);
     const sales90 = num(salesInfo.sales90);
@@ -2128,12 +2121,12 @@ function renderInventory() {
   const meta = S.raw.inventoryMeta || {};
   const headSub = document.getElementById('invHeadSub');
   const periodStr = meta.periodFrom ? `${meta.periodFrom} → ${meta.periodTo}` : '—';
-  headSub.textContent = `${meta.store || 'Tất cả cửa hàng'} · Kỳ tồn kho: ${periodStr} · ${fmtN(m.totalSku)} SKU`;
+  headSub.textContent = `${meta.store || 'All stores'} · Stock period: ${periodStr} · ${fmtN(m.totalSku)} SKUs (14-char only)`;
 
   // KPIs
   document.getElementById('invKpiSkuVal').textContent = fmtN(m.totalSku);
   document.getElementById('invKpiStockVal').textContent = fmtN(m.totalStock);
-  document.getElementById('invKpiStockSub').textContent = `Đã xuất ${fmtN(m.totalOut)} / Nhập ${fmtN(m.totalReceived)}`;
+  document.getElementById('invKpiStockSub').textContent = `Out ${fmtN(m.totalOut)} / In ${fmtN(m.totalReceived)}`;
   document.getElementById('invKpiSellThroughVal').textContent = fmtPct(m.sellThrough);
   document.getElementById('invKpiAtRiskVal').textContent = fmtN(m.atRiskCount);
   document.getElementById('invKpiAtRiskSub').textContent = `${m.stockoutAlerts.length} stockout · ${m.aging.length} aging`;
@@ -2164,8 +2157,8 @@ function renderInvByCategoryChart(m) {
     data: {
       labels: data.map((d) => d.label),
       datasets: [
-        { label: 'Tồn cuối', data: data.map((d) => d.stock), backgroundColor: css('--brand-mid'), borderRadius: 4, maxBarThickness: 28 },
-        { label: 'Đã xuất', data: data.map((d) => d.out), backgroundColor: css('--green'), borderRadius: 4, maxBarThickness: 28 },
+        { label: 'Closing', data: data.map((d) => d.stock), backgroundColor: css('--brand-mid'), borderRadius: 4, maxBarThickness: 28 },
+        { label: 'Out', data: data.map((d) => d.out), backgroundColor: css('--green'), borderRadius: 4, maxBarThickness: 28 },
       ],
     },
     options: {
@@ -2186,7 +2179,7 @@ function renderInvByCategoryChart(m) {
 
 function renderInvSellThroughChart(m) {
   const data = m.byCategory.filter((d) => (d.opening + d.received) > 0).slice(0, 12);
-  document.getElementById('invSellThroughSub').textContent = `Trung bình ${fmtPct(m.sellThrough)}`;
+  document.getElementById('invSellThroughSub').textContent = `Average ${fmtPct(m.sellThrough)}`;
   destroyChart('invSellThrough');
   if (!data.length) return;
   const colors = data.map((d) => d.sellThrough >= 70 ? css('--green') : d.sellThrough >= 40 ? '#d97706' : css('--red'));
@@ -2204,7 +2197,7 @@ function renderInvSellThroughChart(m) {
           callbacks: {
             label: (ctx) => {
               const d = data[ctx.dataIndex];
-              return [`Sell-through: ${fmtPct(d.sellThrough)}`, `Xuất ${fmtN(d.out)} / Nhập+Tồn đầu ${fmtN(d.opening + d.received)}`];
+              return [`Sell-through: ${fmtPct(d.sellThrough)}`, `Out ${fmtN(d.out)} / In+Opening ${fmtN(d.opening + d.received)}`];
             },
           },
         },
@@ -2220,12 +2213,12 @@ function renderInvSellThroughChart(m) {
 function renderInvStockoutTable(m) {
   const body = document.getElementById('invStockoutBody');
   if (!m.stockoutAlerts.length) {
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:14px">Không có SKU nào trong vùng cảnh báo stockout 🎉</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:14px">No SKUs in stockout-risk zone 🎉</td></tr>';
     return;
   }
   body.innerHTML = m.stockoutAlerts.map((r) => {
     const days = r.daysLeft >= 999 ? '∞' : r.daysLeft.toFixed(1);
-    const statusLbl = r.severity === 'critical' ? (r.stock === 0 ? 'HẾT HÀNG' : 'NGUY HIỂM') : r.severity === 'warn' ? 'SẮP HẾT' : 'THEO DÕI';
+    const statusLbl = r.severity === 'critical' ? (r.stock === 0 ? 'OUT OF STOCK' : 'CRITICAL') : r.severity === 'warn' ? 'LOW' : 'WATCH';
     return `<tr>
       <td title="${esc(r.sku)}">${esc(r.sku)}</td>
       <td>${fmtN(r.stock)}</td>
@@ -2239,12 +2232,12 @@ function renderInvStockoutTable(m) {
 function renderInvAgingTable(m) {
   const body = document.getElementById('invAgingBody');
   if (!m.aging.length) {
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:14px">Không có SKU tồn lâu</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:14px">No aging SKUs</td></tr>';
     return;
   }
   body.innerHTML = m.aging.map((r) => {
     const days = r.daysOfStock >= 999 ? '∞' : r.daysOfStock.toFixed(0);
-    const statusLbl = r.severity === 'critical' ? (r.sales90 === 0 ? 'DEAD STOCK' : 'TỒN RẤT LÂU') : r.severity === 'warn' ? 'TỒN LÂU' : 'CHẬM';
+    const statusLbl = r.severity === 'critical' ? (r.sales90 === 0 ? 'DEAD STOCK' : 'VERY OLD') : r.severity === 'warn' ? 'OLD' : 'SLOW';
     return `<tr>
       <td title="${esc(r.sku)}">${esc(r.sku)}</td>
       <td>${fmtN(r.stock)}</td>
@@ -2255,10 +2248,12 @@ function renderInvAgingTable(m) {
   }).join('');
 }
 
-window.switchInvView = function(view, btn) {
-  document.querySelectorAll('#invMetricTabs .chart-tab').forEach((t) => t.classList.remove('active'));
-  btn.classList.add('active');
-  // View toggle reserved for future expansion — both views currently share layout
+// ===== TAB SWITCHING =====
+window.switchTab = function(name) {
+  document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-pane').forEach((p) => p.classList.toggle('active', p.dataset.tabPane === name));
+  // Re-size charts after the pane becomes visible (Chart.js needs visible canvas to measure)
+  requestAnimationFrame(() => syncCharts());
 };
 
 function bindEvents() {

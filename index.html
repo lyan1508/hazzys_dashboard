@@ -60,17 +60,17 @@
         <svg id="themeIconSun" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/><line x1="3.2" y1="3.2" x2="4.6" y2="4.6"/><line x1="11.4" y1="11.4" x2="12.8" y2="12.8"/><line x1="12.8" y1="3.2" x2="11.4" y2="4.6"/><line x1="4.6" y1="11.4" x2="3.2" y2="12.8"/></svg>
         <svg id="themeIconMoon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="display:none"><path d="M14 10A6 6 0 0 1 6 2a6 6 0 1 0 8 8Z"/></svg>
       </button>
-      <button class="btn btn-ghost" id="syncBtn" title="Đồng bộ dữ liệu trực tiếp từ Google Sheets">
+      <button class="btn btn-ghost" id="syncBtn" title="Sync data from Google Sheets">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 11.5a3.5 3.5 0 1 1 .5-6.95A4.5 4.5 0 0 1 13.5 7.5a2.5 2.5 0 0 1-.5 4.95"/><path d="M8 8v5"/><path d="M5.5 10.5L8 8l2.5 2.5"/></svg>
         Cloud Sync
       </button>
-      <label class="btn btn-primary" for="fileInput" title="Tải lên file Excel từ máy tính">
+      <label class="btn btn-primary" for="fileInput" title="Upload Excel file">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1H3.5A1.5 1.5 0 0 0 2 2.5v11A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V6"/><path d="M9 1v5h5"/><path d="M8 12V8"/><path d="M6 10l2-2 2 2"/></svg>
-        Upload File
+        Upload Sales
       </label>
       <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsm,.csv">
-      <label class="btn btn-ghost" for="invFileInput" title="Tải lên file Tồn Kho (nhập-xuất-tồn)" style="font-size:12px">
-        📦 Stock
+      <label class="btn btn-ghost" for="invFileInput" title="Upload stock file (in/out/balance)">
+        📦 Upload Stock
       </label>
       <input type="file" id="invFileInput" accept=".xlsx,.xls,.xlsm" style="display:none">
     </div>
@@ -82,7 +82,7 @@
 <div class="loading-overlay" id="loadingOverlay">
   <div class="loader">
     <div class="spinner"></div>
-    <div class="loader-text">Đang xử lý dữ liệu…</div>
+    <div class="loader-text">Processing data…</div>
   </div>
 </div>
 
@@ -97,18 +97,18 @@
     <div class="empty-title">Sales Intelligence Dashboard</div>
     <div class="empty-desc">Upload your sales Excel file to start analyzing.<br>Supports .xlsx, .xls, .xlsm, .csv</div>
     <label class="upload-zone" for="fileInput" id="dropZone">
-      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:6px">
+      <div style="font-size:var(--fs-md);font-weight:600;color:var(--text-2);margin-bottom:6px">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="vertical-align:middle;margin-right:6px"><path d="M3 13v4h14v-4M10 3v10M6 7l4-4 4 4"/></svg>
         Drag & drop file here or click to select
       </div>
-      <div style="font-size:11px;color:var(--text-3)">Required: Date, Bill No., Bill (0/1), UPC, Type, Gender, Amount, Qty. Optional: Store, Category</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-3)">Required: Date, Bill No., Bill (0/1), UPC, Type, Gender, Amount, Qty. Optional: Store, Category</div>
     </label>
   </div>
 
   <!-- DASHBOARD CONTENT -->
   <div id="dashContent" style="display:none">
 
-    <!-- KPI CARDS -->
+    <!-- KPI CARDS (always visible across tabs) -->
     <div class="kpi-grid" id="kpiGrid">
       <div class="kpi-card">
         <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#0a2463,#1a56a8)"></div>
@@ -130,18 +130,18 @@
           </div>
         </div>
         <div class="kpi-value" id="kTarget">—</div>
-        <div class="kpi-sub" id="kTargetSub">Mục tiêu doanh thu</div>
+        <div class="kpi-sub" id="kTargetSub">Revenue target</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-accent-bar" id="kAchieveBar" style="background:linear-gradient(90deg,#16a34a,#4ade80)"></div>
         <div class="kpi-header">
-          <div class="kpi-label">% Đạt Target</div>
+          <div class="kpi-label">Achievement</div>
           <div class="kpi-icon" style="background:#dcfce7;color:#16a34a">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 13l4-4 3 3 5-6"/><path d="M10 6h4v4"/></svg>
           </div>
         </div>
         <div class="kpi-value" id="kAchieve">—</div>
-        <div class="kpi-sub" id="kAchieveSub">Doanh thu / Target</div>
+        <div class="kpi-sub" id="kAchieveSub">Revenue / Target</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#0891b2,#22d3ee)"></div>
@@ -179,7 +179,7 @@
       <div class="kpi-card">
         <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#0ea5e9,#38bdf8)"></div>
         <div class="kpi-header">
-          <div class="kpi-label">Conversion Rate</div>
+          <div class="kpi-label">Conversion</div>
           <div class="kpi-icon" style="background:#e0f2fe;color:#0369a1">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 8A6 6 0 1 1 8 2"/><path d="M14 2l-4 4 4 0V2z"/></svg>
           </div>
@@ -211,121 +211,287 @@
       </div>
     </div>
 
-    <!-- MAIN LAYOUT: 2 cột trái/phải -->
-    <div class="dash-layout">
+    <!-- ====== TABS NAV ====== -->
+    <div class="tabs-nav" id="tabsNav">
+      <button class="tab-btn active" data-tab="overview" onclick="switchTab('overview')"><span class="tab-icon">📊</span>Overview</button>
+      <button class="tab-btn" data-tab="sales" onclick="switchTab('sales')"><span class="tab-icon">📈</span>Sales Trend</button>
+      <button class="tab-btn" data-tab="product" onclick="switchTab('product')"><span class="tab-icon">🧩</span>Product</button>
+      <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')"><span class="tab-icon">🧑‍💼</span>Staff</button>
+      <button class="tab-btn" data-tab="inventory" onclick="switchTab('inventory')"><span class="tab-icon">📦</span>Inventory</button>
+    </div>
 
-      <!-- LEFT COL -->
-      <div class="dash-col-left">
+    <!-- ====== TAB: OVERVIEW ====== -->
+    <div class="tab-pane active" data-tab-pane="overview">
 
-        <!-- Revenue Performance -->
-        <div class="chart-card" >
-          <div class="chart-card-hd">
-            <div>
-              <div class="chart-card-title"><span class="card-icon">📈</span> Revenue Performance</div>
-            </div>
-            <div class="chart-tabs">
-              <button class="chart-tab active" onclick="switchRevChart('monthly',this)">Monthly</button>
-              <button class="chart-tab" onclick="switchRevChart('cumulative',this)">Cumulative</button>
-            </div>
+      <!-- Revenue Performance -->
+      <div class="chart-card" style="margin-bottom:10px">
+        <div class="chart-card-hd">
+          <div>
+            <div class="chart-card-title"><span class="card-icon">📈</span> Revenue Performance</div>
           </div>
-          <div class="chart-wrap" style="height:280px">
-            <canvas id="chartRevenue"></canvas>
+          <div class="chart-tabs">
+            <button class="chart-tab active" onclick="switchRevChart('monthly',this)">Monthly</button>
+            <button class="chart-tab" onclick="switchRevChart('cumulative',this)">Cumulative</button>
           </div>
         </div>
+        <div class="chart-wrap" style="height:280px">
+          <canvas id="chartRevenue"></canvas>
+        </div>
+      </div>
 
-        <!-- Type + Gender row -->
-        <div class="dash-row-2col" >
-          <div class="chart-card">
-            <div class="chart-card-hd">
-              <div class="chart-card-title"><span class="card-icon">🧩</span> By Product Type</div>
+      <!-- TARGET PACE -->
+      <div class="panel" id="targetPaceSection" style="margin-bottom:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden">
+        <div class="panel-head" style="padding:12px 16px 8px;border-bottom:1px solid var(--border)">
+          <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">🎯 Target Pace — Progress vs target</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-3);margin-top:2px" id="paceContext">Calculating...</div>
+        </div>
+        <div class="pace-grid">
+          <div class="pace-card" data-pace="month">
+            <div class="pace-card-label">Current Month</div>
+            <div class="pace-card-period" id="paceMonthName">—</div>
+            <div class="pace-bar-wrap">
+              <div class="pace-bar-actual" id="paceMonthBar" style="width:0%;background:var(--brand-mid)"></div>
+              <div class="pace-bar-expected" id="paceMonthExp" style="left:0%"></div>
             </div>
-            <div class="split-inner">
-              <div class="doughnut-wrap">
-                <canvas id="chartType"></canvas>
-                <div class="doughnut-center"><div class="d-val" id="dTypeVal">—</div><div class="d-lbl">Total</div></div>
+            <div class="pace-row"><span>Actual</span><strong id="paceMonthActual">—</strong></div>
+            <div class="pace-row"><span>Target</span><strong id="paceMonthTarget">—</strong></div>
+            <div class="pace-row"><span>Expected to date</span><strong id="paceMonthExpected">—</strong></div>
+            <div class="pace-row"><span>Required / day</span><strong id="paceMonthRequired">—</strong></div>
+            <span class="pace-status idle" id="paceMonthStatus">—</span>
+          </div>
+          <div class="pace-card" data-pace="quarter">
+            <div class="pace-card-label">Current Quarter</div>
+            <div class="pace-card-period" id="paceQuarterName">—</div>
+            <div class="pace-bar-wrap">
+              <div class="pace-bar-actual" id="paceQuarterBar" style="width:0%;background:var(--brand-mid)"></div>
+              <div class="pace-bar-expected" id="paceQuarterExp" style="left:0%"></div>
+            </div>
+            <div class="pace-row"><span>Actual</span><strong id="paceQuarterActual">—</strong></div>
+            <div class="pace-row"><span>Target</span><strong id="paceQuarterTarget">—</strong></div>
+            <div class="pace-row"><span>Expected to date</span><strong id="paceQuarterExpected">—</strong></div>
+            <div class="pace-row"><span>Required / day</span><strong id="paceQuarterRequired">—</strong></div>
+            <span class="pace-status idle" id="paceQuarterStatus">—</span>
+          </div>
+          <div class="pace-card" data-pace="year">
+            <div class="pace-card-label">Current Year</div>
+            <div class="pace-card-period" id="paceYearName">—</div>
+            <div class="pace-bar-wrap">
+              <div class="pace-bar-actual" id="paceYearBar" style="width:0%;background:var(--brand-mid)"></div>
+              <div class="pace-bar-expected" id="paceYearExp" style="left:0%"></div>
+            </div>
+            <div class="pace-row"><span>Actual</span><strong id="paceYearActual">—</strong></div>
+            <div class="pace-row"><span>Target</span><strong id="paceYearTarget">—</strong></div>
+            <div class="pace-row"><span>Expected to date</span><strong id="paceYearExpected">—</strong></div>
+            <div class="pace-row"><span>Required / day</span><strong id="paceYearRequired">—</strong></div>
+            <span class="pace-status idle" id="paceYearStatus">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- FORECAST -->
+      <div class="panel" id="forecastSection" style="margin-bottom:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden">
+        <div class="panel-head" style="padding:12px 16px 8px;border-bottom:1px solid var(--border)">
+          <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">📈 Revenue Forecast</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-3);margin-top:2px" id="forecastMethod">Calculating...</div>
+        </div>
+        <div class="forecast-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px">
+          <div class="forecast-card" data-period="month">
+            <div class="forecast-card-label">Next Month</div>
+            <div class="forecast-card-name" id="fcMonthName">—</div>
+            <div class="forecast-card-value" id="fcMonthValue">—</div>
+            <div class="forecast-card-range" id="fcMonthRange">—</div>
+            <div class="forecast-card-vs" id="fcMonthVs">—</div>
+          </div>
+          <div class="forecast-card" data-period="quarter">
+            <div class="forecast-card-label">Next Quarter</div>
+            <div class="forecast-card-name" id="fcQuarterName">—</div>
+            <div class="forecast-card-value" id="fcQuarterValue">—</div>
+            <div class="forecast-card-range" id="fcQuarterRange">—</div>
+            <div class="forecast-card-vs" id="fcQuarterVs">—</div>
+          </div>
+          <div class="forecast-card" data-period="year">
+            <div class="forecast-card-label">Full Year (estimate)</div>
+            <div class="forecast-card-name" id="fcYearName">—</div>
+            <div class="forecast-card-value" id="fcYearValue">—</div>
+            <div class="forecast-card-range" id="fcYearRange">—</div>
+            <div class="forecast-card-vs" id="fcYearVs">—</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab overview -->
+
+    <!-- ====== TAB: SALES TREND ====== -->
+    <div class="tab-pane" data-tab-pane="sales">
+
+      <!-- Bills & Traffic -->
+      <div class="chart-card" style="margin-bottom:10px">
+        <div class="chart-card-hd">
+          <div class="chart-card-title"><span class="card-icon">🚶</span> Bills & Traffic Trend</div>
+        </div>
+        <div class="chart-wrap" style="height:240px">
+          <canvas id="chartTraffic"></canvas>
+        </div>
+      </div>
+
+      <!-- YoY Comparison -->
+      <div class="yoy-section" id="yoySection">
+        <div class="yoy-controls">
+          <span class="yoy-label">📊 Year-over-Year Comparison</span>
+          <span id="yoyFilterBadge" style="display:none"></span>
+          <div class="yoy-range-group">
+            <span class="yoy-label" style="font-weight:400;color:var(--text-3)">Period:</span>
+            <select class="yoy-select" id="yoyRangeType" onchange="onYoyRangeChange()">
+              <option value="month">By Month</option>
+              <option value="quarter">By Quarter</option>
+              <option value="ytd">YTD</option>
+              <option value="custom">Custom Range</option>
+            </select>
+          </div>
+          <div class="yoy-range-group" id="yoyMonthRow">
+            <span class="yoy-label" style="font-weight:400;color:var(--text-3)">Month:</span>
+            <select class="yoy-select" id="yoyMonth"></select>
+          </div>
+          <div class="yoy-range-group" id="yoyQuarterRow" style="display:none">
+            <span class="yoy-label" style="font-weight:400;color:var(--text-3)">Quarter:</span>
+            <select class="yoy-select" id="yoyQuarter">
+              <option value="1">Q1</option><option value="2">Q2</option>
+              <option value="3">Q3</option><option value="4">Q4</option>
+            </select>
+          </div>
+          <div class="yoy-range-group" id="yoyCustomRow" style="display:none">
+            <span class="yoy-label" style="font-weight:400;color:var(--text-3)">From:</span>
+            <select class="yoy-select" id="yoyCustomFrom"></select>
+            <span class="yoy-label" style="font-weight:400;color:var(--text-3)">→ To:</span>
+            <select class="yoy-select" id="yoyCustomTo"></select>
+          </div>
+          <div class="yoy-metric-tabs" id="yoyMetricTabs">
+            <button class="yoy-metric-tab active" data-metric="revenue" onclick="setYoyMetric('revenue',this)">Revenue</button>
+            <button class="yoy-metric-tab" data-metric="bills" onclick="setYoyMetric('bills',this)">Bills</button>
+            <button class="yoy-metric-tab" data-metric="qty" onclick="setYoyMetric('qty',this)">Qty</button>
+            <button class="yoy-metric-tab" data-metric="atv" onclick="setYoyMetric('atv',this)">ATV</button>
+            <button class="yoy-metric-tab" data-metric="cvr" onclick="setYoyMetric('cvr',this)">CVR%</button>
+          </div>
+        </div>
+        <div class="yoy-card">
+          <div class="yoy-split-body">
+            <div class="yoy-split-chart">
+              <div class="yoy-split-label">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12l4-5 3 3 4-6 3 3"/></svg>
+                Trend Chart
               </div>
-              <div class="legend-list" id="legendType"></div>
+              <div class="yoy-chart-wrap"><canvas id="chartYoy"></canvas></div>
             </div>
-          </div>
-          <div class="chart-card">
-            <div class="chart-card-hd">
-              <div class="chart-card-title"><span class="card-icon">👥</span> By Gender</div>
-            </div>
-            <div class="split-inner">
-              <div class="doughnut-wrap">
-                <canvas id="chartGender"></canvas>
-                <div class="doughnut-center"><div class="d-val" id="dGenderVal">—</div><div class="d-lbl">Total</div></div>
+            <div class="yoy-split-table">
+              <div class="yoy-split-label">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="1" width="14" height="14" rx="2"/><line x1="1" y1="6" x2="15" y2="6"/><line x1="1" y1="11" x2="15" y2="11"/><line x1="6" y1="6" x2="6" y2="15"/></svg>
+                Summary
               </div>
-              <div class="legend-list" id="legendGender"></div>
+              <div id="yoyKpiRow" class="yoy-year-summary"></div>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Promotion -->
-        <div class="chart-card" id="promoCard">
-          <div class="chart-card-hd">
-            <div class="chart-card-title"><span class="card-icon">🏷️</span> Revenue by Promotion</div>
+      <!-- DOW HEATMAP -->
+      <div class="panel dow-section" id="dowSection" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden">
+        <div class="panel-head" style="padding:12px 16px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">📅 Day-of-Week Heatmap — Average performance by weekday</div>
+            <div style="font-size:var(--fs-xs);color:var(--text-3);margin-top:2px" id="dowContext">Calculating...</div>
           </div>
-          <div id="promotionInfo"></div>
-        </div>
-
-      </div><!-- /col-left -->
-
-      <!-- RIGHT COL -->
-      <div class="dash-col-right">
-
-        <!-- Top Products -->
-        <div class="chart-card" id="topProductCard">
-          <div class="chart-card-hd">
-            <div class="chart-card-title"><span class="card-icon">🏆</span> Top Products</div>
-          </div>
-          <div class="product-list" id="topProductList" style="align-content:start"></div>
-        </div>
-
-        <!-- Bills & Traffic -->
-        <div class="chart-card" >
-          <div class="chart-card-hd">
-            <div class="chart-card-title"><span class="card-icon">🚶</span> Bills & Traffic Trend</div>
-          </div>
-          <div class="chart-wrap" style="height:200px">
-            <canvas id="chartTraffic"></canvas>
+          <div class="chart-tabs" id="dowMetricTabs">
+            <button class="chart-tab active" data-dow-metric="revenue" onclick="switchDowMetric('revenue',this)">Revenue/day</button>
+            <button class="chart-tab" data-dow-metric="bills" onclick="switchDowMetric('bills',this)">Bills/day</button>
+            <button class="chart-tab" data-dow-metric="atv" onclick="switchDowMetric('atv',this)">ATV</button>
           </div>
         </div>
+        <div class="dow-strip" id="dowStrip"></div>
+      </div>
 
-        <!-- Cashier -->
+    </div><!-- /tab sales -->
+
+    <!-- ====== TAB: PRODUCT ====== -->
+    <div class="tab-pane" data-tab-pane="product">
+
+      <!-- By Type + Gender -->
+      <div class="dash-row-2col" style="margin-bottom:10px">
         <div class="chart-card">
           <div class="chart-card-hd">
-            <div class="chart-card-title"><span class="card-icon">🧑‍💼</span> Revenue by Cashier</div>
+            <div class="chart-card-title"><span class="card-icon">🧩</span> By Product Type</div>
           </div>
-          <div class="cashier-picker" id="cashierPicker"></div>
-          <div class="chart-wrap" style="height:220px">
-            <canvas id="chartCashierBar"></canvas>
+          <div class="split-inner">
+            <div class="doughnut-wrap">
+              <canvas id="chartType"></canvas>
+              <div class="doughnut-center"><div class="d-val" id="dTypeVal">—</div><div class="d-lbl">Total</div></div>
+            </div>
+            <div class="legend-list" id="legendType"></div>
           </div>
         </div>
+        <div class="chart-card">
+          <div class="chart-card-hd">
+            <div class="chart-card-title"><span class="card-icon">👥</span> By Gender</div>
+          </div>
+          <div class="split-inner">
+            <div class="doughnut-wrap">
+              <canvas id="chartGender"></canvas>
+              <div class="doughnut-center"><div class="d-val" id="dGenderVal">—</div><div class="d-lbl">Total</div></div>
+            </div>
+            <div class="legend-list" id="legendGender"></div>
+          </div>
+        </div>
+      </div>
 
-      </div><!-- /col-right -->
+      <!-- Top Products -->
+      <div class="chart-card" id="topProductCard" style="margin-bottom:10px">
+        <div class="chart-card-hd">
+          <div class="chart-card-title"><span class="card-icon">🏆</span> Top Products <span style="font-size:var(--fs-xs);color:var(--text-3);font-weight:400;margin-left:6px">14-char SKUs only</span></div>
+        </div>
+        <div class="product-list" id="topProductList" style="align-content:start"></div>
+      </div>
 
-    </div><!-- /dash-layout -->
-
-    <div style="margin-bottom:10px"></div>
-
-    <!-- ANALYTICS ROW: ABC/Pareto + Cashier Productivity Matrix -->
-    <div class="analytics-row">
-      <div class="chart-card" id="abcCard">
+      <!-- ABC / Pareto -->
+      <div class="chart-card" id="abcCard" style="margin-bottom:10px">
         <div class="chart-card-hd">
           <div>
             <div class="chart-card-title"><span class="card-icon">📦</span> ABC / Pareto SKU</div>
-            <div class="chart-card-sub">Top SKU đóng góp doanh thu — phân lớp A (80%) / B (15%) / C (5%)</div>
+            <div class="chart-card-sub">Tier A: top 80% revenue · Tier B: next 15% · Tier C: tail (14-char SKUs only)</div>
           </div>
         </div>
         <div class="abc-summary" id="abcSummary"></div>
         <div class="chart-wrap" style="height:240px"><canvas id="chartAbc"></canvas></div>
       </div>
+
+      <!-- Promotion -->
+      <div class="chart-card" id="promoCard">
+        <div class="chart-card-hd">
+          <div class="chart-card-title"><span class="card-icon">🏷️</span> Revenue by Promotion</div>
+        </div>
+        <div id="promotionInfo"></div>
+      </div>
+
+    </div><!-- /tab product -->
+
+    <!-- ====== TAB: STAFF ====== -->
+    <div class="tab-pane" data-tab-pane="staff">
+
+      <!-- Revenue by Cashier -->
+      <div class="chart-card" style="margin-bottom:10px">
+        <div class="chart-card-hd">
+          <div class="chart-card-title"><span class="card-icon">🧑‍💼</span> Revenue by Cashier</div>
+        </div>
+        <div class="cashier-picker" id="cashierPicker"></div>
+        <div class="chart-wrap" style="height:280px">
+          <canvas id="chartCashierBar"></canvas>
+        </div>
+      </div>
+
+      <!-- Cashier Productivity Matrix -->
       <div class="chart-card" id="cashierMatrixCard">
         <div class="chart-card-hd">
           <div>
             <div class="chart-card-title"><span class="card-icon">📋</span> Cashier Productivity Matrix</div>
-            <div class="chart-card-sub">Năng suất theo ngày làm việc — Bills/day · Rev/day · ATV · UPT</div>
+            <div class="chart-card-sub">Productivity per working day — Bills/day · Rev/day · ATV · UPT</div>
           </div>
         </div>
         <div class="matrix-wrap">
@@ -347,279 +513,124 @@
           </table>
         </div>
       </div>
-    </div>
 
-    <!-- TARGET PACE SECTION -->
-    <div class="panel" id="targetPaceSection" style="margin-bottom:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden">
-      <div class="panel-head" style="padding:12px 16px 8px;border-bottom:1px solid var(--border)">
-        <div style="font-size:13px;font-weight:700;color:var(--text)">🎯 Target Pace — Tiến độ chạy target</div>
-        <div style="font-size:11px;color:var(--text-3);margin-top:2px" id="paceContext">Đang tính...</div>
-      </div>
-      <div class="pace-grid">
-        <div class="pace-card" data-pace="month">
-          <div class="pace-card-label">Tháng đang chạy</div>
-          <div class="pace-card-period" id="paceMonthName">—</div>
-          <div class="pace-bar-wrap">
-            <div class="pace-bar-actual" id="paceMonthBar" style="width:0%;background:var(--brand-mid)"></div>
-            <div class="pace-bar-expected" id="paceMonthExp" style="left:0%"></div>
-          </div>
-          <div class="pace-row"><span>Thực tế</span><strong id="paceMonthActual">—</strong></div>
-          <div class="pace-row"><span>Target</span><strong id="paceMonthTarget">—</strong></div>
-          <div class="pace-row"><span>Kỳ vọng đến nay</span><strong id="paceMonthExpected">—</strong></div>
-          <div class="pace-row"><span>Còn lại / ngày</span><strong id="paceMonthRequired">—</strong></div>
-          <span class="pace-status idle" id="paceMonthStatus">—</span>
-        </div>
-        <div class="pace-card" data-pace="quarter">
-          <div class="pace-card-label">Quý đang chạy</div>
-          <div class="pace-card-period" id="paceQuarterName">—</div>
-          <div class="pace-bar-wrap">
-            <div class="pace-bar-actual" id="paceQuarterBar" style="width:0%;background:var(--brand-mid)"></div>
-            <div class="pace-bar-expected" id="paceQuarterExp" style="left:0%"></div>
-          </div>
-          <div class="pace-row"><span>Thực tế</span><strong id="paceQuarterActual">—</strong></div>
-          <div class="pace-row"><span>Target</span><strong id="paceQuarterTarget">—</strong></div>
-          <div class="pace-row"><span>Kỳ vọng đến nay</span><strong id="paceQuarterExpected">—</strong></div>
-          <div class="pace-row"><span>Còn lại / ngày</span><strong id="paceQuarterRequired">—</strong></div>
-          <span class="pace-status idle" id="paceQuarterStatus">—</span>
-        </div>
-        <div class="pace-card" data-pace="year">
-          <div class="pace-card-label">Năm đang chạy</div>
-          <div class="pace-card-period" id="paceYearName">—</div>
-          <div class="pace-bar-wrap">
-            <div class="pace-bar-actual" id="paceYearBar" style="width:0%;background:var(--brand-mid)"></div>
-            <div class="pace-bar-expected" id="paceYearExp" style="left:0%"></div>
-          </div>
-          <div class="pace-row"><span>Thực tế</span><strong id="paceYearActual">—</strong></div>
-          <div class="pace-row"><span>Target</span><strong id="paceYearTarget">—</strong></div>
-          <div class="pace-row"><span>Kỳ vọng đến nay</span><strong id="paceYearExpected">—</strong></div>
-          <div class="pace-row"><span>Còn lại / ngày</span><strong id="paceYearRequired">—</strong></div>
-          <span class="pace-status idle" id="paceYearStatus">—</span>
-        </div>
-      </div>
-    </div>
+    </div><!-- /tab staff -->
 
-    <!-- FORECAST SECTION -->
-    <div class="panel" id="forecastSection" style="margin-bottom:10px">
-      <div class="panel-head" style="padding:12px 16px 8px;border-bottom:1px solid var(--border)">
-        <div style="font-size:13px;font-weight:700;color:var(--text)">📈 Dự báo doanh thu</div>
-        <div style="font-size:11px;color:var(--text-3);margin-top:2px" id="forecastMethod">Đang tính...</div>
-      </div>
-      <div class="forecast-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px">
-        <div class="forecast-card" data-period="month">
-          <div class="forecast-card-label">Tháng tiếp theo</div>
-          <div class="forecast-card-name" id="fcMonthName">—</div>
-          <div class="forecast-card-value" id="fcMonthValue">—</div>
-          <div class="forecast-card-range" id="fcMonthRange">—</div>
-          <div class="forecast-card-vs" id="fcMonthVs">—</div>
-        </div>
-        <div class="forecast-card" data-period="quarter">
-          <div class="forecast-card-label">Quý tiếp theo</div>
-          <div class="forecast-card-name" id="fcQuarterName">—</div>
-          <div class="forecast-card-value" id="fcQuarterValue">—</div>
-          <div class="forecast-card-range" id="fcQuarterRange">—</div>
-          <div class="forecast-card-vs" id="fcQuarterVs">—</div>
-        </div>
-        <div class="forecast-card" data-period="year">
-          <div class="forecast-card-label">Cả năm (ước tính)</div>
-          <div class="forecast-card-name" id="fcYearName">—</div>
-          <div class="forecast-card-value" id="fcYearValue">—</div>
-          <div class="forecast-card-range" id="fcYearRange">—</div>
-          <div class="forecast-card-vs" id="fcYearVs">—</div>
-        </div>
-      </div>
-    </div>
+    <!-- ====== TAB: INVENTORY ====== -->
+    <div class="tab-pane" data-tab-pane="inventory">
 
-    <!-- YOY COMPARISON SECTION -->
-    <div class="yoy-section" id="yoySection">
-      <div class="yoy-controls">
-        <span class="yoy-label">📊 Year-over-Year Comparison</span>
-        <span id="yoyFilterBadge" style="display:none"></span>
-        <div class="yoy-range-group">
-          <span class="yoy-label" style="font-weight:400;color:var(--text-3)">Period:</span>
-          <select class="yoy-select" id="yoyRangeType" onchange="onYoyRangeChange()">
-            <option value="month">By Month</option>
-            <option value="quarter">By Quarter</option>
-            <option value="ytd">YTD</option>
-            <option value="custom">Custom Range</option>
-          </select>
-        </div>
-        <div class="yoy-range-group" id="yoyMonthRow">
-          <span class="yoy-label" style="font-weight:400;color:var(--text-3)">Month:</span>
-          <select class="yoy-select" id="yoyMonth"></select>
-        </div>
-        <div class="yoy-range-group" id="yoyQuarterRow" style="display:none">
-          <span class="yoy-label" style="font-weight:400;color:var(--text-3)">Quarter:</span>
-          <select class="yoy-select" id="yoyQuarter">
-            <option value="1">Q1</option><option value="2">Q2</option>
-            <option value="3">Q3</option><option value="4">Q4</option>
-          </select>
-        </div>
-        <div class="yoy-range-group" id="yoyCustomRow" style="display:none">
-          <span class="yoy-label" style="font-weight:400;color:var(--text-3)">From:</span>
-          <select class="yoy-select" id="yoyCustomFrom"></select>
-          <span class="yoy-label" style="font-weight:400;color:var(--text-3)">→ To:</span>
-          <select class="yoy-select" id="yoyCustomTo"></select>
-        </div>
-        <div class="yoy-metric-tabs" id="yoyMetricTabs">
-          <button class="yoy-metric-tab active" data-metric="revenue" onclick="setYoyMetric('revenue',this)">Revenue</button>
-          <button class="yoy-metric-tab" data-metric="bills" onclick="setYoyMetric('bills',this)">Bills</button>
-          <button class="yoy-metric-tab" data-metric="qty" onclick="setYoyMetric('qty',this)">Qty</button>
-          <button class="yoy-metric-tab" data-metric="atv" onclick="setYoyMetric('atv',this)">ATV</button>
-          <button class="yoy-metric-tab" data-metric="cvr" onclick="setYoyMetric('cvr',this)">CVR%</button>
-        </div>
-      </div>
-      <div class="yoy-card">
-        <div class="yoy-split-body">
-          <div class="yoy-split-chart">
-            <div class="yoy-split-label">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12l4-5 3 3 4-6 3 3"/></svg>
-              Trend Chart
-            </div>
-            <div class="yoy-chart-wrap"><canvas id="chartYoy"></canvas></div>
-          </div>
-          <div class="yoy-split-table">
-            <div class="yoy-split-label">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="1" width="14" height="14" rx="2"/><line x1="1" y1="6" x2="15" y2="6"/><line x1="1" y1="11" x2="15" y2="11"/><line x1="6" y1="6" x2="6" y2="15"/></svg>
-              Summary
-            </div>
-            <!-- Year summary cards: all metrics per year -->
-            <div id="yoyKpiRow" class="yoy-year-summary"></div>
+      <div class="inv-section" id="invSection" style="border:none;background:transparent;box-shadow:none;border-radius:0">
+        <div class="inv-head" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0">
+          <div>
+            <div class="inv-head-title">📦 Inventory — Stock Health</div>
+            <div class="inv-head-sub" id="invHeadSub">Click the 📦 Upload Stock button in the top bar to load the inventory file (14-char SKUs only)</div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- DOW HEATMAP — Doanh thu theo thứ trong tuần -->
-    <div class="panel dow-section" id="dowSection" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden">
-      <div class="panel-head" style="padding:12px 16px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:var(--text)">📅 Day-of-Week Heatmap — Doanh thu trung bình theo thứ</div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:2px" id="dowContext">Đang tính...</div>
+        <div id="invEmpty" class="inv-empty" style="background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius)">
+          <strong>No inventory data loaded</strong>
+          File header required: <em>Mã SKU · Tồn đầu kỳ · Nhập trong kỳ · Xuất trong kỳ · Tồn cuối kỳ · Đang chuyển đi · Sắp nhận về</em>
+          <label class="upload-zone" for="invFileInput" style="display:inline-block;margin-top:14px;cursor:pointer">
+            📦 Choose stock file
+          </label>
         </div>
-        <div class="chart-tabs" id="dowMetricTabs">
-          <button class="chart-tab active" data-dow-metric="revenue" onclick="switchDowMetric('revenue',this)">Revenue/day</button>
-          <button class="chart-tab" data-dow-metric="bills" onclick="switchDowMetric('bills',this)">Bills/day</button>
-          <button class="chart-tab" data-dow-metric="atv" onclick="switchDowMetric('atv',this)">ATV</button>
-        </div>
-      </div>
-      <div class="dow-strip" id="dowStrip"></div>
-    </div>
 
-    <!-- ====== SPRINT 2: INVENTORY SECTION ====== -->
-    <div class="inv-section" id="invSection">
-      <div class="inv-head">
-        <div>
-          <div class="inv-head-title">📦 Inventory — Tồn kho & Sức khỏe hàng hóa</div>
-          <div class="inv-head-sub" id="invHeadSub">Bấm nút 📦 Stock trên thanh trên cùng để tải file Tổng hợp Nhập-Xuất-Tồn</div>
-        </div>
-        <div class="chart-tabs" id="invMetricTabs" style="display:none">
-          <button class="chart-tab active" data-inv-view="overview" onclick="switchInvView('overview',this)">Tổng quan</button>
-          <button class="chart-tab" data-inv-view="alerts" onclick="switchInvView('alerts',this)">Cảnh báo</button>
-        </div>
-      </div>
-
-      <div id="invEmpty" class="inv-empty">
-        <strong>Chưa tải dữ liệu tồn kho</strong>
-        File cần có header: <em>Mã SKU · Tồn đầu kỳ · Nhập trong kỳ · Xuất trong kỳ · Tồn cuối kỳ · Đang chuyển đi · Sắp nhận về</em>
-        <label class="upload-zone" for="invFileInput" style="display:inline-block;margin-top:14px;cursor:pointer">
-          📦 Chọn file Tồn Kho
-        </label>
-      </div>
-
-      <div id="invContent" style="display:none">
-        <div class="inv-body">
-          <!-- KPI ROW -->
-          <div class="inv-kpi-row">
-            <div class="inv-kpi" id="invKpiSku">
-              <div class="inv-kpi-lbl">SKU đang theo dõi</div>
-              <div class="inv-kpi-val" id="invKpiSkuVal">—</div>
-              <div class="inv-kpi-sub" id="invKpiSkuSub">SKU style-level</div>
-            </div>
-            <div class="inv-kpi" id="invKpiStock">
-              <div class="inv-kpi-lbl">Tồn cuối kỳ</div>
-              <div class="inv-kpi-val" id="invKpiStockVal">—</div>
-              <div class="inv-kpi-sub" id="invKpiStockSub">Tổng units</div>
-            </div>
-            <div class="inv-kpi" id="invKpiSellThrough">
-              <div class="inv-kpi-lbl">Sell-through %</div>
-              <div class="inv-kpi-val" id="invKpiSellThroughVal">—</div>
-              <div class="inv-kpi-sub" id="invKpiSellThroughSub">Xuất / (Tồn đầu + Nhập)</div>
-            </div>
-            <div class="inv-kpi bad" id="invKpiAtRisk">
-              <div class="inv-kpi-lbl">SKU cảnh báo</div>
-              <div class="inv-kpi-val" id="invKpiAtRiskVal">—</div>
-              <div class="inv-kpi-sub" id="invKpiAtRiskSub">Hết hàng / Tồn lâu</div>
-            </div>
-          </div>
-
-          <!-- ROW: Stock by Category | Sell-through Distribution -->
-          <div class="inv-row-2col">
-            <div class="inv-card">
-              <div class="inv-card-title">
-                <span class="card-icon">📊</span>
-                Tồn kho theo Category
-                <span class="inv-card-sub" id="invStockByCatSub"></span>
+        <div id="invContent" style="display:none;background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius)">
+          <div class="inv-body">
+            <!-- KPI ROW -->
+            <div class="inv-kpi-row">
+              <div class="inv-kpi" id="invKpiSku">
+                <div class="inv-kpi-lbl">SKUs tracked</div>
+                <div class="inv-kpi-val" id="invKpiSkuVal">—</div>
+                <div class="inv-kpi-sub" id="invKpiSkuSub">14-char SKUs</div>
               </div>
-              <div class="inv-chart-wrap"><canvas id="chartInvByCat"></canvas></div>
-            </div>
-            <div class="inv-card">
-              <div class="inv-card-title">
-                <span class="card-icon">📈</span>
-                Phân bổ Sell-through theo Category
-                <span class="inv-card-sub" id="invSellThroughSub"></span>
+              <div class="inv-kpi" id="invKpiStock">
+                <div class="inv-kpi-lbl">Closing stock</div>
+                <div class="inv-kpi-val" id="invKpiStockVal">—</div>
+                <div class="inv-kpi-sub" id="invKpiStockSub">Total units</div>
               </div>
-              <div class="inv-chart-wrap"><canvas id="chartInvSellThrough"></canvas></div>
-            </div>
-          </div>
-
-          <!-- ROW: Stockout Alert | Aging Inventory -->
-          <div class="inv-row-2col">
-            <div class="inv-card">
-              <div class="inv-card-title">
-                <span class="card-icon">⚠️</span>
-                Stockout Alert
-                <span class="inv-card-sub">SKU bán chạy nhưng tồn ≤ dự báo 30 ngày</span>
+              <div class="inv-kpi" id="invKpiSellThrough">
+                <div class="inv-kpi-lbl">Sell-through</div>
+                <div class="inv-kpi-val" id="invKpiSellThroughVal">—</div>
+                <div class="inv-kpi-sub" id="invKpiSellThroughSub">Out / (Opening + Received)</div>
               </div>
-              <div class="inv-table-wrap">
-                <table class="inv-table" id="invStockoutTable">
-                  <thead>
-                    <tr>
-                      <th>SKU</th>
-                      <th>Tồn</th>
-                      <th>30-day sales</th>
-                      <th>Days left</th>
-                      <th>Trạng thái</th>
-                    </tr>
-                  </thead>
-                  <tbody id="invStockoutBody"></tbody>
-                </table>
+              <div class="inv-kpi bad" id="invKpiAtRisk">
+                <div class="inv-kpi-lbl">At-risk SKUs</div>
+                <div class="inv-kpi-val" id="invKpiAtRiskVal">—</div>
+                <div class="inv-kpi-sub" id="invKpiAtRiskSub">Stockout + Aging</div>
               </div>
             </div>
-            <div class="inv-card">
-              <div class="inv-card-title">
-                <span class="card-icon">🕰️</span>
-                Aging Inventory
-                <span class="inv-card-sub">SKU tồn cao, bán chậm — đề xuất markdown</span>
+
+            <!-- ROW: Stock by Category | Sell-through Distribution -->
+            <div class="inv-row-2col">
+              <div class="inv-card">
+                <div class="inv-card-title">
+                  <span class="card-icon">📊</span>
+                  Stock by Category
+                  <span class="inv-card-sub" id="invStockByCatSub"></span>
+                </div>
+                <div class="inv-chart-wrap"><canvas id="chartInvByCat"></canvas></div>
               </div>
-              <div class="inv-table-wrap">
-                <table class="inv-table" id="invAgingTable">
-                  <thead>
-                    <tr>
-                      <th>SKU</th>
-                      <th>Tồn</th>
-                      <th>90-day sales</th>
-                      <th>Days of stock</th>
-                      <th>Trạng thái</th>
-                    </tr>
-                  </thead>
-                  <tbody id="invAgingBody"></tbody>
-                </table>
+              <div class="inv-card">
+                <div class="inv-card-title">
+                  <span class="card-icon">📈</span>
+                  Sell-through by Category
+                  <span class="inv-card-sub" id="invSellThroughSub"></span>
+                </div>
+                <div class="inv-chart-wrap"><canvas id="chartInvSellThrough"></canvas></div>
+              </div>
+            </div>
+
+            <!-- ROW: Stockout Alert | Aging Inventory -->
+            <div class="inv-row-2col">
+              <div class="inv-card">
+                <div class="inv-card-title">
+                  <span class="card-icon">⚠️</span>
+                  Stockout Alert
+                  <span class="inv-card-sub">SKUs with recent sales but ≤ 30-day stock</span>
+                </div>
+                <div class="inv-table-wrap">
+                  <table class="inv-table" id="invStockoutTable">
+                    <thead>
+                      <tr>
+                        <th>SKU</th>
+                        <th>Stock</th>
+                        <th>30-day sales</th>
+                        <th>Days left</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="invStockoutBody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="inv-card">
+                <div class="inv-card-title">
+                  <span class="card-icon">🕰️</span>
+                  Aging Inventory
+                  <span class="inv-card-sub">High stock, slow movers — markdown recommended</span>
+                </div>
+                <div class="inv-table-wrap">
+                  <table class="inv-table" id="invAgingTable">
+                    <thead>
+                      <tr>
+                        <th>SKU</th>
+                        <th>Stock</th>
+                        <th>90-day sales</th>
+                        <th>Days of stock</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="invAgingBody"></tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+
+    </div><!-- /tab inventory -->
 
   </div><!-- /dashContent -->
 
@@ -629,7 +640,7 @@
 <footer class="statusbar">
   <div class="statusbar-inner">
     <div class="status-dot" id="statusDot"></div>
-    <span id="statusText">Sẵn sàng — Bấm Cloud Sync hoặc tải file Excel để bắt đầu</span>
+    <span id="statusText">Ready — Click Cloud Sync or upload an Excel file to start</span>
     <span style="margin-left:auto" id="statusTime">—</span>
   </div>
 </footer>
