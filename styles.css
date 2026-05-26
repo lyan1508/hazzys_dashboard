@@ -32,6 +32,9 @@
   --font:        'Plus Jakarta Sans', system-ui, sans-serif;
   --mono:        'DM Mono', monospace;
 
+  /* Available height for tab content (viewport minus topbar + filters + tabs + main padding) */
+  --tab-content-h: calc(100vh - 178px);
+
   /* TYPOGRAPHY SCALE — consistent font sizes across all components */
   --fs-xs:       11px;  /* labels, captions, metadata */
   --fs-sm:       12px;  /* secondary text, table cells */
@@ -649,15 +652,32 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
 
 /* Product tab now uses .product-row (3-col, defined below) */
 
-/* Staff tab: side-by-side chart + matrix to halve vertical footprint */
+/* Staff tab: side-by-side chart + matrix, full viewport height */
 .tab-pane[data-tab-pane="staff"]{display:none}
-.tab-pane[data-tab-pane="staff"].active{display:grid!important;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch}
-.tab-pane[data-tab-pane="staff"] > .chart-card{margin-bottom:0!important}
-.tab-pane[data-tab-pane="staff"] .chart-wrap{height:calc(100vh - 420px)!important;min-height:240px;max-height:420px}
-.tab-pane[data-tab-pane="staff"] .matrix-wrap{max-height:calc(100vh - 360px);min-height:280px}
-.tab-pane[data-tab-pane="staff"] .cashier-picker{max-height:70px;overflow-y:auto}
+.tab-pane[data-tab-pane="staff"].active{
+  display:grid!important;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  align-items:stretch;
+  height:var(--tab-content-h);
+  min-height:540px;
+}
+.tab-pane[data-tab-pane="staff"] > .chart-card{
+  margin-bottom:0!important;
+  display:flex;flex-direction:column;
+  min-height:0;overflow:hidden;
+}
+.tab-pane[data-tab-pane="staff"] .chart-wrap{
+  flex:1;height:auto!important;min-height:240px;max-height:none;
+}
+.tab-pane[data-tab-pane="staff"] .matrix-wrap{
+  flex:1;max-height:none;min-height:0;overflow-y:auto;
+}
+.tab-pane[data-tab-pane="staff"] .cashier-picker{
+  max-height:64px;overflow-y:auto;flex:0 0 auto;
+}
 @media(max-width:1100px){
-  .tab-pane[data-tab-pane="staff"].active{grid-template-columns:1fr}
+  .tab-pane[data-tab-pane="staff"].active{grid-template-columns:1fr;height:auto}
 }
 
 /* =========================================
@@ -942,32 +962,39 @@ tbody td:first-child{font-family:var(--mono)}
 .filter-label{font-weight:500;color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
 
 /* =========================================
-   PRODUCT TAB — 2x2 grid: Top + ABC on top, Type + Gender on bottom
+   PRODUCT TAB — 2x2 grid, full viewport height
    ========================================= */
-.product-tab.active{display:flex!important;flex-direction:column;gap:10px}
+.product-tab.active{
+  display:flex!important;
+  flex-direction:column;
+  gap:10px;
+  height:var(--tab-content-h);
+  min-height:540px;
+}
 .product-row{
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:10px;
   align-items:stretch;
+  min-width:0;
 }
 .product-row-top{
   flex:1 1 auto;
-  height:calc(100vh - 470px);
-  min-height:340px;
+  min-height:0;
 }
 .product-row-bottom{
-  flex:0 0 auto;
-  min-height:170px;
+  flex:0 0 180px;
 }
 .product-row > .chart-card{min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .product-tab #topProductList{flex:1;overflow-y:auto;height:auto!important;max-height:none!important}
 .product-tab .product-list{grid-template-columns:1fr}
 .product-tab #abcCard .chart-wrap{flex:1;height:auto!important;min-height:160px}
-.product-row-bottom .split-inner{padding:6px 14px 12px}
+.product-row-bottom .chart-card{min-height:0}
+.product-row-bottom .split-inner{padding:8px 14px 12px;flex:1;min-height:0}
 @media(max-width:1100px){
+  .product-tab.active{height:auto}
   .product-row{grid-template-columns:1fr}
-  .product-row-top{height:auto}
+  .product-row-bottom{flex:0 0 auto}
 }
 
 /* =========================================
