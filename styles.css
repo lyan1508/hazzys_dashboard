@@ -942,23 +942,32 @@ tbody td:first-child{font-family:var(--mono)}
 .filter-label{font-weight:500;color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
 
 /* =========================================
-   PRODUCT TAB — 3 columns in one row, scroll inside each
+   PRODUCT TAB — 2x2 grid: Top + ABC on top, Type + Gender on bottom
    ========================================= */
+.product-tab.active{display:flex!important;flex-direction:column;gap:10px}
 .product-row{
   display:grid;
-  grid-template-columns:1fr 1fr 1fr;
+  grid-template-columns:1fr 1fr;
   gap:10px;
   align-items:stretch;
-  height:calc(100vh - 300px);
-  min-height:380px;
+}
+.product-row-top{
+  flex:1 1 auto;
+  height:calc(100vh - 470px);
+  min-height:340px;
+}
+.product-row-bottom{
+  flex:0 0 auto;
+  min-height:170px;
 }
 .product-row > .chart-card{min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .product-tab #topProductList{flex:1;overflow-y:auto;height:auto!important;max-height:none!important}
 .product-tab .product-list{grid-template-columns:1fr}
 .product-tab #abcCard .chart-wrap{flex:1;height:auto!important;min-height:160px}
-.product-tab #promotionInfo{flex:1;overflow-y:auto;max-height:none!important}
+.product-row-bottom .split-inner{padding:6px 14px 12px}
 @media(max-width:1100px){
-  .product-row{grid-template-columns:1fr;height:auto}
+  .product-row{grid-template-columns:1fr}
+  .product-row-top{height:auto}
 }
 
 /* =========================================

@@ -233,33 +233,13 @@
         </div>
       </div>
 
-      <!-- ROW 2: (Type + Gender) | DOW Heatmap -->
+      <!-- ROW 2: Promotion | DOW Heatmap -->
       <div class="overview-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;align-items:stretch">
-        <div class="dash-row-2col" style="gap:10px">
-          <div class="chart-card">
-            <div class="chart-card-hd">
-              <div class="chart-card-title">By Type</div>
-            </div>
-            <div class="split-inner">
-              <div class="doughnut-wrap">
-                <canvas id="chartType"></canvas>
-                <div class="doughnut-center"><div class="d-val" id="dTypeVal">—</div><div class="d-lbl">Total</div></div>
-              </div>
-              <div class="legend-list" id="legendType"></div>
-            </div>
+        <div class="chart-card" id="promoCard">
+          <div class="chart-card-hd">
+            <div class="chart-card-title">Promotion</div>
           </div>
-          <div class="chart-card">
-            <div class="chart-card-hd">
-              <div class="chart-card-title">By Gender</div>
-            </div>
-            <div class="split-inner">
-              <div class="doughnut-wrap">
-                <canvas id="chartGender"></canvas>
-                <div class="doughnut-center"><div class="d-val" id="dGenderVal">—</div><div class="d-lbl">Total</div></div>
-              </div>
-              <div class="legend-list" id="legendGender"></div>
-            </div>
-          </div>
+          <div id="promotionInfo"></div>
         </div>
 
         <!-- DOW Heatmap (compact, fits half-width) -->
@@ -425,10 +405,10 @@
 
     </div><!-- /tab forecast -->
 
-    <!-- ====== TAB: PRODUCT (Top + ABC + Promotion in one row) ====== -->
+    <!-- ====== TAB: PRODUCT (Top + ABC on top, Type + Gender on bottom) ====== -->
     <div class="tab-pane product-tab" data-tab-pane="product">
 
-      <div class="product-row">
+      <div class="product-row product-row-top">
         <div class="chart-card" id="topProductCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Top Products</div>
@@ -443,12 +423,32 @@
           <div class="abc-summary" id="abcSummary"></div>
           <div class="chart-wrap"><canvas id="chartAbc"></canvas></div>
         </div>
+      </div>
 
-        <div class="chart-card" id="promoCard">
+      <div class="product-row product-row-bottom">
+        <div class="chart-card">
           <div class="chart-card-hd">
-            <div class="chart-card-title">Promotion</div>
+            <div class="chart-card-title">By Type</div>
           </div>
-          <div id="promotionInfo"></div>
+          <div class="split-inner">
+            <div class="doughnut-wrap">
+              <canvas id="chartType"></canvas>
+              <div class="doughnut-center"><div class="d-val" id="dTypeVal">—</div><div class="d-lbl">Total</div></div>
+            </div>
+            <div class="legend-list" id="legendType"></div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-hd">
+            <div class="chart-card-title">By Gender</div>
+          </div>
+          <div class="split-inner">
+            <div class="doughnut-wrap">
+              <canvas id="chartGender"></canvas>
+              <div class="doughnut-center"><div class="d-val" id="dGenderVal">—</div><div class="d-lbl">Total</div></div>
+            </div>
+            <div class="legend-list" id="legendGender"></div>
+          </div>
         </div>
       </div>
 
