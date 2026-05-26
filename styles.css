@@ -545,8 +545,7 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
 .overview-row .dow-section .dow-cell-meta{font-size:10px}
 
 /* Top Products list — taller in product tab where it's half-width */
-.tab-pane[data-tab-pane="product"] #topProductList{height:420px}
-.tab-pane[data-tab-pane="product"] .product-list{grid-template-columns:1fr}
+/* Product list grid handled by .product-tab below */
 @media(max-width:900px){
   .main{padding:12px}
   .topbar-inner{flex-wrap:wrap;height:auto;padding:10px 14px;gap:8px}
@@ -648,11 +647,7 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
 .tab-pane[data-tab-pane="forecast"] .forecast-grid{padding:10px!important;gap:8px!important}
 .tab-pane[data-tab-pane="forecast"] .forecast-card{padding:10px 12px}
 
-/* Product tab: 2-row compact layout — keep promo as side panel via internal scroll */
-.tab-pane[data-tab-pane="product"] #topProductList{height:calc(100vh - 560px);min-height:240px;max-height:360px}
-.tab-pane[data-tab-pane="product"] #abcCard .chart-wrap{height:calc(100vh - 580px)!important;min-height:200px;max-height:320px}
-.tab-pane[data-tab-pane="product"] #promotionInfo{max-height:200px;overflow-y:auto}
-.tab-pane[data-tab-pane="product"] #promoCard{padding-top:10px;padding-bottom:10px}
+/* Product tab now uses .product-row (3-col, defined below) */
 
 /* Staff tab: side-by-side chart + matrix to halve vertical footprint */
 .tab-pane[data-tab-pane="staff"]{display:none}
@@ -912,4 +907,96 @@ tbody td:first-child{font-family:var(--mono)}
 
 /* Status bar — quieter */
 .statusbar{border-top-color:var(--border)}
+
+/* =========================================
+   ROUND 3 — dropdown bug, icon-only topbar, product 3-col, inline inventory header
+   ========================================= */
+/* Force dark color scheme so the OS-rendered <option> list stays dark */
+:root,html,body{color-scheme:dark}
+.filter-select,.yoy-select,select{color-scheme:dark}
+.filter-select option,.yoy-select option,select option{
+  background:var(--surface);
+  color:var(--text);
+}
+
+/* Icon-only topbar buttons */
+.btn-icon{
+  width:34px;height:34px;
+  padding:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:10px;
+  color:var(--text-2);
+  transition:border-color .15s,color .15s,background .15s;
+}
+.btn-icon:hover{background:var(--surface-2);border-color:var(--border-2);color:var(--text)}
+.btn-icon svg{width:18px;height:18px}
+.btn-icon-primary{background:var(--text);color:var(--bg);border-color:var(--text)}
+.btn-icon-primary:hover{background:var(--text);color:var(--bg);border-color:var(--text);opacity:.88}
+
+/* Topbar action spacing */
+.topbar-actions{gap:6px}
+
+/* Tighter filter label so the "—" placeholder looks deliberate, not bare */
+.filter-label{font-weight:500;color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+
+/* =========================================
+   PRODUCT TAB — 3 columns in one row, scroll inside each
+   ========================================= */
+.product-row{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:10px;
+  align-items:stretch;
+  height:calc(100vh - 300px);
+  min-height:380px;
+}
+.product-row > .chart-card{min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.product-tab #topProductList{flex:1;overflow-y:auto;height:auto!important;max-height:none!important}
+.product-tab .product-list{grid-template-columns:1fr}
+.product-tab #abcCard .chart-wrap{flex:1;height:auto!important;min-height:160px}
+.product-tab #promotionInfo{flex:1;overflow-y:auto;max-height:none!important}
+@media(max-width:1100px){
+  .product-row{grid-template-columns:1fr;height:auto}
+}
+
+/* =========================================
+   DARKER REVENUE BAR — Top Products list
+   ========================================= */
+.p-bar-wrap{background:var(--border)}
+.p-bar{
+  background:linear-gradient(90deg,var(--brand-mid),#3b56a0)!important;
+  opacity:.85;
+}
+
+/* =========================================
+   INVENTORY — inline header with KPIs (saves a row)
+   ========================================= */
+.inv-head--inline{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:24px;padding:14px 18px;flex-wrap:wrap;
+}
+.inv-head-left{display:flex;flex-direction:column;gap:2px;min-width:0}
+.inv-head--inline .inv-head-title{font-size:var(--fs-lg);font-weight:700}
+.inv-head--inline .inv-head-sub{font-size:var(--fs-xs);color:var(--text-3)}
+.inv-head-kpis{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+}
+.inv-hkpi{
+  display:flex;flex-direction:column;align-items:flex-end;
+  padding:4px 14px;border-left:1px solid var(--border);min-width:78px;
+}
+.inv-hkpi:first-child{border-left:none;padding-left:0}
+.inv-hkpi-val{
+  font-size:18px;font-weight:700;color:var(--text);
+  font-variant-numeric:tabular-nums;line-height:1.1;
+}
+.inv-hkpi-lbl{
+  font-size:11px;color:var(--text-3);font-weight:500;margin-top:2px;
+}
+@media(max-width:900px){
+  .inv-head--inline{gap:12px}
+  .inv-hkpi{padding:4px 10px;min-width:60px}
+}
 

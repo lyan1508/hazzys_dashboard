@@ -1001,17 +1001,17 @@ function initFilters() {
     const values = [...new Set(arr.filter((v) => v && (includeUnknown || v !== 'UNKNOWN')))].sort();
     document.getElementById(id).innerHTML = `<option value="all">${allLabel}</option>${values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('')}`;
   };
-  options(s.map((r) => r.year), 'fYear', 'All Years');
-  options(s.map((r) => r.quarter), 'fQuarter', 'All Quarters');
+  options(s.map((r) => r.year), 'fYear', '—');
+  options(s.map((r) => r.quarter), 'fQuarter', '—');
   const monthValues = [...new Set(s.map((r) => Number(r.monthIndex)).filter((v) => Number.isFinite(v) && v >= 1 && v <= 12))]
     .sort((a, b) => a - b);
-  document.getElementById('fMonth').innerHTML = `<option value="all">All Months</option>${monthValues.map((m) => {
+  document.getElementById('fMonth').innerHTML = `<option value="all">—</option>${monthValues.map((m) => {
     const value = String(m).padStart(2, '0');
     return `<option value="${value}">${MONTH_NAMES[m - 1]}</option>`;
   }).join('')}`;
-  options(s.map((r) => r.category), 'fCategory', 'All Categories', true);
-  options(s.map((r) => r.gender), 'fGender', 'All Gender');
-  options(s.map((r) => r.type), 'fType', 'All Types');
+  options(s.map((r) => r.category), 'fCategory', '—', true);
+  options(s.map((r) => r.gender), 'fGender', '—');
+  options(s.map((r) => r.type), 'fType', '—');
 }
 
 function syncFilters() {
@@ -1457,7 +1457,25 @@ function setStatus(text, isIdle = false) {
 
 // ---- Shared helper: ingest workbook + reset UI state ----
 function applyWorkbook(wb, successMsg) {
+  const prevInv = S.raw?.inventory;
+  const prevInvMeta = S.raw?.inventoryMeta;
   S.raw = ingestWorkbook(wb);
+  // Auto-detect inventory sheet inside the same workbook — silently ignore if not present
+  try {
+    const inv = parseInventoryWorkbook(wb);
+    if (inv && inv.rows.length) {
+      S.raw.inventory = inv.rows;
+      S.raw.inventoryMeta = inv.meta;
+    } else if (prevInv) {
+      S.raw.inventory = prevInv;
+      S.raw.inventoryMeta = prevInvMeta;
+    }
+  } catch {
+    if (prevInv) {
+      S.raw.inventory = prevInv;
+      S.raw.inventoryMeta = prevInvMeta;
+    }
+  }
   S.filters = { year: 'all', quarter: 'all', month: 'all', category: 'all', gender: 'all', type: 'all' };
   S.cashierSelected = [];
   initFilters();
@@ -2298,7 +2316,7 @@ function bindEvents() {
   });
 
   document.getElementById('fileInput').addEventListener('change', onUpload);
-  document.getElementById('invFileInput').addEventListener('change', onInventoryUpload);
+  // inventory now comes from the same workbook as sales — no separate upload
   // theme toggle removed — dark mode only
 
   const dz = document.getElementById('dropZone');
