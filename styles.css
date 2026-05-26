@@ -33,7 +33,7 @@
   --mono:        'DM Mono', monospace;
 
   /* Available height for tab content (viewport minus topbar+filters + KPI grid + tabs + main padding) */
-  --tab-content-h: calc(100vh - 230px);
+  --tab-content-h: calc(100vh - 218px);
 
   /* TYPOGRAPHY SCALE — consistent font sizes across all components */
   --fs-xs:       11px;  /* labels, captions, metadata */
@@ -650,7 +650,7 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
   flex-direction:column;
   gap:10px;
   height:var(--tab-content-h);
-  overflow:hidden;
+  min-height:540px;
 }
 .tab-pane[data-tab-pane="forecast"] > .panel{
   margin-bottom:0!important;
@@ -684,7 +684,7 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
   gap:10px;
   align-items:stretch;
   height:var(--tab-content-h);
-  overflow:hidden;
+  min-height:540px;
 }
 .tab-pane[data-tab-pane="staff"] > .chart-card{
   margin-bottom:0!important;
@@ -695,13 +695,12 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
   align-items:center;
   flex-wrap:nowrap;
   gap:12px;
-  flex:0 0 auto;
 }
 .tab-pane[data-tab-pane="staff"] .chart-wrap{
-  flex:1 1 0;height:auto!important;min-height:0;max-height:none;
+  flex:1;height:auto!important;min-height:240px;max-height:none;
 }
 .tab-pane[data-tab-pane="staff"] .matrix-wrap{
-  flex:1 1 0;max-height:none;min-height:0;overflow-y:auto;
+  flex:1;max-height:none;min-height:0;overflow-y:auto;
 }
 .tab-pane[data-tab-pane="staff"] #cashierPicker{
   display:flex;flex-wrap:wrap;gap:5px;
@@ -714,7 +713,7 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
 }
 .tab-pane[data-tab-pane="staff"] #cashierPicker .cashier-chip{flex:0 0 auto}
 @media(max-width:1100px){
-  .tab-pane[data-tab-pane="staff"].active{grid-template-columns:1fr;height:auto;overflow:visible}
+  .tab-pane[data-tab-pane="staff"].active{grid-template-columns:1fr;height:auto}
   .tab-pane[data-tab-pane="staff"] .chart-card-hd{flex-wrap:wrap}
   .tab-pane[data-tab-pane="staff"] #cashierPicker{justify-content:flex-start;max-height:80px}
 }
@@ -1011,7 +1010,7 @@ tbody td:first-child{font-family:var(--mono)}
   gap:10px;
   align-items:stretch;
   height:var(--tab-content-h);
-  overflow:hidden;
+  min-height:540px;
 }
 .product-col-left{
   display:flex;
@@ -1019,32 +1018,27 @@ tbody td:first-child{font-family:var(--mono)}
   gap:10px;
   min-width:0;
   min-height:0;
-  overflow:hidden;
 }
 .product-col-left > #topProductCard{
-  flex:1 1 0;
+  flex:1 1 auto;
   min-height:0;
 }
 .product-mix-row{
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:10px;
-  flex:0 1 170px;
-  min-height:130px;
+  flex:0 0 180px;
   min-width:0;
 }
-.product-tab .chart-card{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-.product-tab #topProductList{flex:1;overflow-y:auto;height:auto!important;max-height:none!important;min-height:0}
+.product-tab .chart-card{min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.product-tab #topProductList{flex:1;overflow-y:auto;height:auto!important;max-height:none!important}
 .product-tab .product-list{grid-template-columns:1fr}
 .product-tab #abcCard{min-height:0}
-.product-tab #abcCard .abc-summary{flex:0 0 auto}
-.product-tab #abcCard .chart-wrap{flex:1 1 0;height:auto!important;min-height:0}
+.product-tab #abcCard .chart-wrap{flex:1;height:auto!important;min-height:160px}
 .product-mix-row .chart-card{min-height:0}
-.product-mix-row .split-inner{padding:6px 14px 10px;flex:1;min-height:0}
-.product-mix-row .doughnut-wrap{width:88px;height:88px}
-.product-mix-row .doughnut-wrap canvas{width:88px!important;height:88px!important}
+.product-mix-row .split-inner{padding:8px 14px 12px;flex:1;min-height:0}
 @media(max-width:1100px){
-  .product-tab.active{grid-template-columns:1fr;height:auto;overflow:visible}
+  .product-tab.active{grid-template-columns:1fr;height:auto}
   .product-mix-row{flex:0 0 auto}
 }
 
