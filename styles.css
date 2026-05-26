@@ -575,3 +575,48 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
   .cashier-picker{grid-template-columns:1fr}
 }
 
+/* =========================================
+   SPRINT 2 — INVENTORY
+   ========================================= */
+.inv-section{margin-bottom:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden}
+.inv-head{padding:12px 16px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.inv-head-title{font-size:14px;font-weight:700;color:var(--text)}
+.inv-head-sub{font-size:11px;color:var(--text-3);margin-top:2px}
+.inv-body{padding:12px}
+.inv-kpi-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.inv-kpi{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;text-align:center;position:relative;overflow:hidden}
+.inv-kpi::before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:var(--brand-mid)}
+.inv-kpi.warn::before{background:#d97706}
+.inv-kpi.bad::before{background:var(--red)}
+.inv-kpi.good::before{background:var(--green)}
+.inv-kpi-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);font-weight:700;margin-top:2px}
+.inv-kpi-val{font-size:18px;font-weight:800;color:var(--text);margin-top:4px;font-variant-numeric:tabular-nums;line-height:1.1}
+.inv-kpi-sub{font-size:10px;color:var(--text-3);margin-top:2px;line-height:1.2}
+.inv-kpi.warn .inv-kpi-val{color:#d97706}
+.inv-kpi.bad .inv-kpi-val{color:var(--red)}
+.inv-kpi.good .inv-kpi-val{color:var(--green)}
+.inv-row-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.inv-row-2col:last-child{margin-bottom:0}
+.inv-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.inv-card-title{font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.inv-card-sub{font-size:10px;color:var(--text-3);font-weight:400;margin-left:auto}
+.inv-table-wrap{overflow:auto;max-height:320px;flex:1;min-height:0}
+.inv-table{width:100%;border-collapse:collapse;font-size:11px}
+.inv-table thead th{position:sticky;top:0;z-index:1;background:var(--surface-2);padding:6px 8px;font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;text-align:right;border-bottom:1px solid var(--border-2);white-space:nowrap}
+.inv-table thead th:first-child{text-align:left}
+.inv-table tbody td{padding:5px 8px;color:var(--text-2);text-align:right;border-bottom:1px solid var(--border);white-space:nowrap;font-variant-numeric:tabular-nums}
+.inv-table tbody td:first-child{text-align:left;font-family:var(--mono);font-size:10px;color:var(--text);font-weight:600}
+.inv-table tbody tr:hover{background:var(--surface-2)}
+.inv-badge{display:inline-flex;align-items:center;padding:1px 6px;border-radius:99px;font-size:9px;font-weight:700;font-family:var(--font);letter-spacing:.2px}
+.inv-badge.critical{background:var(--red-light);color:var(--red)}
+.inv-badge.warn{background:#fef3c7;color:#d97706}
+[data-theme="dark"] .inv-badge.warn{background:rgba(217,119,6,.15);color:#fbbf24}
+.inv-badge.ok{background:var(--green-light);color:var(--green)}
+.inv-empty{padding:32px 20px;text-align:center;color:var(--text-3);font-size:13px}
+.inv-empty strong{color:var(--text-2);display:block;margin-bottom:6px}
+.inv-empty .upload-zone{margin-top:14px;padding:18px 28px;font-size:12px}
+.inv-chart-wrap{position:relative;flex:1;min-height:200px;max-height:260px}
+.inv-chart-wrap canvas{width:100% !important;height:100% !important}
+@media(max-width:1280px){.inv-row-2col{grid-template-columns:1fr}.inv-kpi-row{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.inv-kpi-row{grid-template-columns:1fr}}
+

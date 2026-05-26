@@ -1,5 +1,5 @@
 const S = {
-  raw: { sales: [], targets: [] },
+  raw: { sales: [], targets: [], inventory: [], inventoryMeta: null },
   filters: { year: 'all', quarter: 'all', month: 'all', category: 'all', gender: 'all', type: 'all' },
   charts: {},
   revMode: 'monthly',
@@ -1047,6 +1047,7 @@ function renderAll() {
   renderDowHeatmap(m);
   renderYoy();
   renderForecast();
+  renderInventory();
   requestAnimationFrame(() => syncCharts());
 }
 
@@ -1849,6 +1850,417 @@ function renderYoy() {
 }
 window.renderYoy = renderYoy;
 
+// ============================================================
+// SPRINT 2: INVENTORY
+// ============================================================
+
+// ---- Parse Vietnamese-headered "Tổng hợp Nhập-Xuất-Tồn" sheet ----
+// Sheet layout: rows 1-5 are metadata/title, row 7 has the column headers
+// (Mã SKU | Tồn đầu kỳ | Nhập trong kỳ | Xuất trong kỳ | Tồn cuối kỳ | …),
+// row 8 is the "Số lượng" sub-header, data starts at row 9.
+function parseInventoryWorkbook(wb) {
+  const sheetNames = wb.SheetNames || [];
+  let meta = { periodFrom: null, periodTo: null, store: '' };
+  let rows = [];
+
+  for (const name of sheetNames) {
+    const ws = wb.Sheets[name];
+    if (!ws) continue;
+    const grid = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
+    if (!grid.length) continue;
+
+    // Locate header row by looking for "Mã SKU" or "Tồn cuối kỳ"
+    let headerIdx = -1;
+    for (let r = 0; r < Math.min(grid.length, 20); r++) {
+      const row = grid[r] || [];
+      const flat = row.map((v) => String(v ?? '').toLowerCase()).join('|');
+      if (flat.includes('mã sku') && flat.includes('tồn cuối')) { headerIdx = r; break; }
+    }
+    if (headerIdx < 0) continue;
+
+    // Extract period info from rows above header
+    for (let r = 0; r < headerIdx; r++) {
+      const text = (grid[r] || []).map((v) => String(v ?? '')).join(' ');
+      const m = text.match(/Từ ngày:\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*Đến ngày:\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
+      if (m) { meta.periodFrom = m[1]; meta.periodTo = m[2]; }
+      const s = text.match(/Cửa hàng:\s*([^;]+)/i);
+      if (s) meta.store = s[1].trim();
+    }
+
+    // Map header columns by Vietnamese name
+    const headerRow = (grid[headerIdx] || []).map((v) => String(v ?? '').trim().toLowerCase());
+    const colIdx = {
+      sku: headerRow.findIndex((h) => h.includes('mã sku') || h === 'sku'),
+      opening: headerRow.findIndex((h) => h.includes('tồn đầu')),
+      received: headerRow.findIndex((h) => h.includes('nhập trong')),
+      out: headerRow.findIndex((h) => h.includes('xuất trong')),
+      closing: headerRow.findIndex((h) => h.includes('tồn cuối')),
+      transitOut: headerRow.findIndex((h) => h.includes('chuyển đi')),
+      incoming: headerRow.findIndex((h) => h.includes('sắp nhận')),
+    };
+    if (colIdx.sku < 0 || colIdx.closing < 0) continue;
+
+    // Data rows start 2 after header (skip "Số lượng" sub-row)
+    const dataStart = headerIdx + 2;
+    for (let r = dataStart; r < grid.length; r++) {
+      const row = grid[r] || [];
+      const sku = String(row[colIdx.sku] ?? '').trim();
+      if (!sku) continue;
+      // Skip TOTAL / summary rows (often have aggregated SKU prefix or no clear ID)
+      if (/^(tổng|total|t\.cộng)/i.test(sku)) continue;
+      rows.push({
+        sku: sku,
+        styleKey: styleKey9(sku),
+        opening: num(row[colIdx.opening]),
+        received: num(row[colIdx.received]),
+        out: num(row[colIdx.out]),
+        closing: num(row[colIdx.closing]),
+        transitOut: colIdx.transitOut >= 0 ? num(row[colIdx.transitOut]) : 0,
+        incoming: colIdx.incoming >= 0 ? num(row[colIdx.incoming]) : 0,
+      });
+    }
+    if (rows.length) break;
+  }
+
+  if (!rows.length) throw new Error('Không tìm thấy sheet Tồn Kho hợp lệ. File cần header "Mã SKU" và "Tồn cuối kỳ".');
+
+  // Dedupe by styleKey9: prefer style-level rows (SKU length ≤ 9). If only variants exist, sum them.
+  const byStyle = new Map();
+  rows.forEach((r) => {
+    const key = r.styleKey || r.sku;
+    const existing = byStyle.get(key);
+    const isStyleRow = r.sku.length <= 9;
+    if (!existing) {
+      byStyle.set(key, { ...r, _isStyle: isStyleRow });
+    } else if (isStyleRow && !existing._isStyle) {
+      // Replace: style-level row wins over variant
+      byStyle.set(key, { ...r, _isStyle: true });
+    } else if (!existing._isStyle && !isStyleRow) {
+      // Both variant rows: sum
+      existing.opening += r.opening;
+      existing.received += r.received;
+      existing.out += r.out;
+      existing.closing += r.closing;
+      existing.transitOut += r.transitOut;
+      existing.incoming += r.incoming;
+    }
+    // else: keep existing style-level row
+  });
+
+  return { rows: [...byStyle.values()], meta };
+}
+
+async function onInventoryUpload(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  await loadInventoryFile(file);
+  e.target.value = '';
+}
+
+async function loadInventoryFile(file) {
+  const overlay = document.getElementById('loadingOverlay');
+  overlay.classList.add('show');
+  setStatus('Đang xử lý file tồn kho…', false);
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    const { rows, meta } = parseInventoryWorkbook(wb);
+    S.raw.inventory = rows;
+    S.raw.inventoryMeta = meta;
+    renderInventory();
+    const periodStr = meta.periodFrom ? ` · Kỳ: ${meta.periodFrom} → ${meta.periodTo}` : '';
+    setStatus(`Đã tải tồn kho: ${fmtN(rows.length)} SKU${periodStr}`, false);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Lỗi tải tồn kho: ${err.message}`, true);
+    alert(`⚠️ ${err.message}`);
+  } finally {
+    overlay.classList.remove('show');
+  }
+}
+
+// ---- Aggregate inventory: join with sales velocity ----
+function aggregateInventory() {
+  const inv = S.raw.inventory || [];
+  if (!inv.length) return null;
+
+  // Build per-style index from sales for category/type lookup AND velocity
+  const salesByStyle = new Map();
+  S.raw.sales.forEach((r) => {
+    const key = r.productKey || styleKey9(r.sku || r.upc);
+    if (!key) return;
+    const p = salesByStyle.get(key) || { key, type: r.type, gender: r.gender, category: r.category, sales90: 0, sales30: 0, salesAll: 0 };
+    p.salesAll += num(r.qty);
+    if (r.date) {
+      const today = new Date();
+      const daysAgo = (today - r.date) / 86400000;
+      if (daysAgo <= 30) p.sales30 += num(r.qty);
+      if (daysAgo <= 90) p.sales90 += num(r.qty);
+    }
+    salesByStyle.set(key, p);
+  });
+
+  // Enrich each inventory row
+  const enriched = inv.map((r) => {
+    const salesInfo = salesByStyle.get(r.styleKey) || {};
+    const stock = r.closing;
+    const sales30 = num(salesInfo.sales30);
+    const sales90 = num(salesInfo.sales90);
+    const dailyVel = sales30 / 30; // units per day, recent
+    const daysOfStock = dailyVel > 0 ? stock / dailyVel : (stock > 0 ? 999 : 0);
+    // Sell-through over the inventory period
+    const denom = num(r.opening) + num(r.received);
+    const sellThrough = denom > 0 ? (num(r.out) / denom) * 100 : 0;
+    // Stockout risk: sales velocity > 0 AND stock < projected 30-day sales
+    const proj30 = sales30; // already 30 days
+    const stockoutRisk = sales30 > 0 && stock < proj30 ? (proj30 - stock) / proj30 : 0;
+    // Aging: high stock + low recent sales
+    const isAging = stock >= 3 && sales90 < (stock * 0.2);
+
+    return {
+      ...r,
+      type: salesInfo.type || 'UNKNOWN',
+      gender: salesInfo.gender || 'UNKNOWN',
+      category: salesInfo.category || 'UNKNOWN',
+      sales30, sales90, dailyVel,
+      daysOfStock,
+      sellThrough,
+      stockoutRisk,
+      isAging,
+      hasRecentSales: sales30 > 0,
+    };
+  });
+
+  // Apply dimension filters (category/gender/type from main filter bar) — only those that make sense
+  const f = S.filters;
+  const filtered = enriched.filter((r) => {
+    if (f.category !== 'all' && r.category !== f.category) return false;
+    if (f.gender !== 'all' && r.gender !== f.gender) return false;
+    if (f.type !== 'all' && r.type !== f.type) return false;
+    return true;
+  });
+
+  // Totals
+  const totalSku = filtered.length;
+  const totalStock = filtered.reduce((s, r) => s + num(r.closing), 0);
+  const totalOpening = filtered.reduce((s, r) => s + num(r.opening), 0);
+  const totalReceived = filtered.reduce((s, r) => s + num(r.received), 0);
+  const totalOut = filtered.reduce((s, r) => s + num(r.out), 0);
+  const sellThroughAgg = (totalOpening + totalReceived) > 0
+    ? (totalOut / (totalOpening + totalReceived)) * 100
+    : 0;
+
+  // Group by category
+  const byCategory = (() => {
+    const map = new Map();
+    filtered.forEach((r) => {
+      const cat = r.category || 'UNKNOWN';
+      const p = map.get(cat) || { label: cat, stock: 0, opening: 0, received: 0, out: 0, skuCount: 0 };
+      p.stock += num(r.closing);
+      p.opening += num(r.opening);
+      p.received += num(r.received);
+      p.out += num(r.out);
+      p.skuCount += 1;
+      map.set(cat, p);
+    });
+    return [...map.values()].map((p) => ({
+      ...p,
+      sellThrough: (p.opening + p.received) > 0 ? (p.out / (p.opening + p.received)) * 100 : 0,
+    })).sort((a, b) => b.stock - a.stock);
+  })();
+
+  // Stockout alerts: stock > 0 OR stock == 0 with recent sales, AND projected to run out in ≤ 30 days
+  const stockoutAlerts = filtered
+    .filter((r) => r.hasRecentSales && (r.closing === 0 || r.daysOfStock <= 30))
+    .map((r) => ({
+      sku: r.sku,
+      stock: r.closing,
+      sales30: r.sales30,
+      daysLeft: r.daysOfStock,
+      severity: r.closing === 0 ? 'critical' : r.daysOfStock <= 7 ? 'critical' : r.daysOfStock <= 14 ? 'warn' : 'ok',
+    }))
+    .sort((a, b) => a.daysLeft - b.daysLeft)
+    .slice(0, 50);
+
+  // Aging: stock >= 3, sales in last 90 days < 20% of stock
+  const aging = filtered
+    .filter((r) => r.isAging)
+    .map((r) => ({
+      sku: r.sku,
+      stock: r.closing,
+      sales90: r.sales90,
+      daysOfStock: r.daysOfStock,
+      severity: r.sales90 === 0 ? 'critical' : r.daysOfStock > 365 ? 'critical' : r.daysOfStock > 180 ? 'warn' : 'ok',
+    }))
+    .sort((a, b) => b.stock - a.stock)
+    .slice(0, 50);
+
+  const atRiskCount = stockoutAlerts.length + aging.length;
+
+  return {
+    rows: filtered,
+    totalSku, totalStock, sellThrough: sellThroughAgg, atRiskCount,
+    totalOpening, totalReceived, totalOut,
+    byCategory, stockoutAlerts, aging,
+  };
+}
+
+// ---- Render Inventory section ----
+function renderInventory() {
+  const section = document.getElementById('invSection');
+  const empty = document.getElementById('invEmpty');
+  const content = document.getElementById('invContent');
+  const tabs = document.getElementById('invMetricTabs');
+  if (!section) return;
+
+  const m = aggregateInventory();
+  if (!m) {
+    empty.style.display = '';
+    content.style.display = 'none';
+    tabs.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  content.style.display = '';
+  tabs.style.display = '';
+
+  // Header sub-text
+  const meta = S.raw.inventoryMeta || {};
+  const headSub = document.getElementById('invHeadSub');
+  const periodStr = meta.periodFrom ? `${meta.periodFrom} → ${meta.periodTo}` : '—';
+  headSub.textContent = `${meta.store || 'Tất cả cửa hàng'} · Kỳ tồn kho: ${periodStr} · ${fmtN(m.totalSku)} SKU`;
+
+  // KPIs
+  document.getElementById('invKpiSkuVal').textContent = fmtN(m.totalSku);
+  document.getElementById('invKpiStockVal').textContent = fmtN(m.totalStock);
+  document.getElementById('invKpiStockSub').textContent = `Đã xuất ${fmtN(m.totalOut)} / Nhập ${fmtN(m.totalReceived)}`;
+  document.getElementById('invKpiSellThroughVal').textContent = fmtPct(m.sellThrough);
+  document.getElementById('invKpiAtRiskVal').textContent = fmtN(m.atRiskCount);
+  document.getElementById('invKpiAtRiskSub').textContent = `${m.stockoutAlerts.length} stockout · ${m.aging.length} aging`;
+
+  // Color KPIs based on health
+  const sellKpi = document.getElementById('invKpiSellThrough');
+  sellKpi.classList.remove('good', 'warn', 'bad');
+  if (m.sellThrough >= 70) sellKpi.classList.add('good');
+  else if (m.sellThrough >= 40) sellKpi.classList.add('warn');
+  else sellKpi.classList.add('bad');
+
+  // Chart: Stock by Category
+  renderInvByCategoryChart(m);
+  // Chart: Sell-through by Category
+  renderInvSellThroughChart(m);
+  // Tables
+  renderInvStockoutTable(m);
+  renderInvAgingTable(m);
+}
+
+function renderInvByCategoryChart(m) {
+  const data = m.byCategory.slice(0, 12);
+  document.getElementById('invStockByCatSub').textContent = `Top ${data.length} · ${fmtN(m.totalStock)} units`;
+  destroyChart('invByCat');
+  if (!data.length) return;
+  S.charts.invByCat = new Chart(document.getElementById('chartInvByCat'), {
+    type: 'bar',
+    data: {
+      labels: data.map((d) => d.label),
+      datasets: [
+        { label: 'Tồn cuối', data: data.map((d) => d.stock), backgroundColor: css('--brand-mid'), borderRadius: 4, maxBarThickness: 28 },
+        { label: 'Đã xuất', data: data.map((d) => d.out), backgroundColor: css('--green'), borderRadius: 4, maxBarThickness: 28 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: true, position: 'top', align: 'end', labels: { color: css('--text-2'), boxWidth: 10, font: { size: 11 } } },
+        tooltip: { backgroundColor: css('--surface'), titleColor: css('--text'), bodyColor: css('--text-2'), borderColor: css('--border'), borderWidth: 1, padding: 10,
+          callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmtN(ctx.raw)} units` } },
+      },
+      scales: {
+        x: { beginAtZero: true, grid: { color: css('--border') }, ticks: { color: css('--text-3'), font: { size: 10 }, callback: (v) => fmtShort(v) } },
+        y: { grid: { display: false }, ticks: { color: css('--text-3'), font: { size: 10 } } },
+      },
+    },
+  });
+}
+
+function renderInvSellThroughChart(m) {
+  const data = m.byCategory.filter((d) => (d.opening + d.received) > 0).slice(0, 12);
+  document.getElementById('invSellThroughSub').textContent = `Trung bình ${fmtPct(m.sellThrough)}`;
+  destroyChart('invSellThrough');
+  if (!data.length) return;
+  const colors = data.map((d) => d.sellThrough >= 70 ? css('--green') : d.sellThrough >= 40 ? '#d97706' : css('--red'));
+  S.charts.invSellThrough = new Chart(document.getElementById('chartInvSellThrough'), {
+    type: 'bar',
+    data: {
+      labels: data.map((d) => d.label),
+      datasets: [{ label: 'Sell-through %', data: data.map((d) => d.sellThrough), backgroundColor: colors, borderRadius: 4, maxBarThickness: 28 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: css('--surface'), titleColor: css('--text'), bodyColor: css('--text-2'), borderColor: css('--border'), borderWidth: 1, padding: 10,
+          callbacks: {
+            label: (ctx) => {
+              const d = data[ctx.dataIndex];
+              return [`Sell-through: ${fmtPct(d.sellThrough)}`, `Xuất ${fmtN(d.out)} / Nhập+Tồn đầu ${fmtN(d.opening + d.received)}`];
+            },
+          },
+        },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: css('--text-3'), font: { size: 10 }, maxRotation: 45, minRotation: 30 } },
+        y: { beginAtZero: true, max: 100, grid: { color: css('--border') }, ticks: { color: css('--text-3'), font: { size: 10 }, callback: (v) => v + '%' } },
+      },
+    },
+  });
+}
+
+function renderInvStockoutTable(m) {
+  const body = document.getElementById('invStockoutBody');
+  if (!m.stockoutAlerts.length) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:14px">Không có SKU nào trong vùng cảnh báo stockout 🎉</td></tr>';
+    return;
+  }
+  body.innerHTML = m.stockoutAlerts.map((r) => {
+    const days = r.daysLeft >= 999 ? '∞' : r.daysLeft.toFixed(1);
+    const statusLbl = r.severity === 'critical' ? (r.stock === 0 ? 'HẾT HÀNG' : 'NGUY HIỂM') : r.severity === 'warn' ? 'SẮP HẾT' : 'THEO DÕI';
+    return `<tr>
+      <td title="${esc(r.sku)}">${esc(r.sku)}</td>
+      <td>${fmtN(r.stock)}</td>
+      <td>${fmtN(r.sales30)}</td>
+      <td>${days}</td>
+      <td style="text-align:right"><span class="inv-badge ${r.severity}">${statusLbl}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderInvAgingTable(m) {
+  const body = document.getElementById('invAgingBody');
+  if (!m.aging.length) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:14px">Không có SKU tồn lâu</td></tr>';
+    return;
+  }
+  body.innerHTML = m.aging.map((r) => {
+    const days = r.daysOfStock >= 999 ? '∞' : r.daysOfStock.toFixed(0);
+    const statusLbl = r.severity === 'critical' ? (r.sales90 === 0 ? 'DEAD STOCK' : 'TỒN RẤT LÂU') : r.severity === 'warn' ? 'TỒN LÂU' : 'CHẬM';
+    return `<tr>
+      <td title="${esc(r.sku)}">${esc(r.sku)}</td>
+      <td>${fmtN(r.stock)}</td>
+      <td>${fmtN(r.sales90)}</td>
+      <td>${days}</td>
+      <td style="text-align:right"><span class="inv-badge ${r.severity}">${statusLbl}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+window.switchInvView = function(view, btn) {
+  document.querySelectorAll('#invMetricTabs .chart-tab').forEach((t) => t.classList.remove('active'));
+  btn.classList.add('active');
+  // View toggle reserved for future expansion — both views currently share layout
+};
+
 function bindEvents() {
   [['fYear', 'year'], ['fQuarter', 'quarter'], ['fMonth', 'month'], ['fCategory', 'category'], ['fGender', 'gender'], ['fType', 'type']]
     .forEach(([id, key]) => {
@@ -1868,6 +2280,7 @@ function bindEvents() {
   });
 
   document.getElementById('fileInput').addEventListener('change', onUpload);
+  document.getElementById('invFileInput').addEventListener('change', onInventoryUpload);
   document.getElementById('themeBtn').addEventListener('click', toggleTheme);
 
   const dz = document.getElementById('dropZone');

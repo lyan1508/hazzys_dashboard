@@ -69,6 +69,10 @@
         Upload File
       </label>
       <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsm,.csv">
+      <label class="btn btn-ghost" for="invFileInput" title="Tải lên file Tồn Kho (nhập-xuất-tồn)" style="font-size:12px">
+        📦 Stock
+      </label>
+      <input type="file" id="invFileInput" accept=".xlsx,.xls,.xlsm" style="display:none">
     </div>
   </div>
 </header>
@@ -499,6 +503,122 @@
         </div>
       </div>
       <div class="dow-strip" id="dowStrip"></div>
+    </div>
+
+    <!-- ====== SPRINT 2: INVENTORY SECTION ====== -->
+    <div class="inv-section" id="invSection">
+      <div class="inv-head">
+        <div>
+          <div class="inv-head-title">📦 Inventory — Tồn kho & Sức khỏe hàng hóa</div>
+          <div class="inv-head-sub" id="invHeadSub">Bấm nút 📦 Stock trên thanh trên cùng để tải file Tổng hợp Nhập-Xuất-Tồn</div>
+        </div>
+        <div class="chart-tabs" id="invMetricTabs" style="display:none">
+          <button class="chart-tab active" data-inv-view="overview" onclick="switchInvView('overview',this)">Tổng quan</button>
+          <button class="chart-tab" data-inv-view="alerts" onclick="switchInvView('alerts',this)">Cảnh báo</button>
+        </div>
+      </div>
+
+      <div id="invEmpty" class="inv-empty">
+        <strong>Chưa tải dữ liệu tồn kho</strong>
+        File cần có header: <em>Mã SKU · Tồn đầu kỳ · Nhập trong kỳ · Xuất trong kỳ · Tồn cuối kỳ · Đang chuyển đi · Sắp nhận về</em>
+        <label class="upload-zone" for="invFileInput" style="display:inline-block;margin-top:14px;cursor:pointer">
+          📦 Chọn file Tồn Kho
+        </label>
+      </div>
+
+      <div id="invContent" style="display:none">
+        <div class="inv-body">
+          <!-- KPI ROW -->
+          <div class="inv-kpi-row">
+            <div class="inv-kpi" id="invKpiSku">
+              <div class="inv-kpi-lbl">SKU đang theo dõi</div>
+              <div class="inv-kpi-val" id="invKpiSkuVal">—</div>
+              <div class="inv-kpi-sub" id="invKpiSkuSub">SKU style-level</div>
+            </div>
+            <div class="inv-kpi" id="invKpiStock">
+              <div class="inv-kpi-lbl">Tồn cuối kỳ</div>
+              <div class="inv-kpi-val" id="invKpiStockVal">—</div>
+              <div class="inv-kpi-sub" id="invKpiStockSub">Tổng units</div>
+            </div>
+            <div class="inv-kpi" id="invKpiSellThrough">
+              <div class="inv-kpi-lbl">Sell-through %</div>
+              <div class="inv-kpi-val" id="invKpiSellThroughVal">—</div>
+              <div class="inv-kpi-sub" id="invKpiSellThroughSub">Xuất / (Tồn đầu + Nhập)</div>
+            </div>
+            <div class="inv-kpi bad" id="invKpiAtRisk">
+              <div class="inv-kpi-lbl">SKU cảnh báo</div>
+              <div class="inv-kpi-val" id="invKpiAtRiskVal">—</div>
+              <div class="inv-kpi-sub" id="invKpiAtRiskSub">Hết hàng / Tồn lâu</div>
+            </div>
+          </div>
+
+          <!-- ROW: Stock by Category | Sell-through Distribution -->
+          <div class="inv-row-2col">
+            <div class="inv-card">
+              <div class="inv-card-title">
+                <span class="card-icon">📊</span>
+                Tồn kho theo Category
+                <span class="inv-card-sub" id="invStockByCatSub"></span>
+              </div>
+              <div class="inv-chart-wrap"><canvas id="chartInvByCat"></canvas></div>
+            </div>
+            <div class="inv-card">
+              <div class="inv-card-title">
+                <span class="card-icon">📈</span>
+                Phân bổ Sell-through theo Category
+                <span class="inv-card-sub" id="invSellThroughSub"></span>
+              </div>
+              <div class="inv-chart-wrap"><canvas id="chartInvSellThrough"></canvas></div>
+            </div>
+          </div>
+
+          <!-- ROW: Stockout Alert | Aging Inventory -->
+          <div class="inv-row-2col">
+            <div class="inv-card">
+              <div class="inv-card-title">
+                <span class="card-icon">⚠️</span>
+                Stockout Alert
+                <span class="inv-card-sub">SKU bán chạy nhưng tồn ≤ dự báo 30 ngày</span>
+              </div>
+              <div class="inv-table-wrap">
+                <table class="inv-table" id="invStockoutTable">
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Tồn</th>
+                      <th>30-day sales</th>
+                      <th>Days left</th>
+                      <th>Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody id="invStockoutBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="inv-card">
+              <div class="inv-card-title">
+                <span class="card-icon">🕰️</span>
+                Aging Inventory
+                <span class="inv-card-sub">SKU tồn cao, bán chậm — đề xuất markdown</span>
+              </div>
+              <div class="inv-table-wrap">
+                <table class="inv-table" id="invAgingTable">
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Tồn</th>
+                      <th>90-day sales</th>
+                      <th>Days of stock</th>
+                      <th>Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody id="invAgingBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div><!-- /dashContent -->
