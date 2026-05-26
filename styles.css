@@ -643,16 +643,40 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
 /* =========================================
    TAB 2/3/4 — fit one screen (no scroll)
    ========================================= */
-/* Forecast tab: tighten pace + forecast cards */
-.tab-pane[data-tab-pane="forecast"] .pace-grid{padding:10px;gap:8px}
-.tab-pane[data-tab-pane="forecast"] .pace-card{padding:10px 12px;gap:5px}
-.tab-pane[data-tab-pane="forecast"] .panel-head{padding:10px 14px 6px!important}
-.tab-pane[data-tab-pane="forecast"] .forecast-grid{padding:10px!important;gap:8px!important}
-.tab-pane[data-tab-pane="forecast"] .forecast-card{padding:10px 12px}
+/* Forecast tab: lock to 1 screen, 2 sections share viewport */
+.tab-pane[data-tab-pane="forecast"]{display:none}
+.tab-pane[data-tab-pane="forecast"].active{
+  display:flex!important;
+  flex-direction:column;
+  gap:10px;
+  height:var(--tab-content-h);
+  min-height:540px;
+}
+.tab-pane[data-tab-pane="forecast"] > .panel{
+  margin-bottom:0!important;
+  flex:1 1 0;
+  min-height:0;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.tab-pane[data-tab-pane="forecast"] .panel-head{padding:8px 14px!important;flex:0 0 auto}
+.tab-pane[data-tab-pane="forecast"] .pace-grid,
+.tab-pane[data-tab-pane="forecast"] .forecast-grid{
+  flex:1 1 auto;
+  padding:10px!important;
+  gap:8px!important;
+  min-height:0;
+}
+.tab-pane[data-tab-pane="forecast"] .pace-card,
+.tab-pane[data-tab-pane="forecast"] .forecast-card{
+  padding:10px 12px;
+  gap:4px;
+  min-height:0;
+}
 
 /* Product tab now uses .product-row (3-col, defined below) */
 
-/* Staff tab: side-by-side chart + matrix, full viewport height */
+/* Staff tab: side-by-side chart + matrix, full viewport height, picker inline in header */
 .tab-pane[data-tab-pane="staff"]{display:none}
 .tab-pane[data-tab-pane="staff"].active{
   display:grid!important;
@@ -667,17 +691,31 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
   display:flex;flex-direction:column;
   min-height:0;overflow:hidden;
 }
+.tab-pane[data-tab-pane="staff"] .chart-card-hd{
+  align-items:center;
+  flex-wrap:nowrap;
+  gap:12px;
+}
 .tab-pane[data-tab-pane="staff"] .chart-wrap{
   flex:1;height:auto!important;min-height:240px;max-height:none;
 }
 .tab-pane[data-tab-pane="staff"] .matrix-wrap{
   flex:1;max-height:none;min-height:0;overflow-y:auto;
 }
-.tab-pane[data-tab-pane="staff"] .cashier-picker{
-  max-height:64px;overflow-y:auto;flex:0 0 auto;
+.tab-pane[data-tab-pane="staff"] #cashierPicker{
+  display:flex;flex-wrap:wrap;gap:5px;
+  margin:0;
+  min-height:0;
+  max-height:52px;
+  overflow-y:auto;
+  flex:1 1 auto;
+  justify-content:flex-end;
 }
+.tab-pane[data-tab-pane="staff"] #cashierPicker .cashier-chip{flex:0 0 auto}
 @media(max-width:1100px){
   .tab-pane[data-tab-pane="staff"].active{grid-template-columns:1fr;height:auto}
+  .tab-pane[data-tab-pane="staff"] .chart-card-hd{flex-wrap:wrap}
+  .tab-pane[data-tab-pane="staff"] #cashierPicker{justify-content:flex-start;max-height:80px}
 }
 
 /* =========================================
@@ -964,39 +1002,44 @@ tbody td:first-child{font-family:var(--mono)}
 .filter-label{font-weight:500;color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
 
 /* =========================================
-   PRODUCT TAB — 2x2 grid, full viewport height
+   PRODUCT TAB — Left col (Top + Type/Gender) | Right col (ABC full height)
    ========================================= */
 .product-tab.active{
-  display:flex!important;
-  flex-direction:column;
-  gap:10px;
-  height:var(--tab-content-h);
-  min-height:540px;
-}
-.product-row{
-  display:grid;
+  display:grid!important;
   grid-template-columns:1fr 1fr;
   gap:10px;
   align-items:stretch;
-  min-width:0;
+  height:var(--tab-content-h);
+  min-height:540px;
 }
-.product-row-top{
+.product-col-left{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  min-width:0;
+  min-height:0;
+}
+.product-col-left > #topProductCard{
   flex:1 1 auto;
   min-height:0;
 }
-.product-row-bottom{
+.product-mix-row{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
   flex:0 0 180px;
+  min-width:0;
 }
-.product-row > .chart-card{min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.product-tab .chart-card{min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .product-tab #topProductList{flex:1;overflow-y:auto;height:auto!important;max-height:none!important}
 .product-tab .product-list{grid-template-columns:1fr}
+.product-tab #abcCard{min-height:0}
 .product-tab #abcCard .chart-wrap{flex:1;height:auto!important;min-height:160px}
-.product-row-bottom .chart-card{min-height:0}
-.product-row-bottom .split-inner{padding:8px 14px 12px;flex:1;min-height:0}
+.product-mix-row .chart-card{min-height:0}
+.product-mix-row .split-inner{padding:8px 14px 12px;flex:1;min-height:0}
 @media(max-width:1100px){
-  .product-tab.active{height:auto}
-  .product-row{grid-template-columns:1fr}
-  .product-row-bottom{flex:0 0 auto}
+  .product-tab.active{grid-template-columns:1fr;height:auto}
+  .product-mix-row{flex:0 0 auto}
 }
 
 /* =========================================
