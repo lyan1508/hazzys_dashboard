@@ -17,11 +17,11 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 const BILL_FIELD_ALIASES = ['bill', 'billflag', 'bill_flag', 'billno', 'bill_no', 'billnumber', 'billind', 'isbill', 'billindicator'];
 
 // Spreadsheet must be shared "Anyone with the link can view" for these to work.
-const GSHEET_BASE = 'https://docs.google.com/spreadsheets/d/1EN7e-w_tuTWQ2cREWY4MRnXRaW3gJMOVvqNJvOC3QeA/export?format=csv&gid=';
+const GSHEET_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT1crTHmD1Z5svqyGnu5FATk0Uxy2qoGEa4Faq_ayyiDa710qOq-NrAHHLvcYNBI_2RgMAUclr-UlVl/pub?output=csv';
 const GSHEET_URLS = {
-  'sale data':  GSHEET_BASE + '838438088',
-  'target':     GSHEET_BASE + '1777284102',
-  'inventory':  GSHEET_BASE + '621023957',
+  'sale data':  GSHEET_BASE + '101553965',
+  'target':     GSHEET_BASE + '281316279',
+  'inventory':  GSHEET_BASE + '2031169837',
 };
 
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
