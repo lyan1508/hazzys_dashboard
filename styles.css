@@ -1121,6 +1121,26 @@ tbody td:first-child{font-family:var(--mono)}
   /* Mini charts: scale down proportionally in smaller container */
   .fc-right{width:76px}
   .fc-right svg{width:100%;height:auto}
+
+}
+
+/* =========================================
+   MOBILE — Overview tab single-column (≤600px)
+   Phones are typically 375-480px wide.
+   ========================================= */
+@media(max-width:600px){
+  /* Stack all overview rows to single column */
+  .overview-row{grid-template-columns:1fr!important}
+
+  /* Reduce chart height (overrides inline height:240px) */
+  .overview-row .chart-wrap{height:200px!important}
+
+  /* DOW strip: 4 cols when full-width */
+  .overview-row .dow-strip{grid-template-columns:repeat(4,1fr)!important}
+
+  /* YoY controls: compact spacing */
+  .yoy-controls{padding:8px;gap:6px}
+  .yoy-select{padding:4px 6px;font-size:11px}
 }
 
 /* =========================================
