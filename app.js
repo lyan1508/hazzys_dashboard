@@ -725,51 +725,23 @@ function renderPromotionInfo(m) {
 }
 
 function renderCashierBar(m) {
-  const picker = document.getElementById('cashierPicker');
   const all = m.cashierStats || [];
-  const names = all.map((x) => x.label);
   const shown = all.slice(0, 20);
-  const listRevTotal = shown.reduce((s, x) => s + num(x.amount), 0);
-  if (!names.length) {
-    picker.innerHTML = '<div style="font-size:11px;color:var(--text-3)">No cashier data</div>';
+  if (!shown.length) {
     destroyChart('cashier');
     return;
   }
 
-  S.cashierSelected = S.cashierSelected.filter((n) => names.includes(n));
-  if (!S.cashierSelected.length) S.cashierSelected = names.slice(0, Math.min(8, names.length));
-
-  picker.innerHTML = shown.map((x, i) => `
-    <label class="cashier-chip">
-      <input type="checkbox" data-cashier-idx="${i}" ${S.cashierSelected.includes(x.label) ? 'checked' : ''}>
-      <span>${esc(x.label)} (${fmtPct(listRevTotal > 0 ? (num(x.amount) / listRevTotal) * 100 : 0)})</span>
-    </label>
-  `).join('');
-
-  picker.querySelectorAll('input[data-cashier-idx]').forEach((cb) => {
-    cb.addEventListener('change', () => {
-      S.cashierSelected = [...picker.querySelectorAll('input[data-cashier-idx]:checked')]
-        .map((x) => shown[Number(x.getAttribute('data-cashier-idx'))]?.label)
-        .filter(Boolean);
-      renderCashierBar(m);
-    });
-  });
-
-  let selected = all.filter((x) => S.cashierSelected.includes(x.label));
-  if (!selected.length && names.length) {
-    S.cashierSelected = [names[0]];
-    return renderCashierBar(m);
-  }
   destroyChart('cashier');
   S.charts.cashier = new Chart(document.getElementById('chartCashierBar'), {
     type: 'bar',
     data: {
-      labels: selected.map((x) => x.label),
+      labels: shown.map((x) => x.label),
       datasets: [
         {
           type: 'bar',
           label: 'Revenue',
-          data: selected.map((x) => x.amount),
+          data: shown.map((x) => x.amount),
           yAxisID: 'y',
           backgroundColor: css('--brand-mid'),
           borderRadius: 6,
@@ -781,7 +753,7 @@ function renderCashierBar(m) {
         {
           type: 'line',
           label: 'Units',
-          data: selected.map((x) => x.qty),
+          data: shown.map((x) => x.qty),
           yAxisID: 'y1',
           borderColor: css('--accent'),
           backgroundColor: 'transparent',

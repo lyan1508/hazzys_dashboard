@@ -1037,7 +1037,7 @@ tbody td:first-child{font-family:var(--mono)}
 }
 .product-tab .chart-card{min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .product-tab #topProductList{flex:1;overflow-y:auto;height:auto!important;max-height:none!important}
-.product-tab .product-list{grid-template-columns:1fr}
+.product-tab .product-list{grid-template-columns:1fr 1fr}
 .product-tab #abcCard{min-height:0}
 .product-tab #abcCard .chart-wrap{flex:1;height:auto!important;min-height:160px}
 .product-mix-row .chart-card{min-height:0}
@@ -1086,3 +1086,56 @@ tbody td:first-child{font-family:var(--mono)}
   .inv-hkpi{padding:4px 10px;min-width:60px}
 }
 
+/* =========================================
+   MOBILE — Forecast tab & global fixes (≤768px)
+   Keeps desktop layout untouched.
+   ========================================= */
+@media(max-width:768px){
+  /* Tab bar: hide scrollbar but keep swipe-to-scroll on iOS */
+  .tabs-nav{
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .tabs-nav::-webkit-scrollbar{display:none}
+
+  /* Forecast tab: switch from fixed-height (desktop) to scrollable */
+  .tab-pane[data-tab-pane="forecast"].active{
+    height:auto!important;
+    min-height:0!important;
+    overflow-y:visible;
+  }
+  /* Remove overflow:hidden so panels expand to natural height */
+  .tab-pane[data-tab-pane="forecast"] > .panel{
+    overflow:visible!important;
+    flex:0 0 auto!important;
+    min-height:0!important;
+  }
+  .tab-pane[data-tab-pane="forecast"] .pace-grid,
+  .tab-pane[data-tab-pane="forecast"] .forecast-grid{
+    overflow:visible!important;
+    flex:0 0 auto!important;
+  }
+  /* Pace cards: natural height, no clipping */
+  .pace-card{min-height:0!important;overflow:visible}
+
+  /* Mini charts: scale down proportionally in smaller container */
+  .fc-right{width:76px}
+  .fc-right svg{width:100%;height:auto}
+}
+
+/* =========================================
+   MOBILE — very small screens (≤480px)
+   ========================================= */
+@media(max-width:480px){
+  /* Hide mini charts to maximise text space on phones < 480px */
+  .fc-right{display:none}
+
+  /* Compact forecast card padding */
+  .tab-pane[data-tab-pane="forecast"] .forecast-card{padding:8px 10px!important}
+
+  /* KPI: 2 columns on very small screen */
+  .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+
+  /* Filters: 2 columns (was 3) to avoid overflow */
+  .filters{grid-template-columns:repeat(2,1fr)!important}
+}
