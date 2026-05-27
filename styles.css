@@ -1194,3 +1194,59 @@ tbody td:first-child{font-family:var(--mono)}
   /* Filters: 2 columns (was 3) to avoid overflow */
   .filters{grid-template-columns:repeat(2,1fr)!important}
 }
+
+/* =========================================
+   MOBILE — Readability fixes (≤640px)
+   ========================================= */
+@media(max-width:640px){
+
+  /* --- Promotion & product list: 1 cột để tên hiển thị đầy đủ --- */
+  .promotion-list,
+  .product-list{grid-template-columns:1fr!important}
+
+  /* Product item: bỏ cột value cố định 76px, dùng auto; cho tên wrap được */
+  .product-item{grid-template-columns:20px minmax(0,1fr) auto;gap:6px}
+
+  /* Cho phép tên sản phẩm / promotion xuống dòng thay vì cắt */
+  .p-name{
+    white-space:normal!important;
+    overflow:visible!important;
+    text-overflow:unset!important;
+    word-break:break-word;
+    font-size:12px!important;
+  }
+
+  /* --- DOW heatmap trong overview: 4 cột dễ đọc hơn 7 --- */
+  .overview-row .dow-section .dow-strip,
+  .dow-strip{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:5px!important}
+
+  /* DOW cell: nhỏ lại cho vừa 4 cột */
+  .dow-cell{padding:7px 4px!important}
+  .dow-cell-rev{font-size:11px!important}
+  .dow-cell-meta{font-size:9px!important;line-height:1.2}
+
+  /* --- Cashier Matrix & Inventory tables: luôn scroll ngang --- */
+  .matrix-wrap,
+  .inv-table-wrap,
+  .table-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+
+  /* Đảm bảo table không bị collapse */
+  .matrix-table,
+  .inv-table{min-width:480px}
+
+  /* --- YoY controls: xếp 2 dòng gọn hơn --- */
+  .yoy-controls{gap:5px!important;padding:6px 10px!important}
+  .yoy-metric-tabs{margin-left:0!important;flex-wrap:wrap}
+
+  /* --- ABC chips: 1 cột thay vì 3 --- */
+  .abc-summary{grid-template-columns:1fr!important}
+
+  /* --- Cashier bar chart: chiều cao vừa mobile --- */
+  #cashierBarCard .chart-wrap{height:220px!important}
+
+  /* --- Inventory head inline: xếp dọc trên mobile --- */
+  .inv-head--inline{flex-direction:column;align-items:flex-start;gap:10px}
+  .inv-head-kpis{flex-wrap:wrap;gap:0}
+  .inv-hkpi{align-items:flex-start;padding:6px 14px 6px 0;border-left:none;border-bottom:1px solid var(--border);min-width:calc(50% - 14px)}
+  .inv-hkpi:last-child,.inv-hkpi:nth-last-child(2):nth-child(odd){border-bottom:none}
+}
