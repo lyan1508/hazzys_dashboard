@@ -1,6 +1,6 @@
 const S = {
   raw: { sales: [], targets: [], inventory: [], inventoryMeta: null },
-  filters: { year: 'all', quarter: 'all', month: 'all', category: 'all', gender: 'all', type: 'all' },
+  filters: { year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all' },
   charts: {},
   revMode: 'monthly',
   cashierSelected: [],
@@ -335,7 +335,6 @@ function filteredSalesRows() {
     if (f.year !== 'all' && r.year !== f.year) return false;
     if (f.quarter !== 'all' && r.quarter !== f.quarter) return false;
     if (f.month !== 'all' && String(r.monthIndex).padStart(2, '0') !== f.month) return false;
-    if (f.category !== 'all' && r.category !== f.category) return false;
     if (f.gender !== 'all' && r.gender !== f.gender) return false;
     if (f.type !== 'all' && r.type !== f.type) return false;
     return true;
@@ -982,7 +981,6 @@ function initFilters() {
     const value = String(m).padStart(2, '0');
     return `<option value="${value}">${MONTH_NAMES[m - 1]}</option>`;
   }).join('')}`;
-  options(s.map((r) => r.category), 'fCategory', '—', true);
   options(s.map((r) => r.gender), 'fGender', '—');
   options(s.map((r) => r.type), 'fType', '—');
 }
@@ -991,14 +989,13 @@ function syncFilters() {
   document.getElementById('fYear').value = S.filters.year;
   document.getElementById('fQuarter').value = S.filters.quarter;
   document.getElementById('fMonth').value = S.filters.month;
-  document.getElementById('fCategory').value = S.filters.category;
   document.getElementById('fGender').value = S.filters.gender;
   document.getElementById('fType').value = S.filters.type;
   highlightActiveFilters();
 }
 
 function highlightActiveFilters() {
-  [['fYear','year'],['fQuarter','quarter'],['fMonth','month'],['fGender','gender'],['fType','type'],['fCategory','category']]
+  [['fYear','year'],['fQuarter','quarter'],['fMonth','month'],['fGender','gender'],['fType','type']]
     .forEach(([id, key]) => {
       const sel = document.getElementById(id);
       const group = sel?.closest('.filter-group');
@@ -1006,6 +1003,15 @@ function highlightActiveFilters() {
       sel?.classList.toggle('active-filter', isActive);
       group?.classList.toggle('has-active', isActive);
     });
+  // Update mobile filter toggle badge
+  const activeCount = Object.values(S.filters).filter(v => v !== 'all').length;
+  const countEl = document.getElementById('filterCount');
+  const toggleEl = document.getElementById('filterToggle');
+  if (countEl) {
+    countEl.textContent = activeCount || '';
+    countEl.classList.toggle('visible', activeCount > 0);
+  }
+  if (toggleEl) toggleEl.classList.toggle('has-filters', activeCount > 0);
 }
 
 function syncCharts() {
@@ -1648,8 +1654,7 @@ async function loadFromGSheets() {
 function applyDimFilters(rows) {
   const f = S.filters;
   return rows.filter(r => {
-    if (f.category !== 'all' && r.category !== f.category) return false;
-    if (f.gender   !== 'all' && r.gender   !== f.gender)   return false;
+    if (f.gender !== 'all' && r.gender !== f.gender) return false;
     if (f.type     !== 'all' && r.type     !== f.type)     return false;
     return true;
   });
@@ -1837,9 +1842,8 @@ function renderYoy() {
   const _fb = document.getElementById('yoyFilterBadge');
   if (_fb) {
     const _dims = [
-      S.filters.gender   !== 'all' ? S.filters.gender   : null,
-      S.filters.type     !== 'all' ? S.filters.type     : null,
-      S.filters.category !== 'all' ? S.filters.category : null,
+      S.filters.gender !== 'all' ? S.filters.gender : null,
+      S.filters.type   !== 'all' ? S.filters.type   : null,
     ].filter(Boolean);
     if (_dims.length) {
       _fb.style.display = '';
@@ -2112,7 +2116,6 @@ function aggregateInventory() {
   // Apply dimension filters (category/gender/type from main filter bar) — only those that make sense
   const f = S.filters;
   const filtered = known.filter((r) => {
-    if (f.category !== 'all' && r.category !== f.category) return false;
     if (f.gender !== 'all' && r.gender !== f.gender) return false;
     if (f.type !== 'all' && r.type !== f.type) return false;
     return true;
@@ -2365,7 +2368,7 @@ window.switchTab = function(name) {
 };
 
 function bindEvents() {
-  [['fYear', 'year'], ['fQuarter', 'quarter'], ['fMonth', 'month'], ['fCategory', 'category'], ['fGender', 'gender'], ['fType', 'type']]
+  [['fYear', 'year'], ['fQuarter', 'quarter'], ['fMonth', 'month'], ['fGender', 'gender'], ['fType', 'type']]
     .forEach(([id, key]) => {
       document.getElementById(id).addEventListener('change', (e) => {
         S.filters[key] = e.target.value;
@@ -2374,10 +2377,16 @@ function bindEvents() {
       });
     });
 
+  // Mobile filter toggle
+  document.getElementById('filterToggle')?.addEventListener('click', () => {
+    document.getElementById('filterBar').classList.toggle('filter-open');
+  });
+
   document.getElementById('resetBtn').addEventListener('click', () => {
-    S.filters = { year: 'all', quarter: 'all', month: 'all', category: 'all', gender: 'all', type: 'all' };
+    S.filters = { year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all' };
     S.revMode = 'monthly';
     S.cashierSelected = [];
+    document.getElementById('filterBar').classList.remove('filter-open');
     syncFilters();
     renderAll();
   });

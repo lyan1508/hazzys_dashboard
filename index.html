@@ -46,13 +46,13 @@
         <div class="filter-label">Type</div>
         <select class="filter-select" id="fType"><option value="all">—</option></select>
       </div>
-      <div class="filter-group">
-        <div class="filter-label">Category</div>
-        <select class="filter-select" id="fCategory"><option value="all">—</option></select>
-      </div>
     </div>
 
     <div class="topbar-actions">
+      <button class="btn-icon btn-filter-toggle" id="filterToggle" title="Bộ lọc" aria-label="Bộ lọc">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h14M6 10h8M9 15h2"/></svg>
+        <span class="filter-count" id="filterCount"></span>
+      </button>
       <button class="btn-icon" id="resetBtn" title="Clear filters" aria-label="Clear filters">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5h13"/><path d="M5.5 5l1.4 9.2a1.5 1.5 0 0 0 1.5 1.3h3.2a1.5 1.5 0 0 0 1.5-1.3L14.5 5"/><path d="M8 5V3.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V5"/></svg>
       </button>

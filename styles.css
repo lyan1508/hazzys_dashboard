@@ -1124,6 +1124,23 @@ tbody td:first-child{font-family:var(--mono)}
 
 }
 
+/* Filter toggle button — hidden on desktop, shown on mobile */
+.btn-filter-toggle{display:none;position:relative}
+.filter-count{
+  position:absolute;top:-5px;right:-5px;
+  background:var(--brand);color:#fff;
+  font-size:9px;font-weight:800;line-height:1;
+  min-width:14px;height:14px;padding:0 3px;
+  border-radius:999px;
+  display:none;align-items:center;justify-content:center;
+  font-family:var(--mono);
+}
+.filter-count.visible{display:flex}
+.btn-filter-toggle.has-filters{
+  border-color:var(--brand-mid);
+  color:var(--brand);
+}
+
 /* =========================================
    MOBILE — Overview tab single-column (≤600px)
    Phones are typically 375-480px wide.
@@ -1141,6 +1158,24 @@ tbody td:first-child{font-family:var(--mono)}
   /* YoY controls: compact spacing */
   .yoy-controls{padding:8px;gap:6px}
   .yoy-select{padding:4px 6px;font-size:11px}
+}
+
+/* =========================================
+   MOBILE — collapsible filter bar (≤600px)
+   ========================================= */
+@media(max-width:600px){
+  /* Show toggle button */
+  .btn-filter-toggle{display:grid}
+
+  /* Hide filter bar by default */
+  #filterBar{
+    display:none;
+    order:99;
+    width:100%;
+    padding-top:2px;
+  }
+  /* Show when toggled open */
+  #filterBar.filter-open{display:grid}
 }
 
 /* =========================================
