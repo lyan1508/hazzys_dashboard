@@ -1611,7 +1611,7 @@ async function loadFromGSheets() {
     const cacheBuster = Date.now();
     const entries = await Promise.all(
       Object.entries(GSHEET_URLS).map(async ([name, url]) => {
-        const res = await fetchWithTimeout(`${url}&_=${cacheBuster}`, 30000);
+        const res = await fetchWithTimeout(`${url}&single=true&output=csv&_=${cacheBuster}`, 30000);
         if (!res.ok) throw new Error(`Failed to fetch sheet "${name}" (HTTP ${res.status})`);
         const rawText = await res.text();
         // Google returns an HTML login page (not CSV) when the sheet is not
