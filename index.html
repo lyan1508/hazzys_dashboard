@@ -380,25 +380,34 @@
         </div>
         <div class="forecast-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px">
           <div class="forecast-card" data-period="month">
-            <div class="forecast-card-label">Next Month</div>
-            <div class="forecast-card-name" id="fcMonthName">—</div>
-            <div class="forecast-card-value" id="fcMonthValue">—</div>
-            <div class="forecast-card-range" id="fcMonthRange">—</div>
-            <div class="forecast-card-vs" id="fcMonthVs">—</div>
+            <div class="fc-left">
+              <div class="forecast-card-label">Next Month</div>
+              <div class="forecast-card-name" id="fcMonthName">—</div>
+              <div class="forecast-card-value" id="fcMonthValue">—</div>
+              <div class="forecast-card-range" id="fcMonthRange">—</div>
+              <div class="forecast-card-vs" id="fcMonthVs">—</div>
+            </div>
+            <div class="fc-right" id="fcMonthChart"></div>
           </div>
           <div class="forecast-card" data-period="quarter">
-            <div class="forecast-card-label">Next Quarter</div>
-            <div class="forecast-card-name" id="fcQuarterName">—</div>
-            <div class="forecast-card-value" id="fcQuarterValue">—</div>
-            <div class="forecast-card-range" id="fcQuarterRange">—</div>
-            <div class="forecast-card-vs" id="fcQuarterVs">—</div>
+            <div class="fc-left">
+              <div class="forecast-card-label">Next Quarter</div>
+              <div class="forecast-card-name" id="fcQuarterName">—</div>
+              <div class="forecast-card-value" id="fcQuarterValue">—</div>
+              <div class="forecast-card-range" id="fcQuarterRange">—</div>
+              <div class="forecast-card-vs" id="fcQuarterVs">—</div>
+            </div>
+            <div class="fc-right" id="fcQuarterChart"></div>
           </div>
           <div class="forecast-card" data-period="year">
-            <div class="forecast-card-label">Full Year (estimate)</div>
-            <div class="forecast-card-name" id="fcYearName">—</div>
-            <div class="forecast-card-value" id="fcYearValue">—</div>
-            <div class="forecast-card-range" id="fcYearRange">—</div>
-            <div class="forecast-card-vs" id="fcYearVs">—</div>
+            <div class="fc-left">
+              <div class="forecast-card-label">Full Year (estimate)</div>
+              <div class="forecast-card-name" id="fcYearName">—</div>
+              <div class="forecast-card-value" id="fcYearValue">—</div>
+              <div class="forecast-card-range" id="fcYearRange">—</div>
+              <div class="forecast-card-vs" id="fcYearVs">—</div>
+            </div>
+            <div class="fc-right" id="fcYearChart"></div>
           </div>
         </div>
       </div>

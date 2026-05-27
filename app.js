@@ -1353,6 +1353,83 @@ function forecastMonth(history, targetY, targetM) {
   return { value: avg * (Number.isFinite(growthRate) ? growthRate : 1), method: 'linear' };
 }
 
+function drawFcSparkline(elId, history, fcValue) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const W = 92, H = 56;
+  const tail = history.slice(-6);
+  if (!tail.length) { el.innerHTML = ''; return; }
+  const allVals = [...tail.map(h => h.value), fcValue];
+  const minV = Math.min(...allVals) * 0.88;
+  const maxV = Math.max(...allVals) * 1.08;
+  const rng = maxV - minV || 1;
+  const sx = (i, n) => 4 + (i / (n - 1)) * (W - 8);
+  const sy = v => H - 8 - ((v - minV) / rng) * (H - 16);
+  const pts = tail.map((h, i) => [sx(i, tail.length + 1), sy(h.value)]);
+  const fp = [sx(tail.length, tail.length + 1), sy(fcValue)];
+  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('');
+  const fcPath = `M${pts[pts.length-1][0].toFixed(1)},${pts[pts.length-1][1].toFixed(1)}L${fp[0].toFixed(1)},${fp[1].toFixed(1)}`;
+  const areaPath = `${linePath}L${pts[pts.length-1][0].toFixed(1)},${H}L${pts[0][0].toFixed(1)},${H}Z`;
+  el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" overflow="visible">
+    <defs><linearGradient id="fcG_${elId}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--brand)" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="var(--brand)" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${areaPath}" fill="url(#fcG_${elId})"/>
+    <path d="${linePath}" fill="none" stroke="var(--brand)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="${fcPath}" fill="none" stroke="var(--brand)" stroke-width="1.5" stroke-dasharray="3,2.5" stroke-linecap="round"/>
+    ${pts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2" fill="var(--brand)" opacity="0.45"/>`).join('')}
+    <circle cx="${fp[0].toFixed(1)}" cy="${fp[1].toFixed(1)}" r="3.8" fill="var(--brand)" stroke="var(--surface-2)" stroke-width="1.8"/>
+  </svg>`;
+}
+
+function drawFcQuarterBars(elId, months) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const W = 92, H = 56;
+  const maxV = Math.max(...months.map(m => m.v)) || 1;
+  const bW = 22, gap = (W - months.length * bW) / (months.length + 1);
+  const barMaxH = H - 16;
+  const bars = months.map((m, i) => {
+    const x = gap + i * (bW + gap);
+    const h = Math.max(2, (m.v / maxV) * barMaxH);
+    const y = H - 12 - h;
+    const op = (0.45 + 0.55 * (i / (months.length - 1 || 1))).toFixed(2);
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bW}" height="${h.toFixed(1)}" rx="3" fill="var(--brand)" opacity="${op}"/>
+    <text x="${(x + bW/2).toFixed(1)}" y="${(H-2).toFixed(1)}" text-anchor="middle" font-size="8" fill="var(--text-3)" font-family="inherit">${m.label}</text>`;
+  });
+  el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${bars.join('')}</svg>`;
+}
+
+function drawFcYearBars(elId, history, currentYear, fcMap) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const W = 92, H = 56;
+  const months = Array.from({length: 12}, (_, i) => {
+    const m = i + 1;
+    const act = history.find(h => h.y === currentYear && h.m === m);
+    return { m, value: act ? act.value : (fcMap[m] || 0), isActual: !!act };
+  });
+  const maxV = Math.max(...months.map(d => d.value)) * 1.1 || 1;
+  const bW = (W - 4) / 12;
+  const barMaxH = H - 10;
+  const sepMonth = months.findIndex(d => !d.isActual);
+  const bars = months.map((d, i) => {
+    const x = 2 + i * bW;
+    const h = Math.max(1, (d.value / maxV) * barMaxH);
+    const y = H - 8 - h;
+    const fill = 'var(--brand)';
+    const op = d.isActual ? (0.35 + 0.65 * ((i+1)/12)).toFixed(2) : '0.22';
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(bW - 1.2).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="${fill}" opacity="${op}"/>`;
+  });
+  let sep = '';
+  if (sepMonth > 0 && sepMonth < 12) {
+    const sx = (2 + sepMonth * bW - 0.8).toFixed(1);
+    sep = `<line x1="${sx}" y1="2" x2="${sx}" y2="${H-8}" stroke="var(--text-3)" stroke-width="0.8" stroke-dasharray="2,2" opacity="0.6"/>`;
+  }
+  el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${bars.join('')}${sep}</svg>`;
+}
+
 function renderForecast() {
   const history = buildMonthlyHistory();
   const methodEl = document.getElementById('forecastMethod');
@@ -1371,9 +1448,11 @@ function renderForecast() {
 
   // Next quarter (3 months after the next month)
   let q = [];
+  let qMonths = [];
   let cy = ny, cm = nm;
   for (let i = 0; i < 3; i++) {
     q.push(forecastMonth(history, cy, cm));
+    qMonths.push({ v: q[i].value, label: MONTH_NAMES[cm-1].slice(0,3) });
     cm++; if (cm > 12) { cm = 1; cy++; }
   }
   const quarterTotal = q.reduce((s, f) => s + f.value, 0);
@@ -1384,8 +1463,11 @@ function renderForecast() {
   const actualSum = monthsActualThisYear.reduce((s, h) => s + h.value, 0);
   let yearForecast = actualSum;
   const lastActualMonth = Math.max(...monthsActualThisYear.map(h => h.m));
+  const fcMap = {};
   for (let m = lastActualMonth + 1; m <= 12; m++) {
-    yearForecast += forecastMonth(history, currentYear, m).value;
+    const mfc = forecastMonth(history, currentYear, m);
+    yearForecast += mfc.value;
+    fcMap[m] = mfc.value;
   }
 
   // Method label
@@ -1426,6 +1508,11 @@ function renderForecast() {
   document.getElementById('fcYearRange').textContent = `Actual ${monthsActualThisYear.length}/12 months + forecast ${12 - monthsActualThisYear.length} months`;
   const prevYearSum = history.filter(h => h.y === currentYear - 1).reduce((s, h) => s + h.value, 0);
   document.getElementById('fcYearVs').innerHTML = vsText(yearForecast, prevYearSum, `${currentYear - 1}`);
+
+  // Draw mini charts on the right of each card
+  drawFcSparkline('fcMonthChart', history, fc1.value);
+  drawFcQuarterBars('fcQuarterChart', qMonths);
+  drawFcYearBars('fcYearChart', history, currentYear, fcMap);
 }
 
 function switchRevChart(mode, btn) {
