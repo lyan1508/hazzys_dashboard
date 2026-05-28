@@ -355,6 +355,7 @@ function safeGroupSum(rows, key) {
   const map = new Map();
   rows.forEach((r) => {
     const k = normalizeGroup(r[key]);
+    if (k === 'UNKNOWN') return;
     map.set(k, num(map.get(k)) + num(r.amount));
   });
   return [...map.entries()].map(([label, value]) => ({ label, value: num(value) })).sort((a, b) => b.value - a.value);
