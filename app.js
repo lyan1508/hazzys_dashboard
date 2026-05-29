@@ -105,12 +105,17 @@ function deriveCategory(rawCategory, infoCategory, typeValue, productKey) {
   return 'UNKNOWN';
 }
 
-// Hazzys SKU decode: brand prefix (pos 1-2) → gender, season letter (pos 6) → SS/FW group.
+// Hazzys SKU decode helpers (pos 1-2 = brand, pos 6 = season letter)
 const HAZZYS_GENDER_BY_BRAND = { HU: 'Men', HW: 'Women', HZ: 'Men', HS: 'Women', HJ: 'Men', HI: 'Women', HB: 'Baby' };
-const HAZZYS_SEASON_GROUP = { A: 'SS', B: 'SS', E: 'SS', C: 'FW', D: 'FW', F: 'FW' };
+const HAZZYS_LINE_BY_BRAND   = { HU: 'Golf', HW: 'Golf', HZ: 'Casual', HS: 'Casual', HJ: 'Accessory', HI: 'Accessory', HB: 'Baby' };
+const HAZZYS_SEASON_GROUP    = { A: 'SS', B: 'SS', E: 'SS', C: 'FW', D: 'FW', F: 'FW' };
 function skuGender(sku) {
   const raw = String(sku || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   return HAZZYS_GENDER_BY_BRAND[raw.slice(0, 2)] || null;
+}
+function skuLine(sku) {
+  const raw = String(sku || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return HAZZYS_LINE_BY_BRAND[raw.slice(0, 2)] || null;
 }
 function skuSeasonGroup(sku) {
   const raw = String(sku || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -1379,8 +1384,8 @@ function forecastMonth(history, targetY, targetM) {
   if (allGrowthRates.length > 0) {
     const logMean = allGrowthRates.reduce((s, r) => s + Math.log(r), 0) / allGrowthRates.length;
     avgGrowth = Math.exp(logMean);
-    // Hard cap: forecast never grows more than 25% nor shrinks more than 15% vs base
-    avgGrowth = Math.max(0.85, Math.min(1.25, avgGrowth));
+    // Hard cap: forecast never grows more than 10% nor shrinks more than 10% vs same period last year
+    avgGrowth = Math.max(0.90, Math.min(1.10, avgGrowth));
   }
 
   if (sameMonth.length > 0) {
@@ -2235,50 +2240,56 @@ function aggregateInventory() {
     })).sort((a, b) => b.stock - a.stock);
   })();
 
-  // Season (SS/FW) × Gender matrix — stock holding ratio = closing / (opening + received)
+  // Line (Golf/Casual/…) × Season (SS/FW) × Gender matrix
   const seasonGenderMatrix = (() => {
-    const genders = ['Men', 'Women', 'Baby'];
-    const seasons = ['SS', 'FW'];
+    const ALL_GENDERS = ['Men', 'Women', 'Baby'];
+    const ALL_SEASONS = ['SS', 'FW'];
+    const ALL_LINES   = ['Golf', 'Casual', 'Accessory', 'Baby'];
     const blank = () => ({ opening: 0, received: 0, out: 0, stock: 0 });
-    const cells = new Map(); // key `${season}|${gender}`
-    const usedGenders = new Set();
-    let hasSeason = false;
+    const cells = new Map(); // key `${line}|${season}|${gender}`
+    const usedGenders = new Set(), usedLines = new Set();
+    let hasData = false;
     filtered.forEach((r) => {
-      const g = skuGender(r.sku) || (genders.includes(r.gender) ? r.gender : null);
+      const g = skuGender(r.sku) || (ALL_GENDERS.includes(r.gender) ? r.gender : null);
       const s = skuSeasonGroup(r.sku);
-      if (!g || !s) return;
-      hasSeason = true;
-      usedGenders.add(g);
-      const key = `${s}|${g}`;
+      const l = skuLine(r.sku);
+      if (!g || !s || !l) return;
+      hasData = true;
+      usedGenders.add(g); usedLines.add(l);
+      const key = `${l}|${s}|${g}`;
       const c = cells.get(key) || blank();
-      c.opening += num(r.opening);
-      c.received += num(r.received);
-      c.out += num(r.out);
-      c.stock += num(r.closing);
+      c.opening += num(r.opening); c.received += num(r.received);
+      c.out += num(r.out); c.stock += num(r.closing);
       cells.set(key, c);
     });
-    if (!hasSeason) return null;
-    const cols = genders.filter((g) => usedGenders.has(g));
-    const ratio = (c) => (c.opening + c.received) > 0 ? (c.stock / (c.opening + c.received)) * 100 : 0;
-    const rows = seasons.map((s) => {
-      const rowCells = cols.map((g) => cells.get(`${s}|${g}`) || blank());
-      const rowTotal = rowCells.reduce((a, c) => ({
-        opening: a.opening + c.opening, received: a.received + c.received, out: a.out + c.out, stock: a.stock + c.stock,
-      }), blank());
-      return { season: s, cells: rowCells.map((c) => ({ ...c, ratio: ratio(c) })), total: { ...rowTotal, ratio: ratio(rowTotal) } };
-    });
-    const colTotals = cols.map((_, i) => {
-      const t = rows.reduce((a, row) => {
-        const c = row.cells[i];
-        return { opening: a.opening + c.opening, received: a.received + c.received, out: a.out + c.out, stock: a.stock + c.stock };
-      }, blank());
-      return { ...t, ratio: ratio(t) };
-    });
-    const grand = rows.reduce((a, row) => ({
-      opening: a.opening + row.total.opening, received: a.received + row.total.received,
-      out: a.out + row.total.out, stock: a.stock + row.total.stock,
+    if (!hasData) return null;
+    const cols  = ALL_GENDERS.filter((g) => usedGenders.has(g));
+    const lines = ALL_LINES.filter((l) => usedLines.has(l));
+    const enrich = (c) => {
+      const d = c.opening + c.received;
+      return { ...c, st: d > 0 ? (c.out   / d) * 100 : 0,
+                      hold: d > 0 ? (c.stock / d) * 100 : 0 };
+    };
+    const sumC = (arr) => arr.reduce((a, c) => ({
+      opening: a.opening + c.opening, received: a.received + c.received,
+      out: a.out + c.out, stock: a.stock + c.stock,
     }), blank());
-    return { cols, rows, colTotals, grand: { ...grand, ratio: ratio(grand) } };
+    const lineData = lines.map((l) => {
+      const activeSeasons = ALL_SEASONS.filter((s) => cols.some((g) => cells.has(`${l}|${s}|${g}`)));
+      const rows = activeSeasons.map((s) => {
+        const rowCells = cols.map((g) => cells.get(`${l}|${s}|${g}`) || blank());
+        return { season: s, cells: rowCells.map(enrich), total: enrich(sumC(rowCells)) };
+      });
+      const colTotals = cols.map((_, i) => enrich(sumC(rows.map((r) => {
+        const c = r.cells[i]; return { opening: c.opening, received: c.received, out: c.out, stock: c.stock };
+      }))));
+      return { line: l, rows, colTotals, total: enrich(sumC(rows.map((r) => r.total))) };
+    });
+    const colTotals = cols.map((_, i) => enrich(sumC(lineData.map((ld) => {
+      const c = ld.colTotals[i]; return { opening: c.opening, received: c.received, out: c.out, stock: c.stock };
+    }))));
+    const grand = enrich(sumC(lineData.map((ld) => ld.total)));
+    return { cols, lineData, colTotals, grand };
   })();
 
   // Aggregate per 9-char product model (Brand+Cat+Year+Season+Design) — sum across size/color variants
@@ -2452,32 +2463,50 @@ function renderInvSellThroughChart(m) {
 function renderInvSeasonGenderMatrix(m) {
   const card = document.getElementById('invSeasonGenderCard');
   const sg = m.seasonGenderMatrix;
-  if (!sg || !sg.cols.length) { if (card) card.style.display = 'none'; return; }
+  if (!sg || !sg.lineData.length) { if (card) card.style.display = 'none'; return; }
   if (card) card.style.display = '';
 
   const sub = document.getElementById('invSeasonGenderSub');
-  if (sub) sub.textContent = `${fmtN(sg.grand.stock)} units on hand · ${fmtPct(sg.grand.ratio)} holding`;
+  if (sub) sub.textContent = `${fmtN(sg.grand.stock)} units on hand · ST ${fmtPct(sg.grand.st)} · Hold ${fmtPct(sg.grand.hold)}`;
 
-  // Color holding %: low = good (fast turnover), high = stale stock
-  const holdCls = (r) => r >= 65 ? 'bad' : r >= 40 ? 'warn' : 'good';
+  const stCls   = (v) => v >= 70 ? 'good' : v >= 40 ? 'warn' : 'bad';
+  const holdCls = (v) => v <= 30 ? 'good' : v <= 60 ? 'warn' : 'bad';
+
   const cell = (c) => {
     if ((c.opening + c.received + c.out + c.stock) === 0) return `<td><span class="sg-empty">–</span></td>`;
     return `<td>
-      <div class="sg-stock">${fmtN(c.stock)}</div>
-      <div class="sg-sub">sold ${fmtN(c.out)}</div>
-      <div class="sg-ratio ${holdCls(c.ratio)}">${fmtPct(c.ratio)}</div>
+      <div class="sg-stock">${fmtN(c.stock)} <span class="sg-unit">units</span></div>
+      <div class="sg-sold">Sold: ${fmtN(c.out)}</div>
+      <div class="sg-metrics">
+        <span class="sg-st ${stCls(c.st)}">ST ${fmtPct(c.st)}</span>
+        <span class="sg-hold ${holdCls(c.hold)}">Hold ${fmtPct(c.hold)}</span>
+      </div>
     </td>`;
   };
 
   document.getElementById('invSeasonGenderHead').innerHTML =
-    `<tr><th>Season</th>${sg.cols.map((g) => `<th>${esc(g)}</th>`).join('')}<th>Total</th></tr>`;
+    `<tr><th>Line</th><th>Season</th>${sg.cols.map((g) => `<th>${esc(g)}</th>`).join('')}<th>Total</th></tr>`;
 
-  document.getElementById('invSeasonGenderBody').innerHTML = sg.rows.map((row) =>
-    `<tr><td>${esc(row.season)}</td>${row.cells.map(cell).join('')}${cell(row.total)}</tr>`
-  ).join('');
+  document.getElementById('invSeasonGenderBody').innerHTML = sg.lineData.map((ld) => {
+    const span = ld.rows.length + 1;
+    const seasonRows = ld.rows.map((row, ri) =>
+      `<tr class="sg-season-row">
+        ${ri === 0 ? `<td class="sg-line-cell" rowspan="${span}">${esc(ld.line)}</td>` : ''}
+        <td class="sg-season-lbl">${esc(row.season)}</td>
+        ${row.cells.map(cell).join('')}${cell(row.total)}
+      </tr>`
+    ).join('');
+    const totRow =
+      `<tr class="sg-line-total">
+        <td class="sg-season-lbl sg-total-lbl">Total</td>
+        ${ld.colTotals.map(cell).join('')}${cell(ld.total)}
+      </tr>`;
+    return seasonRows + totRow;
+  }).join('');
 
+  const footCols = sg.cols.length + 2; // Line + Season already in body; foot has Season placeholder
   document.getElementById('invSeasonGenderFoot').innerHTML =
-    `<tr><td>Total</td>${sg.colTotals.map(cell).join('')}${cell(sg.grand)}</tr>`;
+    `<tr><td colspan="2">Grand Total</td>${sg.colTotals.map(cell).join('')}${cell(sg.grand)}</tr>`;
 }
 
 function renderInvStockoutTable(m) {
