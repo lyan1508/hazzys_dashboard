@@ -103,7 +103,7 @@ select{cursor:pointer}
 .filters{
   flex:1;
   display:grid;
-  grid-template-columns:repeat(6,minmax(96px,1fr));
+  grid-template-columns:repeat(auto-fill,minmax(96px,1fr));
   gap:6px;
   align-items:end;
 }
@@ -1010,7 +1010,12 @@ tbody td:first-child{font-family:var(--mono)}
    PRODUCT TAB — Left col (Top + Type/Gender) | Right col (ABC full height)
    ========================================= */
 .product-tab.active{
-  display:grid!important;
+  display:flex!important;
+  flex-direction:column;
+  gap:10px;
+}
+.product-main-row{
+  display:grid;
   grid-template-columns:1fr 1fr;
   gap:10px;
   align-items:stretch;
@@ -1042,9 +1047,85 @@ tbody td:first-child{font-family:var(--mono)}
 .product-tab #abcCard .chart-wrap{flex:1;height:auto!important;min-height:160px}
 .product-mix-row .chart-card{min-height:0}
 .product-mix-row .split-inner{padding:8px 14px 12px;flex:1;min-height:0}
+/* ABC description subtitle */
+.chart-card-desc{font-size:11px;color:var(--text-3);margin-top:2px;line-height:1.4;font-weight:400}
+.chart-card-desc strong{color:var(--text-2);font-weight:600}
 @media(max-width:1100px){
-  .product-tab.active{grid-template-columns:1fr;height:auto}
+  .product-main-row{grid-template-columns:1fr;height:auto;min-height:0}
   .product-mix-row{flex:0 0 auto}
+}
+/* Target progress bar */
+.tp-section{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:8px 14px 10px;
+  margin-bottom:8px;
+}
+.tp-header{
+  display:flex;
+  align-items:baseline;
+  gap:10px;
+  margin-bottom:7px;
+}
+.tp-label{
+  font-size:11px;
+  font-weight:600;
+  color:var(--text-3);
+  text-transform:uppercase;
+  letter-spacing:.4px;
+  white-space:nowrap;
+}
+.tp-value{
+  font-size:15px;
+  font-weight:700;
+  color:var(--text);
+  font-variant-numeric:tabular-nums;
+}
+.tp-meta{
+  font-size:11px;
+  color:var(--text-3);
+  margin-left:auto;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.tp-track{
+  position:relative;
+  height:7px;
+  background:var(--surface-2);
+  border-radius:99px;
+  overflow:visible;
+}
+.tp-fill{
+  height:100%;
+  border-radius:99px;
+  transition:width .35s ease,background .35s;
+  max-width:100%;
+}
+.tp-mark{
+  position:absolute;
+  top:-5px;
+  left:85%;
+  transform:translateX(-50%);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  pointer-events:none;
+}
+.tp-mark-line{
+  width:1.5px;
+  height:17px;
+  background:var(--text-3);
+  opacity:.6;
+}
+.tp-mark-lbl{
+  font-size:9px;
+  color:var(--text-3);
+  margin-top:1px;
+  font-weight:600;
+  letter-spacing:.2px;
+  white-space:nowrap;
 }
 
 /* =========================================

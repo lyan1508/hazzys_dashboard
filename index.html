@@ -46,6 +46,10 @@
         <div class="filter-label">Type</div>
         <select class="filter-select" id="fType"><option value="all">—</option></select>
       </div>
+      <div class="filter-group" id="fStoreGroup" style="display:none">
+        <div class="filter-label">Store</div>
+        <select class="filter-select" id="fStore"><option value="all">—</option></select>
+      </div>
     </div>
 
     <div class="topbar-actions">
@@ -201,13 +205,28 @@
       </div>
     </div>
 
+    <!-- TARGET PROGRESS BAR (filter-aware, shown when target exists) -->
+    <div class="tp-section" id="targetProgressSection" style="display:none">
+      <div class="tp-header">
+        <span class="tp-label">Revenue vs Target</span>
+        <span class="tp-value" id="tpPct">—</span>
+        <span class="tp-meta" id="tpMeta">—</span>
+      </div>
+      <div class="tp-track">
+        <div class="tp-fill" id="tpFill"></div>
+        <div class="tp-mark">
+          <div class="tp-mark-line"></div>
+          <span class="tp-mark-lbl">85%</span>
+        </div>
+      </div>
+    </div>
+
     <!-- ====== TABS NAV ====== -->
     <div class="tabs-nav" id="tabsNav">
       <button class="tab-btn active" data-tab="overview" onclick="switchTab('overview')">Overview</button>
       <button class="tab-btn" data-tab="forecast" onclick="switchTab('forecast')">Forecast</button>
-      <button class="tab-btn" data-tab="product" onclick="switchTab('product')">Product</button>
+      <button class="tab-btn" data-tab="product" onclick="switchTab('product')">Product &amp; Inventory</button>
       <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')">Staff</button>
-      <button class="tab-btn" data-tab="inventory" onclick="switchTab('inventory')">Inventory</button>
     </div>
 
     <!-- ====== TAB: OVERVIEW (merged) ====== -->
@@ -414,52 +433,94 @@
 
     </div><!-- /tab forecast -->
 
-    <!-- ====== TAB: PRODUCT (Left: Top + Type/Gender; Right: ABC full height) ====== -->
+    <!-- ====== TAB: PRODUCT & INVENTORY ====== -->
     <div class="tab-pane product-tab" data-tab-pane="product">
 
-      <div class="product-col-left">
-        <div class="chart-card" id="topProductCard">
+      <!-- Top row: Left col (Top Products + Type/Gender) | Right col (ABC) -->
+      <div class="product-main-row">
+        <div class="product-col-left">
+          <div class="chart-card" id="topProductCard">
+            <div class="chart-card-hd">
+              <div class="chart-card-title">Top Products</div>
+            </div>
+            <div class="product-list" id="topProductList" style="align-content:start"></div>
+          </div>
+
+          <div class="product-mix-row">
+            <div class="chart-card">
+              <div class="chart-card-hd">
+                <div class="chart-card-title">By Type</div>
+              </div>
+              <div class="split-inner">
+                <div class="doughnut-wrap">
+                  <canvas id="chartType"></canvas>
+                  <div class="doughnut-center"><div class="d-val" id="dTypeVal">—</div><div class="d-lbl">Total</div></div>
+                </div>
+                <div class="legend-list" id="legendType"></div>
+              </div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-card-hd">
+                <div class="chart-card-title">By Gender</div>
+              </div>
+              <div class="split-inner">
+                <div class="doughnut-wrap">
+                  <canvas id="chartGender"></canvas>
+                  <div class="doughnut-center"><div class="d-val" id="dGenderVal">—</div><div class="d-lbl">Total</div></div>
+                </div>
+                <div class="legend-list" id="legendGender"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-card" id="abcCard">
           <div class="chart-card-hd">
-            <div class="chart-card-title">Top Products</div>
+            <div>
+              <div class="chart-card-title">ABC / Pareto</div>
+              <div class="chart-card-desc">Phân loại model theo đóng góp doanh thu: <strong>Tier A</strong> = top 80% · <strong>Tier B</strong> = 15% tiếp theo · <strong>Tier C</strong> = phần còn lại. Dùng để tập trung tái đặt hàng và ưu tiên trưng bày.</div>
+            </div>
           </div>
-          <div class="product-list" id="topProductList" style="align-content:start"></div>
+          <div class="abc-summary" id="abcSummary"></div>
+          <div class="chart-wrap"><canvas id="chartAbc"></canvas></div>
+        </div>
+      </div><!-- /product-main-row -->
+
+      <!-- Inventory section (merged here from former Inventory tab) -->
+      <div class="inv-section" id="invSection" style="margin-top:10px;border:none;background:transparent;box-shadow:none;border-radius:0">
+        <div class="inv-head inv-head--inline" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0">
+          <div class="inv-head-left">
+            <div class="inv-head-title">Inventory</div>
+            <div class="inv-head-sub" id="invHeadSub">—</div>
+          </div>
+          <div class="inv-head-kpis" id="invHeadKpis">
+            <div class="inv-hkpi" id="invKpiSku"><span class="inv-hkpi-val" id="invKpiSkuVal">—</span><span class="inv-hkpi-lbl">SKUs</span></div>
+            <div class="inv-hkpi" id="invKpiStock"><span class="inv-hkpi-val" id="invKpiStockVal">—</span><span class="inv-hkpi-lbl">Stock</span></div>
+            <div class="inv-hkpi" id="invKpiSellThrough"><span class="inv-hkpi-val" id="invKpiSellThroughVal">—</span><span class="inv-hkpi-lbl">Sell-through</span></div>
+            <div class="inv-hkpi" id="invKpiAtRisk"><span class="inv-hkpi-val" id="invKpiAtRiskVal">—</span><span class="inv-hkpi-lbl">At-risk</span></div>
+          </div>
         </div>
 
-        <div class="product-mix-row">
-          <div class="chart-card">
-            <div class="chart-card-hd">
-              <div class="chart-card-title">By Type</div>
-            </div>
-            <div class="split-inner">
-              <div class="doughnut-wrap">
-                <canvas id="chartType"></canvas>
-                <div class="doughnut-center"><div class="d-val" id="dTypeVal">—</div><div class="d-lbl">Total</div></div>
-              </div>
-              <div class="legend-list" id="legendType"></div>
-            </div>
-          </div>
-          <div class="chart-card">
-            <div class="chart-card-hd">
-              <div class="chart-card-title">By Gender</div>
-            </div>
-            <div class="split-inner">
-              <div class="doughnut-wrap">
-                <canvas id="chartGender"></canvas>
-                <div class="doughnut-center"><div class="d-val" id="dGenderVal">—</div><div class="d-lbl">Total</div></div>
-              </div>
-              <div class="legend-list" id="legendGender"></div>
-            </div>
-          </div>
+        <div id="invEmpty" class="inv-empty" style="background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius)">
+          <strong>No inventory data loaded</strong>
+          Add a sheet with header <em>Mã SKU · Tồn đầu kỳ · Nhập trong kỳ · Xuất trong kỳ · Tồn cuối kỳ</em> to the same workbook.
         </div>
-      </div>
 
-      <div class="chart-card" id="abcCard">
-        <div class="chart-card-hd">
-          <div class="chart-card-title">ABC / Pareto</div>
+        <div id="invContent" style="display:none;background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius)">
+          <div class="inv-body">
+            <div class="inv-row-2col">
+              <div class="inv-card">
+                <div class="inv-card-title">Stock by Category <span class="inv-card-sub" id="invStockByCatSub"></span></div>
+                <div class="inv-chart-wrap"><canvas id="chartInvByCat"></canvas></div>
+              </div>
+              <div class="inv-card">
+                <div class="inv-card-title">Sell-through by Category <span class="inv-card-sub" id="invSellThroughSub"></span></div>
+                <div class="inv-chart-wrap"><canvas id="chartInvSellThrough"></canvas></div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="abc-summary" id="abcSummary"></div>
-        <div class="chart-wrap"><canvas id="chartAbc"></canvas></div>
-      </div>
+      </div><!-- /inv-section -->
 
     </div><!-- /tab product -->
 
@@ -505,84 +566,6 @@
 
     </div><!-- /tab staff -->
 
-    <!-- ====== TAB: INVENTORY ====== -->
-    <div class="tab-pane" data-tab-pane="inventory">
-
-      <div class="inv-section" id="invSection" style="border:none;background:transparent;box-shadow:none;border-radius:0">
-        <div class="inv-head inv-head--inline" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0">
-          <div class="inv-head-left">
-            <div class="inv-head-title">Inventory</div>
-            <div class="inv-head-sub" id="invHeadSub">—</div>
-          </div>
-          <div class="inv-head-kpis" id="invHeadKpis">
-            <div class="inv-hkpi" id="invKpiSku"><span class="inv-hkpi-val" id="invKpiSkuVal">—</span><span class="inv-hkpi-lbl">SKUs</span></div>
-            <div class="inv-hkpi" id="invKpiStock"><span class="inv-hkpi-val" id="invKpiStockVal">—</span><span class="inv-hkpi-lbl">Stock</span></div>
-            <div class="inv-hkpi" id="invKpiSellThrough"><span class="inv-hkpi-val" id="invKpiSellThroughVal">—</span><span class="inv-hkpi-lbl">Sell-through</span></div>
-            <div class="inv-hkpi" id="invKpiAtRisk"><span class="inv-hkpi-val" id="invKpiAtRiskVal">—</span><span class="inv-hkpi-lbl">At-risk</span></div>
-          </div>
-        </div>
-
-        <div id="invEmpty" class="inv-empty" style="background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius)">
-          <strong>No inventory data loaded</strong>
-          Add a sheet with header <em>Mã SKU · Tồn đầu kỳ · Nhập trong kỳ · Xuất trong kỳ · Tồn cuối kỳ</em> to the same workbook.
-        </div>
-
-        <div id="invContent" style="display:none;background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius)">
-          <div class="inv-body">
-            <!-- ROW: Stock by Category | Sell-through Distribution -->
-            <div class="inv-row-2col">
-              <div class="inv-card">
-                <div class="inv-card-title">Stock by Category <span class="inv-card-sub" id="invStockByCatSub"></span></div>
-                <div class="inv-chart-wrap"><canvas id="chartInvByCat"></canvas></div>
-              </div>
-              <div class="inv-card">
-                <div class="inv-card-title">Sell-through by Category <span class="inv-card-sub" id="invSellThroughSub"></span></div>
-                <div class="inv-chart-wrap"><canvas id="chartInvSellThrough"></canvas></div>
-              </div>
-            </div>
-
-            <!-- ROW: Stockout Alert | Aging Inventory -->
-            <div class="inv-row-2col">
-              <div class="inv-card">
-                <div class="inv-card-title">Stockout Alert</div>
-                <div class="inv-table-wrap">
-                  <table class="inv-table" id="invStockoutTable">
-                    <thead>
-                      <tr>
-                        <th>SKU</th>
-                        <th>Stock</th>
-                        <th>30-day sales</th>
-                        <th>Days left</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody id="invStockoutBody"></tbody>
-                  </table>
-                </div>
-              </div>
-              <div class="inv-card">
-                <div class="inv-card-title">Aging Inventory</div>
-                <div class="inv-table-wrap">
-                  <table class="inv-table" id="invAgingTable">
-                    <thead>
-                      <tr>
-                        <th>SKU</th>
-                        <th>Stock</th>
-                        <th>90-day sales</th>
-                        <th>Days of stock</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody id="invAgingBody"></tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div><!-- /tab inventory -->
 
   </div><!-- /dashContent -->
 

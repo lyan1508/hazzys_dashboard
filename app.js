@@ -337,6 +337,7 @@ function filteredSalesRows() {
     if (f.month !== 'all' && String(r.monthIndex).padStart(2, '0') !== f.month) return false;
     if (f.gender !== 'all' && r.gender !== f.gender) return false;
     if (f.type !== 'all' && r.type !== f.type) return false;
+    if (f.store !== 'all' && r.store !== f.store) return false;
     return true;
   });
 }
@@ -347,6 +348,7 @@ function filteredTargetsRows() {
     if (f.year !== 'all' && t.year !== f.year) return false;
     if (f.month !== 'all' && String(t.monthIndex).padStart(2, '0') !== f.month) return false;
     if (f.quarter !== 'all' && `Q${Math.ceil(t.monthIndex / 3)}` !== f.quarter) return false;
+    if (f.store !== 'all' && t.store !== f.store) return false;
     return true;
   });
 }
@@ -941,6 +943,36 @@ function renderKPIs(m) {
     achSub.textContent = 'No target set';
     achBar.style.background = 'linear-gradient(90deg,#94a3b8,#cbd5e1)';
   }
+
+  renderTargetProgressBar(m);
+}
+
+function renderTargetProgressBar(m) {
+  const section = document.getElementById('targetProgressSection');
+  if (!section) return;
+  const target = num(m.target);
+  if (target <= 0) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  const actual = num(m.totalSales);
+  const rawPct = (actual / target) * 100;
+  const fillPct = Math.min(rawPct, 100);
+
+  let color;
+  if (rawPct >= 100)    color = 'var(--green)';
+  else if (rawPct >= 85) color = '#d97706';
+  else                   color = 'var(--red)';
+
+  document.getElementById('tpPct').textContent = fmtPct(rawPct);
+  document.getElementById('tpPct').style.color = color;
+
+  const gap = actual - target;
+  document.getElementById('tpMeta').textContent =
+    `${fmtVNDShort(actual)} / ${fmtVNDShort(target)}  ·  ${gap >= 0 ? '▲ Over' : '▼ Under'} ${fmtVNDShort(Math.abs(gap))}`;
+
+  const fill = document.getElementById('tpFill');
+  fill.style.width = fillPct + '%';
+  fill.style.background = color;
 }
 
 function renderTopProducts(m) {
@@ -949,7 +981,7 @@ function renderTopProducts(m) {
     el.innerHTML = '<div style="padding:14px 16px;color:var(--text-3);font-size:12px;text-align:center">No Data</div>';
     return;
   }
-  const list = m.topProducts.slice(0, 30);
+  const list = m.topProducts.slice(0, 10);
   const maxVal = num(list[0].value) || 1;
   el.innerHTML = list.map((p, i) => `
     <div class="product-item">
@@ -984,6 +1016,13 @@ function initFilters() {
   }).join('')}`;
   options(s.map((r) => r.gender), 'fGender', '—');
   options(s.map((r) => r.type), 'fType', '—');
+  // Store filter — only shown when multiple distinct stores exist in the data
+  const stores = [...new Set(s.map((r) => r.store).filter((v) => v && v !== 'UNKNOWN'))].sort();
+  const storeGroup = document.getElementById('fStoreGroup');
+  if (storeGroup) {
+    storeGroup.style.display = stores.length > 1 ? '' : 'none';
+    options(s.map((r) => r.store), 'fStore', '—');
+  }
 }
 
 function syncFilters() {
@@ -992,11 +1031,13 @@ function syncFilters() {
   document.getElementById('fMonth').value = S.filters.month;
   document.getElementById('fGender').value = S.filters.gender;
   document.getElementById('fType').value = S.filters.type;
+  const fStore = document.getElementById('fStore');
+  if (fStore) fStore.value = S.filters.store;
   highlightActiveFilters();
 }
 
 function highlightActiveFilters() {
-  [['fYear','year'],['fQuarter','quarter'],['fMonth','month'],['fGender','gender'],['fType','type']]
+  [['fYear','year'],['fQuarter','quarter'],['fMonth','month'],['fGender','gender'],['fType','type'],['fStore','store']]
     .forEach(([id, key]) => {
       const sel = document.getElementById(id);
       const group = sel?.closest('.filter-group');
@@ -1310,26 +1351,42 @@ function buildMonthlyHistory() {
 }
 
 function forecastMonth(history, targetY, targetM) {
-  // Try seasonal: same month last year × growth
-  const sameLastYear = history.find(h => h.y === targetY - 1 && h.m === targetM);
-  if (sameLastYear && sameLastYear.value > 0) {
-    // Compute average YoY growth using up to 3 most recent complete-year-pairs
-    const pairs = [];
-    history.forEach(h => {
-      const prev = history.find(p => p.y === h.y - 1 && p.m === h.m);
-      if (prev && prev.value > 0) pairs.push(h.value / prev.value);
-    });
-    const recent = pairs.slice(-3);
-    const growth = recent.length ? recent.reduce((s,v)=>s+v,0) / recent.length : 1;
-    return { value: sameLastYear.value * growth, method: 'seasonal', growth };
+  // All historical values for this same month across years prior to targetY
+  const sameMonth = history.filter(h => h.m === targetM && h.y < targetY);
+
+  // Compute YoY growth rates across ALL month pairs in history (not just recent 3)
+  // Use geometric mean + outlier clamping to avoid a single exceptional year skewing results
+  const allGrowthRates = [];
+  history.forEach(h => {
+    const prev = history.find(p => p.y === h.y - 1 && p.m === h.m);
+    if (prev && prev.value > 0 && h.value > 0) {
+      allGrowthRates.push(Math.max(0.6, Math.min(1.4, h.value / prev.value)));
+    }
+  });
+  let avgGrowth = 1.0;
+  if (allGrowthRates.length > 0) {
+    const logMean = allGrowthRates.reduce((s, r) => s + Math.log(r), 0) / allGrowthRates.length;
+    avgGrowth = Math.exp(logMean);
+    // Hard cap: forecast never grows more than 25% nor shrinks more than 15% vs base
+    avgGrowth = Math.max(0.85, Math.min(1.25, avgGrowth));
   }
-  // Fallback: linear trend from trailing 6 months
-  const tail = history.slice(-6);
+
+  if (sameMonth.length > 0) {
+    // Historical average for this month (all available years)
+    const histAvg = sameMonth.reduce((s, h) => s + h.value, 0) / sameMonth.length;
+    // Most recent prior year value for this month
+    const lastYearVal = sameMonth[sameMonth.length - 1].value;
+    // Blend 50/50: historical average and last year — then apply average growth rate
+    // This avoids over-weighting a single exceptional year while staying seasonally anchored
+    const blendedBase = 0.5 * histAvg + 0.5 * lastYearVal;
+    return { value: blendedBase * avgGrowth, method: 'seasonal', growth: avgGrowth };
+  }
+
+  // Fallback: no prior same-month data — trailing 6-month average only
+  const tail = history.filter(h => !(h.y === targetY && h.m >= targetM)).slice(-6);
   if (!tail.length) return { value: 0, method: 'none' };
   const avg = tail.reduce((s, h) => s + h.value, 0) / tail.length;
-  if (tail.length < 2) return { value: avg, method: 'flat' };
-  const growthRate = (tail[tail.length-1].value / tail[0].value) ** (1 / (tail.length - 1));
-  return { value: avg * (Number.isFinite(growthRate) ? growthRate : 1), method: 'linear' };
+  return { value: avg, method: 'flat' };
 }
 
 function drawFcSparkline(elId, history, fcValue) {
@@ -1543,7 +1600,7 @@ function applyWorkbook(wb, successMsg) {
       S.raw.inventoryMeta = prevInvMeta;
     }
   }
-  S.filters = { year: 'all', quarter: 'all', month: 'all', category: 'all', gender: 'all', type: 'all' };
+  S.filters = { year: 'all', quarter: 'all', month: 'all', category: 'all', gender: 'all', type: 'all', store: 'all' };
   S.cashierSelected = [];
   initFilters();
   syncFilters();
@@ -2250,17 +2307,13 @@ function renderInventory() {
   else if (m.sellThrough >= 40) sellKpi.classList.add('warn');
   else sellKpi.classList.add('bad');
 
-  // Chart: Stock by Category
+  // Charts
   renderInvByCategoryChart(m);
-  // Chart: Sell-through by Category
   renderInvSellThroughChart(m);
-  // Tables
-  renderInvStockoutTable(m);
-  renderInvAgingTable(m);
 }
 
 function renderInvByCategoryChart(m) {
-  const data = m.byCategory.slice(0, 12);
+  const data = m.byCategory.slice(0, 10);
   document.getElementById('invStockByCatSub').textContent = `Top ${data.length} · ${fmtN(m.totalStock)} units`;
   destroyChart('invByCat');
   if (!data.length) return;
@@ -2369,9 +2422,9 @@ window.switchTab = function(name) {
 };
 
 function bindEvents() {
-  [['fYear', 'year'], ['fQuarter', 'quarter'], ['fMonth', 'month'], ['fGender', 'gender'], ['fType', 'type']]
+  [['fYear', 'year'], ['fQuarter', 'quarter'], ['fMonth', 'month'], ['fGender', 'gender'], ['fType', 'type'], ['fStore', 'store']]
     .forEach(([id, key]) => {
-      document.getElementById(id).addEventListener('change', (e) => {
+      document.getElementById(id)?.addEventListener('change', (e) => {
         S.filters[key] = e.target.value;
         highlightActiveFilters();
         renderAll();
@@ -2384,12 +2437,20 @@ function bindEvents() {
   });
 
   document.getElementById('resetBtn').addEventListener('click', () => {
-    S.filters = { year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all' };
+    S.filters = { year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all', store: 'all' };
     S.revMode = 'monthly';
     S.cashierSelected = [];
     document.getElementById('filterBar').classList.remove('filter-open');
     syncFilters();
     renderAll();
+  });
+
+  // Mobile: dismiss chart tooltip when tapping outside a chart canvas
+  document.addEventListener('click', (e) => {
+    if (e.target.tagName !== 'CANVAS') {
+      const tt = document.getElementById('chartjs-ext-tooltip');
+      if (tt) tt.style.opacity = 0;
+    }
   });
 
   document.getElementById('fileInput').addEventListener('change', onUpload);
