@@ -584,6 +584,19 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
 .inv-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .inv-card-title{font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px}
 .inv-card-sub{font-size:10px;color:var(--text-3);font-weight:400;margin-left:auto}
+/* Season × Gender matrix cells */
+.inv-card-note{font-size:10px;color:var(--text-3);font-weight:400;margin-top:8px;line-height:1.4}
+#invSeasonGenderMatrix tbody td,#invSeasonGenderMatrix tfoot td{text-align:center;padding:8px 10px}
+#invSeasonGenderMatrix tbody td:first-child,#invSeasonGenderMatrix tfoot td:first-child{text-align:left;font-family:inherit;font-weight:700;font-size:12px}
+#invSeasonGenderMatrix thead th{text-align:center}
+#invSeasonGenderMatrix thead th:first-child{text-align:left}
+.sg-stock{font-size:14px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1}
+.sg-sub{font-size:10px;color:var(--text-3);font-weight:400;margin-top:1px}
+.sg-ratio{font-size:11px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+.sg-ratio.good{color:var(--green)}
+.sg-ratio.warn{color:#d97706}
+.sg-ratio.bad{color:var(--red)}
+.sg-empty{color:var(--text-3);font-size:13px}
 .inv-table-wrap{overflow:auto;max-height:320px;flex:1;min-height:0}
 .inv-table{width:100%;border-collapse:collapse;font-size:11px}
 .inv-table thead th{position:sticky;top:0;z-index:1;background:var(--surface-2);padding:6px 8px;font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;text-align:right;border-bottom:1px solid var(--border-2);white-space:nowrap}

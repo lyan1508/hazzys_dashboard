@@ -105,6 +105,18 @@ function deriveCategory(rawCategory, infoCategory, typeValue, productKey) {
   return 'UNKNOWN';
 }
 
+// Hazzys SKU decode: brand prefix (pos 1-2) → gender, season letter (pos 6) → SS/FW group.
+const HAZZYS_GENDER_BY_BRAND = { HU: 'Men', HW: 'Women', HZ: 'Men', HS: 'Women', HJ: 'Men', HI: 'Women', HB: 'Baby' };
+const HAZZYS_SEASON_GROUP = { A: 'SS', B: 'SS', E: 'SS', C: 'FW', D: 'FW', F: 'FW' };
+function skuGender(sku) {
+  const raw = String(sku || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return HAZZYS_GENDER_BY_BRAND[raw.slice(0, 2)] || null;
+}
+function skuSeasonGroup(sku) {
+  const raw = String(sku || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return raw.length >= 6 ? (HAZZYS_SEASON_GROUP[raw[5]] || null) : null;
+}
+
 function parseDate(v) {
   if (v === null || v === undefined || v === '') return null;
   if (v instanceof Date && !Number.isNaN(v.getTime())) {
@@ -1521,11 +1533,16 @@ function renderForecast() {
     return `<span class="${cls}">${sign} ${fmtPct(Math.abs(pct))}</span> vs ${baseLabel}`;
   };
 
-  // Next month
+  // Next month — compare vs same month last year (cùng kỳ năm trước); fall back to prior month
   document.getElementById('fcMonthName').textContent = `${MONTH_NAMES[nm-1]} ${ny}`;
   document.getElementById('fcMonthValue').textContent = fmtVNDShort(fc1.value);
   document.getElementById('fcMonthRange').textContent = `Range: ${band(fc1.value)}`;
-  document.getElementById('fcMonthVs').innerHTML = vsText(fc1.value, last.value, `${MONTH_NAMES[last.m-1]} ${last.y}`);
+  const sameMonthLY = history.find(h => h.y === ny - 1 && h.m === nm);
+  if (sameMonthLY && sameMonthLY.value > 0) {
+    document.getElementById('fcMonthVs').innerHTML = vsText(fc1.value, sameMonthLY.value, `${MONTH_NAMES[nm-1]} ${ny-1}`);
+  } else {
+    document.getElementById('fcMonthVs').innerHTML = vsText(fc1.value, last.value, `${MONTH_NAMES[last.m-1]} ${last.y}`);
+  }
 
   // Next quarter
   const qStart = `${MONTH_NAMES[nm-1]} ${ny}`;
@@ -1534,9 +1551,19 @@ function renderForecast() {
   document.getElementById('fcQuarterName').textContent = `${qStart} → ${MONTH_NAMES[qEndM-1]} ${qEndY}`;
   document.getElementById('fcQuarterValue').textContent = fmtVNDShort(quarterTotal);
   document.getElementById('fcQuarterRange').textContent = `Range: ${band(quarterTotal)}`;
-  // Compare with last 3 actual months
-  const lastQ = history.slice(-3).reduce((s, h) => s + h.value, 0);
-  document.getElementById('fcQuarterVs').innerHTML = vsText(quarterTotal, lastQ, 'last 3 months');
+  // Compare vs the same 3 months last year (cùng kỳ năm trước); fall back to last 3 actual months
+  let lyQ = 0, lyQCount = 0, lcy = ny - 1, lcm = nm;
+  for (let i = 0; i < 3; i++) {
+    const h = history.find(x => x.y === lcy && x.m === lcm);
+    if (h) { lyQ += h.value; lyQCount++; }
+    lcm++; if (lcm > 12) { lcm = 1; lcy++; }
+  }
+  if (lyQCount === 3 && lyQ > 0) {
+    document.getElementById('fcQuarterVs').innerHTML = vsText(quarterTotal, lyQ, `${ny-1} cùng kỳ`);
+  } else {
+    const lastQ = history.slice(-3).reduce((s, h) => s + h.value, 0);
+    document.getElementById('fcQuarterVs').innerHTML = vsText(quarterTotal, lastQ, 'last 3 months');
+  }
 
   // Year
   document.getElementById('fcYearName').textContent = `Year ${currentYear}`;
@@ -2208,6 +2235,52 @@ function aggregateInventory() {
     })).sort((a, b) => b.stock - a.stock);
   })();
 
+  // Season (SS/FW) × Gender matrix — stock holding ratio = closing / (opening + received)
+  const seasonGenderMatrix = (() => {
+    const genders = ['Men', 'Women', 'Baby'];
+    const seasons = ['SS', 'FW'];
+    const blank = () => ({ opening: 0, received: 0, out: 0, stock: 0 });
+    const cells = new Map(); // key `${season}|${gender}`
+    const usedGenders = new Set();
+    let hasSeason = false;
+    filtered.forEach((r) => {
+      const g = skuGender(r.sku) || (genders.includes(r.gender) ? r.gender : null);
+      const s = skuSeasonGroup(r.sku);
+      if (!g || !s) return;
+      hasSeason = true;
+      usedGenders.add(g);
+      const key = `${s}|${g}`;
+      const c = cells.get(key) || blank();
+      c.opening += num(r.opening);
+      c.received += num(r.received);
+      c.out += num(r.out);
+      c.stock += num(r.closing);
+      cells.set(key, c);
+    });
+    if (!hasSeason) return null;
+    const cols = genders.filter((g) => usedGenders.has(g));
+    const ratio = (c) => (c.opening + c.received) > 0 ? (c.stock / (c.opening + c.received)) * 100 : 0;
+    const rows = seasons.map((s) => {
+      const rowCells = cols.map((g) => cells.get(`${s}|${g}`) || blank());
+      const rowTotal = rowCells.reduce((a, c) => ({
+        opening: a.opening + c.opening, received: a.received + c.received, out: a.out + c.out, stock: a.stock + c.stock,
+      }), blank());
+      return { season: s, cells: rowCells.map((c) => ({ ...c, ratio: ratio(c) })), total: { ...rowTotal, ratio: ratio(rowTotal) } };
+    });
+    const colTotals = cols.map((_, i) => {
+      const t = rows.reduce((a, row) => {
+        const c = row.cells[i];
+        return { opening: a.opening + c.opening, received: a.received + c.received, out: a.out + c.out, stock: a.stock + c.stock };
+      }, blank());
+      return { ...t, ratio: ratio(t) };
+    });
+    const grand = rows.reduce((a, row) => ({
+      opening: a.opening + row.total.opening, received: a.received + row.total.received,
+      out: a.out + row.total.out, stock: a.stock + row.total.stock,
+    }), blank());
+    return { cols, rows, colTotals, grand: { ...grand, ratio: ratio(grand) } };
+  })();
+
   // Aggregate per 9-char product model (Brand+Cat+Year+Season+Design) — sum across size/color variants
   const byStyle = (() => {
     const map = new Map();
@@ -2268,7 +2341,7 @@ function aggregateInventory() {
     rows: filtered,
     totalSku, totalStock, sellThrough: sellThroughAgg, atRiskCount,
     totalOpening, totalReceived, totalOut,
-    byCategory, stockoutAlerts, aging,
+    byCategory, stockoutAlerts, aging, seasonGenderMatrix,
   };
 }
 
@@ -2310,6 +2383,7 @@ function renderInventory() {
   // Charts
   renderInvByCategoryChart(m);
   renderInvSellThroughChart(m);
+  renderInvSeasonGenderMatrix(m);
 }
 
 function renderInvByCategoryChart(m) {
@@ -2373,6 +2447,37 @@ function renderInvSellThroughChart(m) {
       },
     },
   });
+}
+
+function renderInvSeasonGenderMatrix(m) {
+  const card = document.getElementById('invSeasonGenderCard');
+  const sg = m.seasonGenderMatrix;
+  if (!sg || !sg.cols.length) { if (card) card.style.display = 'none'; return; }
+  if (card) card.style.display = '';
+
+  const sub = document.getElementById('invSeasonGenderSub');
+  if (sub) sub.textContent = `${fmtN(sg.grand.stock)} units on hand · ${fmtPct(sg.grand.ratio)} holding`;
+
+  // Color holding %: low = good (fast turnover), high = stale stock
+  const holdCls = (r) => r >= 65 ? 'bad' : r >= 40 ? 'warn' : 'good';
+  const cell = (c) => {
+    if ((c.opening + c.received + c.out + c.stock) === 0) return `<td><span class="sg-empty">–</span></td>`;
+    return `<td>
+      <div class="sg-stock">${fmtN(c.stock)}</div>
+      <div class="sg-sub">sold ${fmtN(c.out)}</div>
+      <div class="sg-ratio ${holdCls(c.ratio)}">${fmtPct(c.ratio)}</div>
+    </td>`;
+  };
+
+  document.getElementById('invSeasonGenderHead').innerHTML =
+    `<tr><th>Season</th>${sg.cols.map((g) => `<th>${esc(g)}</th>`).join('')}<th>Total</th></tr>`;
+
+  document.getElementById('invSeasonGenderBody').innerHTML = sg.rows.map((row) =>
+    `<tr><td>${esc(row.season)}</td>${row.cells.map(cell).join('')}${cell(row.total)}</tr>`
+  ).join('');
+
+  document.getElementById('invSeasonGenderFoot').innerHTML =
+    `<tr><td>Total</td>${sg.colTotals.map(cell).join('')}${cell(sg.grand)}</tr>`;
 }
 
 function renderInvStockoutTable(m) {

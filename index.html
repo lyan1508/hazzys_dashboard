@@ -518,6 +518,19 @@
                 <div class="inv-chart-wrap"><canvas id="chartInvSellThrough"></canvas></div>
               </div>
             </div>
+            <div class="inv-row-2col" style="grid-template-columns:1fr">
+              <div class="inv-card" id="invSeasonGenderCard">
+                <div class="inv-card-title">Stock · Sold · Holding by Season &amp; Gender <span class="inv-card-sub" id="invSeasonGenderSub"></span></div>
+                <div class="matrix-wrap" style="max-height:none">
+                  <table class="matrix-table" id="invSeasonGenderMatrix">
+                    <thead id="invSeasonGenderHead"></thead>
+                    <tbody id="invSeasonGenderBody"></tbody>
+                    <tfoot id="invSeasonGenderFoot"></tfoot>
+                  </table>
+                </div>
+                <div class="inv-card-note">Holding % = closing stock ÷ (opening + received). Thấp = quay vòng tốt; cao = tồn đọng. Mỗi ô: tồn · đã bán · holding%.</div>
+              </div>
+            </div>
           </div>
         </div>
       </div><!-- /inv-section -->
