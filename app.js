@@ -981,7 +981,7 @@ function renderTopProducts(m) {
     el.innerHTML = '<div style="padding:14px 16px;color:var(--text-3);font-size:12px;text-align:center">No Data</div>';
     return;
   }
-  const list = m.topProducts.slice(0, 10);
+  const list = m.topProducts.slice(0, 30);
   const maxVal = num(list[0].value) || 1;
   el.innerHTML = list.map((p, i) => `
     <div class="product-item">

@@ -266,7 +266,7 @@ select{cursor:pointer}
 
 /* Top Products card — fixed scroll area */
 #topProductCard{flex:none}
-#topProductList{height:260px;overflow-y:auto;flex:none;min-height:unset}
+#topProductList{height:260px;overflow-y:auto;flex:none;min-height:unset;grid-template-columns:1fr 1fr!important}
 
 @media(max-width:1280px){
   .dash-layout{grid-template-columns:1fr}
@@ -1041,7 +1041,7 @@ tbody td:first-child{font-family:var(--mono)}
   min-width:0;
 }
 .product-tab .chart-card{min-width:0;display:flex;flex-direction:column;overflow:hidden}
-.product-tab #topProductList{flex:1;overflow-y:auto;height:auto!important;max-height:none!important}
+.product-tab #topProductList{height:260px;overflow-y:auto;flex:none}
 .product-tab .product-list{grid-template-columns:1fr 1fr}
 .product-tab #abcCard{min-height:0}
 .product-tab #abcCard .chart-wrap{flex:1;height:auto!important;min-height:160px}
@@ -1341,7 +1341,7 @@ tbody td:first-child{font-family:var(--mono)}
   .product-tab #abcCard .chart-wrap{min-height:300px!important}
   /* Top-products card: grow naturally, no scroll clip */
   .product-tab #topProductCard{height:auto!important;overflow:visible!important}
-  .product-tab #topProductList{height:auto!important;max-height:none!important;overflow-y:visible!important;flex:none!important}
+  .product-tab #topProductList{height:260px!important;overflow-y:auto!important;flex:none!important}
 }
 
 /* Type/Gender doughnut: stack chart + legend vertically on phones */
@@ -1357,8 +1357,7 @@ tbody td:first-child{font-family:var(--mono)}
 
 /* Top Products: force single column on mobile (override 2-col grid) */
 @media(max-width:640px){
-  .product-tab .product-list,
-  .product-tab #topProductList{grid-template-columns:1fr!important}
+  .product-tab .product-list{grid-template-columns:1fr!important}
   /* Inventory charts: stack to single column */
   .inv-row-2col{grid-template-columns:1fr!important}
 }
