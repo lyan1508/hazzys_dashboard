@@ -2336,7 +2336,7 @@ function renderInvByCategoryChart(m) {
       },
       scales: {
         x: { beginAtZero: true, grid: { color: css('--border') }, ticks: { color: css('--text-3'), font: { size: 10 }, callback: (v) => fmtShort(v) } },
-        y: { grid: { display: false }, ticks: { color: css('--text-3'), font: { size: 10 } } },
+        y: { grid: { display: false }, ticks: { color: css('--text-3'), font: { size: 10 }, autoSkip: false } },
       },
     },
   });
@@ -2445,13 +2445,15 @@ function bindEvents() {
     renderAll();
   });
 
-  // Mobile: dismiss chart tooltip when tapping outside a chart canvas
-  document.addEventListener('click', (e) => {
+  // Mobile: dismiss chart tooltip when tapping/clicking outside a canvas
+  const hideExtTooltip = (e) => {
     if (e.target.tagName !== 'CANVAS') {
       const tt = document.getElementById('chartjs-ext-tooltip');
       if (tt) tt.style.opacity = 0;
     }
-  });
+  };
+  document.addEventListener('click', hideExtTooltip);
+  document.addEventListener('touchstart', hideExtTooltip, { passive: true });
 
   document.getElementById('fileInput').addEventListener('change', onUpload);
   // inventory now comes from the same workbook as sales — no separate upload

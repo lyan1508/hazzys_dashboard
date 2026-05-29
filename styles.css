@@ -599,7 +599,7 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
 .inv-empty{padding:32px 20px;text-align:center;color:var(--text-3);font-size:13px}
 .inv-empty strong{color:var(--text-2);display:block;margin-bottom:6px}
 .inv-empty .upload-zone{margin-top:14px;padding:18px 28px;font-size:12px}
-.inv-chart-wrap{position:relative;flex:1;min-height:200px;max-height:260px}
+.inv-chart-wrap{position:relative;flex:1;min-height:300px;max-height:420px}
 .inv-chart-wrap canvas{width:100% !important;height:100% !important}
 @media(max-width:1280px){.inv-row-2col{grid-template-columns:1fr}.inv-kpi-row{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:900px){.inv-kpi-row{grid-template-columns:1fr}}
@@ -1330,4 +1330,35 @@ tbody td:first-child{font-family:var(--mono)}
   .inv-head-kpis{flex-wrap:wrap;gap:0}
   .inv-hkpi{align-items:flex-start;padding:6px 14px 6px 0;border-left:none;border-bottom:1px solid var(--border);min-width:calc(50% - 14px)}
   .inv-hkpi:last-child,.inv-hkpi:nth-last-child(2):nth-child(odd){border-bottom:none}
+}
+
+/* =========================================
+   PRODUCT TAB — mobile layout fixes
+   ========================================= */
+
+/* Taller ABC chart when stacked (≤1100px) */
+@media(max-width:1100px){
+  .product-tab #abcCard .chart-wrap{min-height:300px!important}
+  /* Top-products card: grow naturally, no scroll clip */
+  .product-tab #topProductCard{height:auto!important;overflow:visible!important}
+  .product-tab #topProductList{height:auto!important;max-height:none!important;overflow-y:visible!important;flex:none!important}
+}
+
+/* Type/Gender doughnut: stack chart + legend vertically on phones */
+@media(max-width:768px){
+  .product-mix-row .split-inner{flex-direction:column;align-items:center;gap:10px;padding:8px 14px 12px}
+  .product-mix-row .doughnut-wrap{width:120px;height:120px}
+  .product-mix-row .doughnut-wrap canvas{width:120px!important;height:120px!important}
+  .product-mix-row .legend-list{width:100%;flex-direction:row;flex-wrap:wrap;gap:6px 14px;justify-content:center}
+  .product-mix-row .legend-item{flex:0 0 auto;min-width:80px}
+  .product-mix-row .legend-name{white-space:normal;font-size:12px}
+  .product-mix-row .legend-pct{font-size:11px;font-weight:700;min-width:auto;margin-left:2px}
+}
+
+/* Top Products: force single column on mobile (override 2-col grid) */
+@media(max-width:640px){
+  .product-tab .product-list,
+  .product-tab #topProductList{grid-template-columns:1fr!important}
+  /* Inventory charts: stack to single column */
+  .inv-row-2col{grid-template-columns:1fr!important}
 }
