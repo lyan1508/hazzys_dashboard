@@ -1594,7 +1594,6 @@ function switchRevChart(mode, btn) {
 window.switchRevChart = switchRevChart;
 
 // Dark-mode only — theme toggle removed
-function toggleTheme() {}
 
 async function onUpload(e) {
   const file = e.target.files?.[0];
@@ -1644,7 +1643,7 @@ function applyWorkbook(wb, successMsg) {
 }
 
 // ---- Fetch with timeout (returns response or throws) ----
-async function fetchWithTimeout(url, timeoutMs = 30000) {
+async function fetchWithTimeout(url, timeoutMs = 20000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -1652,6 +1651,35 @@ async function fetchWithTimeout(url, timeoutMs = 30000) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+// ---- Fetch + parse one Google Sheet, with retry on transient failures ----
+// Mobile networks drop requests intermittently; a single retry avoids the
+// "have to reload a second time" symptom without waiting the full timeout.
+async function fetchSheetWithRetry(name, url, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetchWithTimeout(`${url}&single=true&output=csv&_=${Date.now()}`, 20000);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const rawText = await res.text();
+      // Google returns an HTML login page (not CSV) when the sheet is not
+      // shared "Anyone with the link". Detect it so the user gets a real error.
+      const head = rawText.slice(0, 256).trim().toLowerCase();
+      if (head.startsWith('<!doctype') || head.startsWith('<html') || head.includes('<title>sign in')) {
+        throw new Error(`Sheet "${name}" is not publicly accessible. In Google Sheets → Share → set "Anyone with the link – Viewer".`);
+      }
+      const text = preprocessGSheetCsv(rawText);
+      const parsed = XLSX.read(text, { type: 'string', cellDates: true });
+      return parsed.Sheets[parsed.SheetNames[0]];
+    } catch (err) {
+      lastErr = err;
+      // Don't retry a permissions error — it won't fix itself.
+      if (/not publicly accessible/.test(err.message)) break;
+      if (i < attempts - 1) await new Promise(r => setTimeout(r, 600 * (i + 1)));
+    }
+  }
+  throw lastErr;
 }
 
 // ---- Pre-process CSV text from Google Sheets ----
@@ -1698,33 +1726,36 @@ async function loadFromGSheets() {
   syncBtn.disabled = true;
   setStatus('Syncing from Google Sheets…', false);
   try {
-    const cacheBuster = Date.now();
-    const entries = await Promise.all(
-      Object.entries(GSHEET_URLS).map(async ([name, url]) => {
-        const res = await fetchWithTimeout(`${url}&single=true&output=csv&_=${cacheBuster}`, 30000);
-        if (!res.ok) throw new Error(`Failed to fetch sheet "${name}" (HTTP ${res.status})`);
-        const rawText = await res.text();
-        // Google returns an HTML login page (not CSV) when the sheet is not
-        // shared "Anyone with the link". Detect it so the user gets a real error.
-        const head = rawText.slice(0, 256).trim().toLowerCase();
-        if (head.startsWith('<!doctype') || head.startsWith('<html') || head.includes('<title>sign in')) {
-          throw new Error(`Sheet "${name}" is not publicly accessible. In Google Sheets → Share → set "Anyone with the link – Viewer".`);
-        }
-        const text = preprocessGSheetCsv(rawText);
-        const parsed = XLSX.read(text, { type: 'string', cellDates: true });
-        const ws = parsed.Sheets[parsed.SheetNames[0]];
-        return [name, ws];
-      })
+    // Fetch all sheets in parallel but tolerate partial failure: only "sale
+    // data" is required to render. If target/inventory fail on a flaky mobile
+    // connection we still show the dashboard instead of an empty state.
+    const names = Object.keys(GSHEET_URLS);
+    const results = await Promise.allSettled(
+      names.map(name => fetchSheetWithRetry(name, GSHEET_URLS[name]))
     );
+
     const wb = { SheetNames: [], Sheets: {} };
-    entries.forEach(([name, ws]) => { wb.SheetNames.push(name); wb.Sheets[name] = ws; });
+    const failed = [];
+    results.forEach((r, i) => {
+      const name = names[i];
+      if (r.status === 'fulfilled') { wb.SheetNames.push(name); wb.Sheets[name] = r.value; }
+      else failed.push(name);
+    });
+
+    if (!wb.SheetNames.includes('sale data')) {
+      // Sales is the one sheet we can't do without — surface its error.
+      const salesErr = results[names.indexOf('sale data')].reason;
+      throw salesErr || new Error('Could not load "sale data".');
+    }
+
     const now = new Date();
-    applyWorkbook(wb, `Synced at ${now.toLocaleTimeString('en-GB')} · ${fmtN(S.raw.sales.length)} rows`);
+    const warn = failed.length ? ` · ⚠️ skipped: ${failed.join(', ')}` : '';
+    applyWorkbook(wb, `Synced at ${now.toLocaleTimeString('en-GB')} · ${fmtN(S.raw.sales.length)} rows${warn}`);
     syncBtn.title = `Last synced: ${now.toLocaleString('en-GB')}`;
   } catch (err) {
     console.error(err);
     const msg = err.name === 'AbortError'
-      ? 'Timed out (30s). Check network and retry.'
+      ? 'Timed out. Check network and retry.'
       : err.message;
     setStatus(`Sync error: ${msg}`, true);
     if (!S.raw.sales.length) {
@@ -1844,10 +1875,6 @@ function fmtMetricVal(v, metric) {
   if (metric === 'atv')     return fmtVNDShort(v);
   if (metric === 'cvr')     return fmtPct(v);
   return fmtN(v);
-}
-
-function metricLabel(metric) {
-  return { revenue:'Revenue', bills:'Bills', qty:'Qty', atv:'ATV', cvr:'CVR%' }[metric] || metric;
 }
 
 function getYoyMonthlyData(year, months) {
@@ -2107,35 +2134,6 @@ function parseInventoryWorkbook(wb) {
   if (!rows.length) throw new Error('No valid stock sheet found. File must contain headers "Mã SKU" and "Tồn cuối kỳ", and 14-char SKU codes.');
 
   return { rows, meta };
-}
-
-async function onInventoryUpload(e) {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  await loadInventoryFile(file);
-  e.target.value = '';
-}
-
-async function loadInventoryFile(file) {
-  const overlay = document.getElementById('loadingOverlay');
-  overlay.classList.add('show');
-  setStatus('Processing stock file…', false);
-  try {
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
-    const { rows, meta } = parseInventoryWorkbook(wb);
-    S.raw.inventory = rows;
-    S.raw.inventoryMeta = meta;
-    renderInventory();
-    const periodStr = meta.periodFrom ? ` · Period: ${meta.periodFrom} → ${meta.periodTo}` : '';
-    setStatus(`Stock loaded: ${fmtN(rows.length)} SKUs${periodStr}`, false);
-  } catch (err) {
-    console.error(err);
-    setStatus(`Stock load error: ${err.message}`, true);
-    alert(`⚠️ ${err.message}`);
-  } finally {
-    overlay.classList.remove('show');
-  }
 }
 
 // ---- Aggregate inventory: join with sales velocity ----
@@ -2507,44 +2505,6 @@ function renderInvSeasonGenderMatrix(m) {
   const footCols = sg.cols.length + 2; // Line + Season already in body; foot has Season placeholder
   document.getElementById('invSeasonGenderFoot').innerHTML =
     `<tr><td colspan="2">Grand Total</td>${sg.colTotals.map(cell).join('')}${cell(sg.grand)}</tr>`;
-}
-
-function renderInvStockoutTable(m) {
-  const body = document.getElementById('invStockoutBody');
-  if (!m.stockoutAlerts.length) {
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:14px">No SKUs in stockout-risk zone 🎉</td></tr>';
-    return;
-  }
-  body.innerHTML = m.stockoutAlerts.map((r) => {
-    const days = r.daysLeft >= 999 ? '∞' : r.daysLeft.toFixed(1);
-    const statusLbl = r.severity === 'critical' ? (r.stock === 0 ? 'OUT OF STOCK' : 'CRITICAL') : r.severity === 'warn' ? 'LOW' : 'WATCH';
-    return `<tr>
-      <td title="${esc(r.sku)}">${esc(r.sku)}</td>
-      <td>${fmtN(r.stock)}</td>
-      <td>${fmtN(r.sales30)}</td>
-      <td>${days}</td>
-      <td style="text-align:right"><span class="inv-badge ${r.severity}">${statusLbl}</span></td>
-    </tr>`;
-  }).join('');
-}
-
-function renderInvAgingTable(m) {
-  const body = document.getElementById('invAgingBody');
-  if (!m.aging.length) {
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:14px">No aging SKUs</td></tr>';
-    return;
-  }
-  body.innerHTML = m.aging.map((r) => {
-    const days = r.daysOfStock >= 999 ? '∞' : r.daysOfStock.toFixed(0);
-    const statusLbl = r.severity === 'critical' ? (r.sales90 === 0 ? 'DEAD STOCK' : 'VERY OLD') : r.severity === 'warn' ? 'OLD' : 'SLOW';
-    return `<tr>
-      <td title="${esc(r.sku)}">${esc(r.sku)}</td>
-      <td>${fmtN(r.stock)}</td>
-      <td>${fmtN(r.sales90)}</td>
-      <td>${days}</td>
-      <td style="text-align:right"><span class="inv-badge ${r.severity}">${statusLbl}</span></td>
-    </tr>`;
-  }).join('');
 }
 
 // ===== TAB SWITCHING =====
