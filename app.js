@@ -1634,12 +1634,19 @@ function applyWorkbook(wb, successMsg) {
   S.filters = { year: 'all', quarter: 'all', month: 'all', category: 'all', gender: 'all', type: 'all', store: 'all' };
   S.cashierSelected = [];
   initFilters();
+  // Default the Year filter to the most recent year in the data — more intuitive
+  // than showing all years combined on first load. Month/Quarter stay "all" so the
+  // Overview still shows the full-year trend. (The "Clear filters" button resets to all.)
+  const yearsInData = [...new Set(S.raw.sales.map((r) => r.year).filter(Boolean))].sort();
+  if (yearsInData.length) S.filters.year = yearsInData[yearsInData.length - 1];
   syncFilters();
   destroyAllCharts();
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('dashContent').style.display = 'block';
   renderAll();
-  setStatus(successMsg, false);
+  // Substitute the row count now that S.raw.sales is populated (callers can't
+  // know the count before this function parses the workbook).
+  setStatus(String(successMsg).replace('{rows}', fmtN(S.raw.sales.length)), false);
 }
 
 // ---- Fetch with timeout (returns response or throws) ----
@@ -1708,7 +1715,7 @@ async function loadFile(file) {
       const buf = await file.arrayBuffer();
       wb = XLSX.read(buf, { type: 'array', cellDates: true });
     }
-    applyWorkbook(wb, `Loaded: ${file.name} · ${fmtN(S.raw.sales.length)} rows`);
+    applyWorkbook(wb, `Loaded: ${file.name} · {rows} rows`);
   } catch (err) {
     console.error(err);
     destroyAllCharts();
@@ -1750,7 +1757,7 @@ async function loadFromGSheets() {
 
     const now = new Date();
     const warn = failed.length ? ` · ⚠️ skipped: ${failed.join(', ')}` : '';
-    applyWorkbook(wb, `Synced at ${now.toLocaleTimeString('en-GB')} · ${fmtN(S.raw.sales.length)} rows${warn}`);
+    applyWorkbook(wb, `Synced at ${now.toLocaleTimeString('en-GB')} · {rows} rows${warn}`);
     syncBtn.title = `Last synced: ${now.toLocaleString('en-GB')}`;
   } catch (err) {
     console.error(err);
