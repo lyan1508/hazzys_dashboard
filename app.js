@@ -17,11 +17,11 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 const BILL_FIELD_ALIASES = ['bill', 'billflag', 'bill_flag', 'billno', 'bill_no', 'billnumber', 'billind', 'isbill', 'billindicator'];
 
 // Spreadsheet must be shared "Anyone with the link can view" for these to work.
-const GSHEET_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT1crTHmD1Z5svqyGnu5FATk0Uxy2qoGEa4Faq_ayyiDa710qOq-NrAHHLvcYNBI_2RgMAUclr-UlVl/pub?gid=';
+const GSHEET_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT0EnQS5moW_LgjKBPFsLaPGvXFUR7IoK_DRzR-I6lMfL9wr3ibdVaRjKYJidBcrg/pub?gid=';
 const GSHEET_URLS = {
-  'sale data':  GSHEET_BASE + '101553965',
-  'target':     GSHEET_BASE + '281316279',
-  'inventory':  GSHEET_BASE + '2031169837',
+  'sale data':  GSHEET_BASE + '473263965',
+  'target':     GSHEET_BASE + '695925145',
+  'inventory':  GSHEET_BASE + '763491494',
 };
 
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
@@ -1352,10 +1352,12 @@ function renderDowHeatmap(m) {
 }
 
 // ===== REVENUE FORECAST =====
-// Builds monthly revenue history from ALL sales (ignoring filters so forecast
-// reflects the business as a whole). Uses two methods:
-//  - Seasonal: same-month-last-year × recent YoY growth (preferred when prior-year data exists)
-//  - Linear:   trailing 6-month average × monthly growth rate (fallback)
+// Builds monthly revenue history from ALL sales (ignoring filters so the
+// forecast reflects the business as a whole). Forecast method (per spec):
+//  - Month:   same month last year (cùng kỳ) × avg YoY growth of this year's completed months
+//  - Quarter: same quarter last year × avg YoY growth of past complete quarters
+//  - Year:    prior year total × avg YoY growth of past complete years
+//  Each growth multiplier is capped at +10% (declines pass through uncapped).
 function buildMonthlyHistory() {
   const map = new Map();
   S.raw.sales.forEach(r => {
@@ -1367,43 +1369,77 @@ function buildMonthlyHistory() {
     .map(([k, v]) => ({ key: k, y: Number(k.slice(0,4)), m: Number(k.slice(5,7)), value: v }));
 }
 
-function forecastMonth(history, targetY, targetM) {
-  // All historical values for this same month across years prior to targetY
-  const sameMonth = history.filter(h => h.m === targetM && h.y < targetY);
+const GROWTH_CAP = 1.10; // forecast assumes at most +10% YoY growth (cùng kỳ +10%)
 
-  // Compute YoY growth rates across ALL month pairs in history (not just recent 3)
-  // Use geometric mean + outlier clamping to avoid a single exceptional year skewing results
-  const allGrowthRates = [];
-  history.forEach(h => {
-    const prev = history.find(p => p.y === h.y - 1 && p.m === h.m);
-    if (prev && prev.value > 0 && h.value > 0) {
-      allGrowthRates.push(Math.max(0.6, Math.min(1.4, h.value / prev.value)));
+function yearTotal(history, y) {
+  return history.filter(h => h.y === y).reduce((s, h) => s + h.value, 0);
+}
+function monthsInYear(history, y) {
+  return history.filter(h => h.y === y).map(h => h.m);
+}
+function quarterTotal(history, y, q) {
+  const s = (q - 1) * 3 + 1;
+  return history.filter(h => h.y === y && h.m >= s && h.m <= s + 2).reduce((a, h) => a + h.value, 0);
+}
+function quarterMonthCount(history, y, q) {
+  const s = (q - 1) * 3 + 1;
+  return history.filter(h => h.y === y && h.m >= s && h.m <= s + 2).length;
+}
+
+// Arithmetic mean of YoY ratios; returns null when no comparable pair exists.
+function meanRatio(ratios) {
+  return ratios.length ? ratios.reduce((s, r) => s + r, 0) / ratios.length : null;
+}
+
+// 1) Avg YoY growth across `year`'s months that have a same-month prior-year value,
+//    excluding the in-progress month (avoids partial-month skew).
+function avgMonthlyGrowth(history, year, excludeMonth) {
+  const ratios = [];
+  history.filter(h => h.y === year && h.m !== excludeMonth).forEach(h => {
+    const prev = history.find(p => p.y === year - 1 && p.m === h.m);
+    if (prev && prev.value > 0 && h.value > 0) ratios.push(h.value / prev.value);
+  });
+  return meanRatio(ratios);
+}
+
+// 2) Avg YoY growth across all fully-comparable quarters in history (both the
+//    quarter and the year-earlier quarter have all 3 months), excluding the
+//    in-progress quarter.
+function avgQuarterlyGrowth(history, curYear, curQ) {
+  const ratios = [];
+  [...new Set(history.map(h => h.y))].forEach(y => {
+    for (let q = 1; q <= 4; q++) {
+      if (y === curYear && q === curQ) continue;
+      if (quarterMonthCount(history, y, q) < 3 || quarterMonthCount(history, y - 1, q) < 3) continue;
+      const cur = quarterTotal(history, y, q), prev = quarterTotal(history, y - 1, q);
+      if (cur > 0 && prev > 0) ratios.push(cur / prev);
     }
   });
-  let avgGrowth = 1.0;
-  if (allGrowthRates.length > 0) {
-    const logMean = allGrowthRates.reduce((s, r) => s + Math.log(r), 0) / allGrowthRates.length;
-    avgGrowth = Math.exp(logMean);
-    // Hard cap: forecast never grows more than 10% nor shrinks more than 10% vs same period last year
-    avgGrowth = Math.max(0.90, Math.min(1.10, avgGrowth));
-  }
+  return meanRatio(ratios);
+}
 
-  if (sameMonth.length > 0) {
-    // Historical average for this month (all available years)
-    const histAvg = sameMonth.reduce((s, h) => s + h.value, 0) / sameMonth.length;
-    // Most recent prior year value for this month
-    const lastYearVal = sameMonth[sameMonth.length - 1].value;
-    // Blend 50/50: historical average and last year — then apply average growth rate
-    // This avoids over-weighting a single exceptional year while staying seasonally anchored
-    const blendedBase = 0.5 * histAvg + 0.5 * lastYearVal;
-    return { value: blendedBase * avgGrowth, method: 'seasonal', growth: avgGrowth };
-  }
+// 3) Avg YoY growth across consecutive complete (12-month) years, excluding the
+//    in-progress year.
+function avgYearlyGrowth(history, curYear) {
+  const ratios = [];
+  [...new Set(history.map(h => h.y))].forEach(y => {
+    if (y === curYear) return;
+    if (monthsInYear(history, y).length < 12 || monthsInYear(history, y - 1).length < 12) return;
+    const cur = yearTotal(history, y), prev = yearTotal(history, y - 1);
+    if (cur > 0 && prev > 0) ratios.push(cur / prev);
+  });
+  return meanRatio(ratios);
+}
 
-  // Fallback: no prior same-month data — trailing 6-month average only
-  const tail = history.filter(h => !(h.y === targetY && h.m >= targetM)).slice(-6);
-  if (!tail.length) return { value: 0, method: 'none' };
-  const avg = tail.reduce((s, h) => s + h.value, 0) / tail.length;
-  return { value: avg, method: 'flat' };
+// Fallback when a period-specific growth can't be computed: avg YoY growth over
+// every same-month pair in history (defaults to flat 1.0 when none exist).
+function overallAvgGrowth(history) {
+  const ratios = [];
+  history.forEach(h => {
+    const prev = history.find(p => p.y === h.y - 1 && p.m === h.m);
+    if (prev && prev.value > 0 && h.value > 0) ratios.push(h.value / prev.value);
+  });
+  return meanRatio(ratios) ?? 1.0;
 }
 
 function drawFcSparkline(elId, history, fcValue) {
@@ -1494,93 +1530,83 @@ function renderForecast() {
   }
 
   const last = history[history.length - 1];
-  // Next month
-  let nm = last.m + 1, ny = last.y;
-  if (nm > 12) { nm = 1; ny++; }
-  const fc1 = forecastMonth(history, ny, nm);
+  const cy = last.y, cm = last.m;            // current (in-progress) month
+  const cq = Math.ceil(cm / 3);              // current quarter
+  const qStartM = (cq - 1) * 3 + 1, qEndM = qStartM + 2;
+  const fallback = overallAvgGrowth(history);
+  const cap = g => Math.min(g, GROWTH_CAP);
 
-  // Next quarter (3 months after the next month)
-  let q = [];
-  let qMonths = [];
-  let cy = ny, cm = nm;
-  for (let i = 0; i < 3; i++) {
-    q.push(forecastMonth(history, cy, cm));
-    qMonths.push({ v: q[i].value, label: MONTH_NAMES[cm-1].slice(0,3) });
-    cm++; if (cm > 12) { cm = 1; cy++; }
+  // 1) Current MONTH = cùng kỳ × avg YoY growth of this year's completed months
+  const gMonth = cap(avgMonthlyGrowth(history, cy, cm) ?? fallback);
+  const priorMonths = history.filter(h => h.m === cm && h.y < cy);
+  const monthBase = priorMonths.length ? priorMonths[priorMonths.length - 1].value : last.value;
+  const monthFc = monthBase * gMonth;
+  const monthActual = last.value;
+
+  // 2) Current QUARTER = quý cùng kỳ × avg historical quarterly YoY growth
+  const gQuarter = cap(avgQuarterlyGrowth(history, cy, cq) ?? fallback);
+  let qBase = 0;
+  for (let y = cy - 1; y >= history[0].y; y--) {
+    if (quarterMonthCount(history, y, cq) > 0) { qBase = quarterTotal(history, y, cq); break; }
   }
-  const quarterTotal = q.reduce((s, f) => s + f.value, 0);
+  const quarterFc = qBase * gQuarter;
+  const qActual = quarterTotal(history, cy, cq);
 
-  // Current year: actual months so far + forecast remaining months
-  const currentYear = last.y;
-  const monthsActualThisYear = history.filter(h => h.y === currentYear);
-  const actualSum = monthsActualThisYear.reduce((s, h) => s + h.value, 0);
-  let yearForecast = actualSum;
-  const lastActualMonth = Math.max(...monthsActualThisYear.map(h => h.m));
-  const fcMap = {};
-  for (let m = lastActualMonth + 1; m <= 12; m++) {
-    const mfc = forecastMonth(history, currentYear, m);
-    yearForecast += mfc.value;
-    fcMap[m] = mfc.value;
+  // 3) Current YEAR = năm cùng kỳ × avg historical yearly YoY growth (same approach)
+  const gYear = cap(avgYearlyGrowth(history, cy) ?? fallback);
+  let yBase = 0;
+  for (let y = cy - 1; y >= history[0].y; y--) {
+    const t = yearTotal(history, y); if (t > 0) { yBase = t; break; }
   }
+  const yearFc = yBase * gYear;
+  const yActual = yearTotal(history, cy);
+  const monthsThisYear = monthsInYear(history, cy).length;
 
-  // Method label
-  const methodLabels = { seasonal: 'seasonal (YoY)', linear: 'recent trend', flat: 'average', none: 'insufficient data' };
-  const primaryMethod = methodLabels[fc1.method] || fc1.method;
-  methodEl.textContent = `Method: ${primaryMethod} · History: ${history.length} months (${history[0].key} → ${last.key})`;
+  methodEl.textContent = `Method: cùng kỳ × growth (cap +${((GROWTH_CAP - 1) * 100).toFixed(0)}%) · History ${history.length} mo (${history[0].key} → ${last.key})`;
 
-  // Confidence ±15% (loose band — adjust based on data variability later)
-  const band = (v) => `${fmtVNDShort(v * 0.85)} – ${fmtVNDShort(v * 1.15)}`;
-  const vsText = (forecastVal, baseVal, baseLabel) => {
+  const vsText = (fcVal, baseVal, baseLabel) => {
     if (!baseVal || baseVal <= 0) return `<span style="color:var(--text-3)">No ${baseLabel} baseline</span>`;
-    const pct = ((forecastVal - baseVal) / baseVal) * 100;
+    const pct = ((fcVal - baseVal) / baseVal) * 100;
     const cls = pct >= 0 ? 'up' : 'down';
     const sign = pct >= 0 ? '↑' : '↓';
     return `<span class="${cls}">${sign} ${fmtPct(Math.abs(pct))}</span> vs ${baseLabel}`;
   };
 
-  // Next month — compare vs same month last year (cùng kỳ năm trước); fall back to prior month
-  document.getElementById('fcMonthName').textContent = `${MONTH_NAMES[nm-1]} ${ny}`;
-  document.getElementById('fcMonthValue').textContent = fmtVNDShort(fc1.value);
-  document.getElementById('fcMonthRange').textContent = `Range: ${band(fc1.value)}`;
-  const sameMonthLY = history.find(h => h.y === ny - 1 && h.m === nm);
-  if (sameMonthLY && sameMonthLY.value > 0) {
-    document.getElementById('fcMonthVs').innerHTML = vsText(fc1.value, sameMonthLY.value, `${MONTH_NAMES[nm-1]} ${ny-1}`);
-  } else {
-    document.getElementById('fcMonthVs').innerHTML = vsText(fc1.value, last.value, `${MONTH_NAMES[last.m-1]} ${last.y}`);
-  }
+  // MONTH card
+  document.getElementById('fcMonthName').textContent = `${MONTH_NAMES[cm-1]} ${cy}`;
+  document.getElementById('fcMonthValue').textContent = fmtVNDShort(monthFc);
+  document.getElementById('fcMonthRange').textContent = `Cùng kỳ ${fmtVNDShort(monthBase)} · actual ${fmtVNDShort(monthActual)}`;
+  document.getElementById('fcMonthVs').innerHTML = vsText(monthFc, monthBase, `${MONTH_NAMES[cm-1]} ${cy-1}`);
 
-  // Next quarter
-  const qStart = `${MONTH_NAMES[nm-1]} ${ny}`;
-  const qEndM = ((nm - 1 + 2) % 12) + 1;
-  const qEndY = nm + 2 > 12 ? ny + 1 : ny;
-  document.getElementById('fcQuarterName').textContent = `${qStart} → ${MONTH_NAMES[qEndM-1]} ${qEndY}`;
-  document.getElementById('fcQuarterValue').textContent = fmtVNDShort(quarterTotal);
-  document.getElementById('fcQuarterRange').textContent = `Range: ${band(quarterTotal)}`;
-  // Compare vs the same 3 months last year (cùng kỳ năm trước); fall back to last 3 actual months
-  let lyQ = 0, lyQCount = 0, lcy = ny - 1, lcm = nm;
+  // QUARTER card
+  document.getElementById('fcQuarterName').textContent = `Q${cq} ${cy} (${MONTH_NAMES[qStartM-1]}–${MONTH_NAMES[qEndM-1]})`;
+  document.getElementById('fcQuarterValue').textContent = fmtVNDShort(quarterFc);
+  document.getElementById('fcQuarterRange').textContent = `Cùng kỳ ${fmtVNDShort(qBase)} · actual ${fmtVNDShort(qActual)}`;
+  document.getElementById('fcQuarterVs').innerHTML = vsText(quarterFc, qBase, `Q${cq} ${cy-1}`);
+
+  // YEAR card
+  document.getElementById('fcYearName').textContent = `Year ${cy}`;
+  document.getElementById('fcYearValue').textContent = fmtVNDShort(yearFc);
+  document.getElementById('fcYearRange').textContent = `Actual ${monthsThisYear}/12 mo ${fmtVNDShort(yActual)} · base ${fmtVNDShort(yBase)}`;
+  document.getElementById('fcYearVs').innerHTML = vsText(yearFc, yBase, `${cy-1}`);
+
+  // Mini charts
+  drawFcSparkline('fcMonthChart', history, monthFc);
+  const qMonths = [];
   for (let i = 0; i < 3; i++) {
-    const h = history.find(x => x.y === lcy && x.m === lcm);
-    if (h) { lyQ += h.value; lyQCount++; }
-    lcm++; if (lcm > 12) { lcm = 1; lcy++; }
+    const mm = qStartM + i;
+    const ly = history.find(h => h.y === cy - 1 && h.m === mm);
+    qMonths.push({ v: (ly ? ly.value : 0) * gQuarter, label: MONTH_NAMES[mm-1].slice(0,3) });
   }
-  if (lyQCount === 3 && lyQ > 0) {
-    document.getElementById('fcQuarterVs').innerHTML = vsText(quarterTotal, lyQ, `${ny-1} cùng kỳ`);
-  } else {
-    const lastQ = history.slice(-3).reduce((s, h) => s + h.value, 0);
-    document.getElementById('fcQuarterVs').innerHTML = vsText(quarterTotal, lastQ, 'last 3 months');
-  }
-
-  // Year
-  document.getElementById('fcYearName').textContent = `Year ${currentYear}`;
-  document.getElementById('fcYearValue').textContent = fmtVNDShort(yearForecast);
-  document.getElementById('fcYearRange').textContent = `Actual ${monthsActualThisYear.length}/12 months + forecast ${12 - monthsActualThisYear.length} months`;
-  const prevYearSum = history.filter(h => h.y === currentYear - 1).reduce((s, h) => s + h.value, 0);
-  document.getElementById('fcYearVs').innerHTML = vsText(yearForecast, prevYearSum, `${currentYear - 1}`);
-
-  // Draw mini charts on the right of each card
-  drawFcSparkline('fcMonthChart', history, fc1.value);
   drawFcQuarterBars('fcQuarterChart', qMonths);
-  drawFcYearBars('fcYearChart', history, currentYear, fcMap);
+  const fcMap = {};
+  for (let m = 1; m <= 12; m++) {
+    if (!history.find(h => h.y === cy && h.m === m)) {
+      const ly = history.find(h => h.y === cy - 1 && h.m === m);
+      fcMap[m] = (ly ? ly.value : 0) * gYear;
+    }
+  }
+  drawFcYearBars('fcYearChart', history, cy, fcMap);
 }
 
 function switchRevChart(mode, btn) {
