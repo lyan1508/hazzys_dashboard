@@ -19,9 +19,9 @@ const BILL_FIELD_ALIASES = ['bill', 'billflag', 'bill_flag', 'billno', 'bill_no'
 // Spreadsheet must be shared "Anyone with the link can view" for these to work.
 const GSHEET_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT0EnQS5moW_LgjKBPFsLaPGvXFUR7IoK_DRzR-I6lMfL9wr3ibdVaRjKYJidBcrg/pub?gid=';
 const GSHEET_URLS = {
-  'sale data':  GSHEET_BASE + '473263965',
-  'target':     GSHEET_BASE + '695925145',
-  'inventory':  GSHEET_BASE + '763491494',
+  'sale data':  GSHEET_BASE + '1504946670',
+  'target':     GSHEET_BASE + '227957717',
+  'inventory':  GSHEET_BASE + '1610910353',
 };
 
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
