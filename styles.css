@@ -737,7 +737,7 @@ tfoot td{padding:10px 12px;font-size:12px;font-weight:700;background:var(--surfa
 }
 .tab-pane[data-tab-pane="staff"] #cashierPicker .cashier-chip{flex:0 0 auto}
 @media(max-width:1100px){
-  .tab-pane[data-tab-pane="staff"].active{grid-template-columns:1fr;height:auto}
+  .tab-pane[data-tab-pane="staff"].active{grid-template-columns:1fr;height:auto;min-height:0}
   .tab-pane[data-tab-pane="staff"] .chart-card-hd{flex-wrap:wrap}
   .tab-pane[data-tab-pane="staff"] #cashierPicker{justify-content:flex-start;max-height:80px}
 }
@@ -1264,6 +1264,22 @@ tbody td:first-child{font-family:var(--mono)}
    MOBILE — collapsible filter bar (≤600px)
    ========================================= */
 @media(max-width:600px){
+  .topbar-inner{
+    flex-wrap:wrap;
+    min-height:52px;
+    padding:8px 12px;
+    gap:8px;
+  }
+  .logo{gap:8px;min-width:0;flex:1 1 0}
+  .logo-icon{width:34px;height:34px;border-radius:8px}
+  .logo-info{min-width:0}
+  .logo-text{font-size:15px;letter-spacing:.2px;overflow:hidden;text-overflow:ellipsis;max-width:112px}
+  .logo-sub{display:none}
+  .divider{display:none}
+  .topbar-actions{gap:5px;margin-left:auto}
+  .btn-icon{width:32px;height:32px;border-radius:9px}
+  .btn-icon svg{width:16px;height:16px}
+
   /* Show toggle button */
   .btn-filter-toggle{display:grid}
 
@@ -1276,6 +1292,13 @@ tbody td:first-child{font-family:var(--mono)}
   }
   /* Show when toggled open */
   #filterBar.filter-open{display:grid}
+
+  .tabs-nav{
+    position:static;
+    top:auto;
+    margin-left:-2px;
+    margin-right:-2px;
+  }
 }
 
 /* =========================================
@@ -1340,6 +1363,7 @@ tbody td:first-child{font-family:var(--mono)}
 
   /* --- ABC chips: 1 cột thay vì 3 --- */
   .abc-summary{grid-template-columns:1fr!important}
+  .product-mix-row{grid-template-columns:1fr!important}
 
   /* --- Cashier bar chart: chiều cao vừa mobile --- */
   #cashierBarCard .chart-wrap{height:220px!important}
