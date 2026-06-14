@@ -1,9 +1,8 @@
 const S = {
   raw: { sales: [], targets: [], inventory: [], inventoryMeta: null },
-  filters: { year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all' },
+  filters: { year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all', store: 'all' },
   charts: {},
   revMode: 'monthly',
-  cashierSelected: [],
 };
 
 const PALETTE = {
@@ -858,7 +857,6 @@ function renderCashierBar(m) {
 
 function renderCharts(m) {
   const labels = safeLabels(m.months.map((x) => x.monthLabelYY));
-  const hasData = m.months.length > 0;
   const actual = safeDataset(m.months.map((x) => x.actual), labels.length);
   const target = safeDataset(m.months.map((x) => x.target), labels.length);
   const bills = safeDataset(m.months.map((x) => x.billCount), labels.length);
@@ -925,8 +923,6 @@ function renderCharts(m) {
   renderDoughnut('gender', 'chartGender', 'dGenderVal', 'legendGender', m.byGender, PALETTE.gender);
   renderPromotionInfo(m);
   renderCashierBar(m);
-
-  if (!hasData) return;
 }
 
 function renderKPIs(m) {
@@ -1344,17 +1340,19 @@ function renderDowHeatmap(m) {
     return;
   }
   const valFn = (d) => DOW_METRIC === 'bills' ? d.billsPerDay : DOW_METRIC === 'atv' ? d.atv : d.revPerDay;
-  const fmtFn = (v) => DOW_METRIC === 'bills' ? fmtN(v) : DOW_METRIC === 'atv' ? fmtVNDShort(v) : fmtVNDShort(v);
+  const fmtFn = (v) => DOW_METRIC === 'bills' ? fmtN(v) : fmtVNDShort(v);
   const values = data.map(valFn);
-  const maxV = Math.max(...values, 1);
-  const minV = Math.min(...values.filter((v) => v > 0));
-  const peakIdx = values.indexOf(maxV);
-  const lowIdx = values.indexOf(minV);
+  const posValues = values.filter((v) => v > 0);
+  const maxV = posValues.length ? Math.max(...posValues) : 0;
+  const minV = posValues.length ? Math.min(...posValues) : 0;
+  const peakIdx = maxV > 0 ? values.indexOf(maxV) : -1;
+  const lowIdx = minV > 0 ? values.indexOf(minV) : -1;
 
   const totalRev = data.reduce((s, d) => s + d.revenue, 0);
   const totalDays = data.reduce((s, d) => s + d.dayCount, 0);
   const metricLbl = DOW_METRIC === 'bills' ? 'Bills/day' : DOW_METRIC === 'atv' ? 'ATV' : 'Revenue/day';
-  ctxEl.textContent = `${metricLbl} · ${fmtN(totalDays)} days of data · Total revenue ${fmtVNDShort(totalRev)} · Peak: ${data[peakIdx].label}`;
+  const peakLbl = peakIdx >= 0 ? data[peakIdx].label : '—';
+  ctxEl.textContent = `${metricLbl} · ${fmtN(totalDays)} days of data · Total revenue ${fmtVNDShort(totalRev)} · Peak: ${peakLbl}`;
 
   strip.innerHTML = data.map((d, i) => {
     const v = valFn(d);
@@ -1686,8 +1684,7 @@ function applyWorkbook(wb, successMsg) {
       S.raw.inventoryMeta = prevInvMeta;
     }
   }
-  S.filters = { year: 'all', quarter: 'all', month: 'all', category: 'all', gender: 'all', type: 'all', store: 'all' };
-  S.cashierSelected = [];
+  S.filters = { year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all', store: 'all' };
   initFilters();
   // Default the Year filter to the most recent year in the data — more intuitive
   // than showing all years combined on first load. Month/Quarter stay "all" so the
@@ -2588,7 +2585,6 @@ function renderInvSeasonGenderMatrix(m) {
     return seasonRows + totRow;
   }).join('');
 
-  const footCols = sg.cols.length + 2; // Line + Season already in body; foot has Season placeholder
   document.getElementById('invSeasonGenderFoot').innerHTML =
     `<tr><td colspan="2">Grand Total</td>${sg.colTotals.map(cell).join('')}${cell(sg.grand)}</tr>`;
 }
@@ -2619,7 +2615,6 @@ function bindEvents() {
   document.getElementById('resetBtn').addEventListener('click', () => {
     S.filters = { year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all', store: 'all' };
     S.revMode = 'monthly';
-    S.cashierSelected = [];
     document.getElementById('filterBar').classList.remove('filter-open');
     syncFilters();
     renderAll();
