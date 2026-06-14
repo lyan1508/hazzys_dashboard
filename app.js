@@ -15,12 +15,18 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 /** Bill flag column 0/1 */
 const BILL_FIELD_ALIASES = ['bill', 'billflag', 'bill_flag', 'billno', 'bill_no', 'billnumber', 'billind', 'isbill', 'billindicator'];
 
-// Spreadsheet must be shared "Anyone with the link can view" for these to work.
-const GSHEET_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT0EnQS5moW_LgjKBPFsLaPGvXFUR7IoK_DRzR-I6lMfL9wr3ibdVaRjKYJidBcrg/pub?gid=';
+// Primary data source: a stable Google Sheet. Keep the file and tab names fixed;
+// the dashboard reads by tab name so changing gid values will not break sync.
+const STABLE_GSHEET_ID = '1l53PyTaGzb92aagtMTJwBoc8E_0p-EaSvLAv4dVehC8';
+const stableSheetUrl = (sheetName) =>
+  `https://docs.google.com/spreadsheets/d/${STABLE_GSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+
+// Legacy published links stay as a fallback until the new stable sheet is filled.
+const LEGACY_GSHEET_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT0EnQS5moW_LgjKBPFsLaPGvXFUR7IoK_DRzR-I6lMfL9wr3ibdVaRjKYJidBcrg/pub?gid=';
 const GSHEET_URLS = {
-  'sale data':  GSHEET_BASE + '1504946670',
-  'target':     GSHEET_BASE + '227957717',
-  'inventory':  GSHEET_BASE + '1610910353',
+  'sale data':  [stableSheetUrl('sale data'), LEGACY_GSHEET_BASE + '1504946670'],
+  'target':     [stableSheetUrl('target'), LEGACY_GSHEET_BASE + '227957717'],
+  'inventory':  [stableSheetUrl('inventory'), LEGACY_GSHEET_BASE + '1610910353'],
 };
 
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
@@ -1741,6 +1747,34 @@ async function fetchSheetWithRetry(name, url, attempts = 3) {
   throw lastErr;
 }
 
+async function fetchSheetCandidatesWithRetry(name, urls, attempts = 3) {
+  const candidates = Array.isArray(urls) ? urls : [urls];
+  let lastErr;
+  for (const url of candidates) {
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const sep = url.includes('?') ? '&' : '?';
+        const res = await fetchWithTimeout(`${url}${sep}_=${Date.now()}`, 20000);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const rawText = await res.text();
+        const head = rawText.slice(0, 256).trim().toLowerCase();
+        if (head.startsWith('<!doctype') || head.startsWith('<html') || head.includes('<title>sign in')) {
+          throw new Error(`Sheet "${name}" is not publicly accessible. In Google Sheets -> Share -> set "Anyone with the link - Viewer".`);
+        }
+        const text = preprocessGSheetCsv(rawText);
+        if (!text.trim()) throw new Error(`Sheet "${name}" is empty.`);
+        const parsed = XLSX.read(text, { type: 'string', cellDates: true });
+        return parsed.Sheets[parsed.SheetNames[0]];
+      } catch (err) {
+        lastErr = err;
+        if (/not publicly accessible|is empty/.test(err.message)) break;
+        if (i < attempts - 1) await new Promise(r => setTimeout(r, 600 * (i + 1)));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 // ---- Pre-process CSV text from Google Sheets ----
 function preprocessGSheetCsv(text) {
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
@@ -1790,7 +1824,7 @@ async function loadFromGSheets() {
     // connection we still show the dashboard instead of an empty state.
     const names = Object.keys(GSHEET_URLS);
     const results = await Promise.allSettled(
-      names.map(name => fetchSheetWithRetry(name, GSHEET_URLS[name]))
+      names.map(name => fetchSheetCandidatesWithRetry(name, GSHEET_URLS[name]))
     );
 
     const wb = { SheetNames: [], Sheets: {} };
