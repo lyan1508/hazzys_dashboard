@@ -61,10 +61,10 @@
         <span class="filter-count" id="filterCount"></span>
       </button>
       <button class="btn-icon" id="resetBtn" title="Clear filters" aria-label="Clear filters">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5h13"/><path d="M5.5 5l1.4 9.2a1.5 1.5 0 0 0 1.5 1.3h3.2a1.5 1.5 0 0 0 1.5-1.3L14.5 5"/><path d="M8 5V3.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V5"/></svg>
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.84 2.5H1.67l6.66 7.88v5.45l3.34 1.67v-7.12l.75-.88"/><path d="M18.33 2.5l-4.16 4.17"/><path d="M14.17 2.5l4.16 4.17"/></svg>
       </button>
       <button class="btn-icon" id="syncBtn" title="Sync from Google Sheets" aria-label="Sync from Google Sheets">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a7 7 0 0 1 12-5l2 2"/><path d="M17 4v4h-4"/><path d="M17 10a7 7 0 0 1-12 5l-2-2"/><path d="M3 16v-4h4"/></svg>
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 10a7.5 7.5 0 0 1 7.5-7.5 8.13 8.13 0 0 1 5.62 2.28L17.5 6.67"/><path d="M17.5 2.5v4.17h-4.17"/><path d="M17.5 10a7.5 7.5 0 0 1-7.5 7.5 8.13 8.13 0 0 1-5.62-2.28L2.5 13.33"/><path d="M2.5 17.5v-4.17h4.17"/></svg>
       </button>
       <label class="btn-icon btn-icon-primary" for="fileInput" title="Upload data file" aria-label="Upload data file">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13V3"/><path d="M5.5 7.5L10 3l4.5 4.5"/><path d="M3.5 13v3a1.5 1.5 0 0 0 1.5 1.5h10a1.5 1.5 0 0 0 1.5-1.5v-3"/></svg>
@@ -395,15 +395,25 @@
       </div>
 
       <!-- FORECAST -->
-      <div class="panel" id="forecastSection" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden">
+      <div class="panel" id="forecastSection" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:visible">
         <div class="panel-head" style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Revenue Forecast</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-3)" id="forecastMethod">Calculating...</div>
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <div style="font-size:var(--fs-xs);color:var(--text-3)" id="forecastMethod">Calculating...</div>
+            <span class="fc-info" tabindex="0" role="button" aria-label="Cách tính dự báo">i<span class="fc-info-pop">
+              <span class="fc-pop-title">Cách tính dự báo</span>
+              <span class="fc-pop-formula">Trung bình cùng kỳ × Tăng trưởng YoY trung bình = Dự báo</span>
+              <span class="fc-pop-row"><b>Tháng kế tiếp:</b> trung bình doanh thu tháng đó qua các năm trước × trung bình YoY các tháng đã chốt của năm nay.</span>
+              <span class="fc-pop-row"><b>Quý kế tiếp:</b> trung bình doanh thu quý đó qua các năm trước × trung bình YoY các quý đủ 3 tháng.</span>
+              <span class="fc-pop-row"><b>Năm hiện tại:</b> tổng trung bình cùng kỳ của 12 tháng × trung bình YoY các năm (tính giống quý, thuần dự báo).</span>
+              <span class="fc-pop-note">Dùng toàn bộ dữ liệu đã nạp, bỏ qua bộ lọc. Tháng &amp; quý kế tiếp là kỳ tương lai nên chỉ so với cùng kỳ.</span>
+            </span></span>
+          </div>
         </div>
         <div class="forecast-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px">
           <div class="forecast-card" data-period="month">
             <div class="fc-left">
-              <div class="forecast-card-label">Current Month</div>
+              <div class="forecast-card-label">Next Month · forecast</div>
               <div class="forecast-card-name" id="fcMonthName">—</div>
               <div class="forecast-card-value" id="fcMonthValue">—</div>
               <div class="forecast-card-range" id="fcMonthRange">—</div>
@@ -413,7 +423,7 @@
           </div>
           <div class="forecast-card" data-period="quarter">
             <div class="fc-left">
-              <div class="forecast-card-label">Current Quarter</div>
+              <div class="forecast-card-label">Next Quarter · forecast</div>
               <div class="forecast-card-name" id="fcQuarterName">—</div>
               <div class="forecast-card-value" id="fcQuarterValue">—</div>
               <div class="forecast-card-range" id="fcQuarterRange">—</div>
@@ -423,7 +433,7 @@
           </div>
           <div class="forecast-card" data-period="year">
             <div class="fc-left">
-              <div class="forecast-card-label">Full Year (estimate)</div>
+              <div class="forecast-card-label">Current Year · estimate</div>
               <div class="forecast-card-name" id="fcYearName">—</div>
               <div class="forecast-card-value" id="fcYearValue">—</div>
               <div class="forecast-card-range" id="fcYearRange">—</div>

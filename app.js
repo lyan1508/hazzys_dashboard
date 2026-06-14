@@ -125,7 +125,11 @@ function skuSeasonGroup(sku) {
 function parseDate(v) {
   if (v === null || v === undefined || v === '') return null;
   if (v instanceof Date && !Number.isNaN(v.getTime())) {
-    return new Date(v.getFullYear(), v.getMonth(), v.getDate());
+    // SheetJS (cellDates) can land a midnight date ~7h early — e.g. 01/10 becomes
+    // 30/09 23:59 in local time — which pushes 1st-of-month rows into the previous
+    // month. Nudge +12h before taking the calendar day so it rounds to the right day.
+    const d = new Date(v.getTime() + 12 * 3600 * 1000);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
   }
   // Excel serial number (raw:true path)
   if (typeof v === 'number') {
@@ -161,7 +165,7 @@ function parseDate(v) {
 
 function parseMonthText(v) {
   if (v === null || v === undefined || v === '') return null;
-  if (v instanceof Date && !Number.isNaN(v.getTime())) return new Date(v.getFullYear(), v.getMonth(), 1);
+  if (v instanceof Date && !Number.isNaN(v.getTime())) { const d = new Date(v.getTime() + 12 * 3600 * 1000); return new Date(d.getFullYear(), d.getMonth(), 1); }
   if (typeof v === 'number') {
     try {
       const o = XLSX.SSF.parse_date_code(v);
@@ -1089,6 +1093,7 @@ function renderAll() {
   renderCashierMatrix(m);
   renderTargetPace();
   renderDowHeatmap(m);
+  syncYoyFromFilters();
   renderYoy();
   renderForecast();
   renderInventory();
@@ -1235,11 +1240,25 @@ function renderTargetPace() {
   const sumActual = (filterFn) => S.raw.sales.filter(filterFn).reduce((s, r) => s + num(r.amount), 0);
   const sumTarget = (filterFn) => S.raw.targets.filter(filterFn).reduce((s, t) => s + num(t.target), 0);
 
-  const setCard = (prefix, name, actual, target, daysElapsed, daysTotal) => {
+  // Expected-to-date follows the per-month target distribution (seasonality-aware),
+  // not a flat day-proration of the lumped period target: full target for months
+  // already elapsed + the current month prorated by days elapsed within it.
+  const dayFracOfMonth = latest.getDate() / new Date(cy, cm, 0).getDate();
+  const expectedToDate = (startM, endM) => {
+    let e = 0;
+    for (let mi = startM; mi <= endM; mi++) {
+      const t = sumTarget((tg) => tg.year === String(cy) && tg.monthIndex === mi);
+      if (mi < cm) e += t;
+      else if (mi === cm) e += t * dayFracOfMonth;
+      // mi > cm: future month within the period, contributes 0
+    }
+    return e;
+  };
+
+  const setCard = (prefix, name, actual, target, expected, daysElapsed, daysTotal) => {
     document.getElementById(`pace${prefix}Name`).textContent = name;
     document.getElementById(`pace${prefix}Actual`).textContent = fmtVNDShort(actual);
     document.getElementById(`pace${prefix}Target`).textContent = target > 0 ? fmtVNDShort(target) : '—';
-    const expected = target > 0 ? target * (daysElapsed / daysTotal) : 0;
     document.getElementById(`pace${prefix}Expected`).textContent = target > 0 ? fmtVNDShort(expected) : '—';
     const daysLeft = Math.max(0, daysTotal - daysElapsed);
     const required = target > 0 && daysLeft > 0 ? Math.max(0, (target - actual) / daysLeft) : 0;
@@ -1248,7 +1267,7 @@ function renderTargetPace() {
       : '—';
 
     const pctActual = target > 0 ? (actual / target) * 100 : 0;
-    const pctExpected = (daysElapsed / daysTotal) * 100;
+    const pctExpected = target > 0 ? (expected / target) * 100 : (daysElapsed / daysTotal) * 100;
     const bar = document.getElementById(`pace${prefix}Bar`);
     const exp = document.getElementById(`pace${prefix}Exp`);
     bar.style.width = `${Math.min(100, pctActual)}%`;
@@ -1276,7 +1295,7 @@ function renderTargetPace() {
   const daysInMonth = new Date(cy, cm, 0).getDate();
   const mActual = sumActual((r) => r.year === String(cy) && r.monthIndex === cm);
   const mTarget = sumTarget((t) => t.year === String(cy) && t.monthIndex === cm);
-  setCard('Month', `${MONTH_NAMES[cm-1]} ${cy}`, mActual, mTarget, latest.getDate(), daysInMonth);
+  setCard('Month', `${MONTH_NAMES[cm-1]} ${cy}`, mActual, mTarget, expectedToDate(cm, cm), latest.getDate(), daysInMonth);
 
   // ── QUARTER ──
   const qStartM = (cq - 1) * 3 + 1;
@@ -1293,7 +1312,7 @@ function renderTargetPace() {
   })();
   const qActual = sumActual((r) => r.year === String(cy) && r.monthIndex >= qStartM && r.monthIndex <= qEndM);
   const qTarget = sumTarget((t) => t.year === String(cy) && t.monthIndex >= qStartM && t.monthIndex <= qEndM);
-  setCard('Quarter', `Q${cq} ${cy} (${MONTH_NAMES[qStartM-1]}–${MONTH_NAMES[qEndM-1]})`, qActual, qTarget, qDaysElapsed, qDaysTotal);
+  setCard('Quarter', `Q${cq} ${cy} (${MONTH_NAMES[qStartM-1]}–${MONTH_NAMES[qEndM-1]})`, qActual, qTarget, expectedToDate(qStartM, qEndM), qDaysElapsed, qDaysTotal);
 
   // ── YEAR ──
   const yIsLeap = (cy % 4 === 0 && cy % 100 !== 0) || (cy % 400 === 0);
@@ -1302,7 +1321,7 @@ function renderTargetPace() {
   const yDaysElapsed = Math.floor((latest - startOfYear) / 86400000) + 1;
   const yActual = sumActual((r) => r.year === String(cy));
   const yTarget = sumTarget((t) => t.year === String(cy));
-  setCard('Year', `Year ${cy}`, yActual, yTarget, yDaysElapsed, yDaysTotal);
+  setCard('Year', `Year ${cy}`, yActual, yTarget, expectedToDate(1, 12), yDaysElapsed, yDaysTotal);
 }
 
 // ===== DOW HEATMAP =====
@@ -1354,10 +1373,11 @@ function renderDowHeatmap(m) {
 // ===== REVENUE FORECAST =====
 // Builds monthly revenue history from ALL sales (ignoring filters so the
 // forecast reflects the business as a whole). Forecast method (per spec):
-//  - Month:   same month last year (cùng kỳ) × avg YoY growth of this year's completed months
-//  - Quarter: same quarter last year × avg YoY growth of past complete quarters
-//  - Year:    prior year total × avg YoY growth of past complete years
+//  - Next month:    next month's same-period-last-year (cùng kỳ) × avg YoY growth of this year's completed months
+//  - Next quarter:  next quarter's same-period-last-year × avg YoY growth of past complete quarters
+//  - Current year:  prior full year total × avg YoY growth of past complete years
 //  Each growth multiplier is capped at +10% (declines pass through uncapped).
+//  Next month/quarter are future periods (no actual yet) → shown vs cùng kỳ only.
 function buildMonthlyHistory() {
   const map = new Map();
   S.raw.sales.forEach(r => {
@@ -1440,6 +1460,21 @@ function overallAvgGrowth(history) {
     if (prev && prev.value > 0 && h.value > 0) ratios.push(h.value / prev.value);
   });
   return meanRatio(ratios) ?? 1.0;
+}
+
+// ---- Same-period averages (base = trung bình cùng kỳ) ----
+// Average of a calendar month's value across all years strictly before `beforeYear`.
+function avgSameMonth(history, month, beforeYear) {
+  const vals = history.filter(h => h.m === month && h.y < beforeYear).map(h => h.value);
+  return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+}
+// Average of full-year totals across complete (12-month) years before `beforeYear`;
+// falls back to any prior year that has data.
+function avgPriorYearTotal(history, beforeYear) {
+  const years = [...new Set(history.filter(h => h.y < beforeYear).map(h => h.y))];
+  let totals = years.filter(y => monthsInYear(history, y).length === 12).map(y => yearTotal(history, y));
+  if (!totals.length) totals = years.map(y => yearTotal(history, y)).filter(t => t > 0);
+  return totals.length ? totals.reduce((s, v) => s + v, 0) / totals.length : 0;
 }
 
 function drawFcSparkline(elId, history, fcValue) {
@@ -1530,39 +1565,41 @@ function renderForecast() {
   }
 
   const last = history[history.length - 1];
-  const cy = last.y, cm = last.m;            // current (in-progress) month
-  const cq = Math.ceil(cm / 3);              // current quarter
-  const qStartM = (cq - 1) * 3 + 1, qEndM = qStartM + 2;
+  const cy = last.y, cm = last.m;            // latest month present in data
+  const cq = Math.ceil(cm / 3);              // latest quarter present in data
   const fallback = overallAvgGrowth(history);
   const cap = g => Math.min(g, GROWTH_CAP);
 
-  // 1) Current MONTH = cùng kỳ × avg YoY growth of this year's completed months
+  // 1) NEXT MONTH = avg same-month over prior years × avg YoY growth of this year's completed months
+  let nm = cm + 1, nmY = cy;
+  if (nm > 12) { nm = 1; nmY = cy + 1; }
   const gMonth = cap(avgMonthlyGrowth(history, cy, cm) ?? fallback);
-  const priorMonths = history.filter(h => h.m === cm && h.y < cy);
-  const monthBase = priorMonths.length ? priorMonths[priorMonths.length - 1].value : last.value;
+  const monthBase = avgSameMonth(history, nm, nmY);
   const monthFc = monthBase * gMonth;
-  const monthActual = last.value;
 
-  // 2) Current QUARTER = quý cùng kỳ × avg historical quarterly YoY growth
+  // 2) NEXT QUARTER = avg same-quarter over prior years × avg historical quarterly YoY growth
+  //    Quarter base = sum of the 3 months' same-period averages (keeps the mini-chart consistent).
+  let nq = cq + 1, nqY = cy;
+  if (nq > 4) { nq = 1; nqY = cy + 1; }
+  const nqStartM = (nq - 1) * 3 + 1, nqEndM = nqStartM + 2;
   const gQuarter = cap(avgQuarterlyGrowth(history, cy, cq) ?? fallback);
-  let qBase = 0;
-  for (let y = cy - 1; y >= history[0].y; y--) {
-    if (quarterMonthCount(history, y, cq) > 0) { qBase = quarterTotal(history, y, cq); break; }
-  }
+  const qBase = avgSameMonth(history, nqStartM, nqY) + avgSameMonth(history, nqStartM + 1, nqY) + avgSameMonth(history, nqStartM + 2, nqY);
   const quarterFc = qBase * gQuarter;
-  const qActual = quarterTotal(history, cy, cq);
 
-  // 3) Current YEAR = năm cùng kỳ × avg historical yearly YoY growth (same approach)
+  // 3) CURRENT YEAR = same method as next quarter, scaled to 12 months:
+  //    base = sum of each month's same-period average; × avg yearly YoY growth.
+  //    (pure forecast — ignores actual-to-date, consistent with month/quarter cards)
   const gYear = cap(avgYearlyGrowth(history, cy) ?? fallback);
+  const fcMap = {};
   let yBase = 0;
-  for (let y = cy - 1; y >= history[0].y; y--) {
-    const t = yearTotal(history, y); if (t > 0) { yBase = t; break; }
+  for (let m = 1; m <= 12; m++) {
+    const mBase = avgSameMonth(history, m, cy);
+    fcMap[m] = mBase * gYear;
+    yBase += mBase;
   }
   const yearFc = yBase * gYear;
-  const yActual = yearTotal(history, cy);
-  const monthsThisYear = monthsInYear(history, cy).length;
 
-  methodEl.textContent = `Method: cùng kỳ × growth (cap +${((GROWTH_CAP - 1) * 100).toFixed(0)}%) · History ${history.length} mo (${history[0].key} → ${last.key})`;
+  methodEl.textContent = `Method: avg same period × YoY growth · History ${history.length} mo (${history[0].key} → ${last.key})`;
 
   const vsText = (fcVal, baseVal, baseLabel) => {
     if (!baseVal || baseVal <= 0) return `<span style="color:var(--text-3)">No ${baseLabel} baseline</span>`;
@@ -1572,40 +1609,32 @@ function renderForecast() {
     return `<span class="${cls}">${sign} ${fmtPct(Math.abs(pct))}</span> vs ${baseLabel}`;
   };
 
-  // MONTH card
-  document.getElementById('fcMonthName').textContent = `${MONTH_NAMES[cm-1]} ${cy}`;
+  // MONTH card — next month (future period, no actual yet)
+  document.getElementById('fcMonthName').textContent = `${MONTH_NAMES[nm-1]} ${nmY}`;
   document.getElementById('fcMonthValue').textContent = fmtVNDShort(monthFc);
-  document.getElementById('fcMonthRange').textContent = `Cùng kỳ ${fmtVNDShort(monthBase)} · actual ${fmtVNDShort(monthActual)}`;
-  document.getElementById('fcMonthVs').innerHTML = vsText(monthFc, monthBase, `${MONTH_NAMES[cm-1]} ${cy-1}`);
+  document.getElementById('fcMonthRange').textContent = `Avg same period ${MONTH_NAMES[nm-1]}: ${fmtVNDShort(monthBase)}`;
+  document.getElementById('fcMonthVs').innerHTML = vsText(monthFc, monthBase, `avg ${MONTH_NAMES[nm-1]}`);
 
-  // QUARTER card
-  document.getElementById('fcQuarterName').textContent = `Q${cq} ${cy} (${MONTH_NAMES[qStartM-1]}–${MONTH_NAMES[qEndM-1]})`;
+  // QUARTER card — next quarter (future period, no actual yet)
+  document.getElementById('fcQuarterName').textContent = `Q${nq} ${nqY} (${MONTH_NAMES[nqStartM-1]}–${MONTH_NAMES[nqEndM-1]})`;
   document.getElementById('fcQuarterValue').textContent = fmtVNDShort(quarterFc);
-  document.getElementById('fcQuarterRange').textContent = `Cùng kỳ ${fmtVNDShort(qBase)} · actual ${fmtVNDShort(qActual)}`;
-  document.getElementById('fcQuarterVs').innerHTML = vsText(quarterFc, qBase, `Q${cq} ${cy-1}`);
+  document.getElementById('fcQuarterRange').textContent = `Avg same period Q${nq}: ${fmtVNDShort(qBase)}`;
+  document.getElementById('fcQuarterVs').innerHTML = vsText(quarterFc, qBase, `avg Q${nq}`);
 
-  // YEAR card
+  // YEAR card — current year (has actual-to-date + timeline progress)
   document.getElementById('fcYearName').textContent = `Year ${cy}`;
   document.getElementById('fcYearValue').textContent = fmtVNDShort(yearFc);
-  document.getElementById('fcYearRange').textContent = `Actual ${monthsThisYear}/12 mo ${fmtVNDShort(yActual)} · base ${fmtVNDShort(yBase)}`;
-  document.getElementById('fcYearVs').innerHTML = vsText(yearFc, yBase, `${cy-1}`);
+  document.getElementById('fcYearRange').textContent = `Avg same period (year): ${fmtVNDShort(yBase)}`;
+  document.getElementById('fcYearVs').innerHTML = vsText(yearFc, yBase, `avg year`);
 
   // Mini charts
   drawFcSparkline('fcMonthChart', history, monthFc);
   const qMonths = [];
   for (let i = 0; i < 3; i++) {
-    const mm = qStartM + i;
-    const ly = history.find(h => h.y === cy - 1 && h.m === mm);
-    qMonths.push({ v: (ly ? ly.value : 0) * gQuarter, label: MONTH_NAMES[mm-1].slice(0,3) });
+    const mm = nqStartM + i;
+    qMonths.push({ v: avgSameMonth(history, mm, nqY) * gQuarter, label: MONTH_NAMES[mm-1].slice(0,3) });
   }
   drawFcQuarterBars('fcQuarterChart', qMonths);
-  const fcMap = {};
-  for (let m = 1; m <= 12; m++) {
-    if (!history.find(h => h.y === cy && h.m === m)) {
-      const ly = history.find(h => h.y === cy - 1 && h.m === m);
-      fcMap[m] = (ly ? ly.value : 0) * gYear;
-    }
-  }
   drawFcYearBars('fcYearChart', history, cy, fcMap);
 }
 
@@ -1829,6 +1858,30 @@ window.onYoyRangeChange = function() {
   document.getElementById('yoyCustomRow').style.display  = YOY.rangeType === 'custom'  ? '' : 'none';
   renderYoy();
 };
+
+// Drive the YoY panel's comparison period from the top filter bar: a selected
+// Month wins, else a selected Quarter, else fall back to full-year (YTD). The
+// panel's own period selectors are kept in sync and can still fine-tune after.
+function syncYoyFromFilters() {
+  const f = S.filters;
+  if (f.month !== 'all') {
+    YOY.rangeType = 'month';
+    YOY.month = Number(f.month) || YOY.month;
+  } else if (f.quarter !== 'all') {
+    YOY.rangeType = 'quarter';
+    YOY.quarter = Number(String(f.quarter).replace(/\D/g, '')) || YOY.quarter;
+  } else {
+    YOY.rangeType = 'ytd';
+  }
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  setVal('yoyRangeType', YOY.rangeType);
+  setVal('yoyMonth', String(YOY.month));
+  setVal('yoyQuarter', String(YOY.quarter));
+  const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
+  show('yoyMonthRow', YOY.rangeType === 'month');
+  show('yoyQuarterRow', YOY.rangeType === 'quarter');
+  show('yoyCustomRow', YOY.rangeType === 'custom');
+}
 
 function initYoyFilters() {
   const months = [...new Set(S.raw.sales.map(r => r.monthIndex).filter(v => v >= 1 && v <= 12))].sort((a,b)=>a-b);
