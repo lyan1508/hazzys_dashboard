@@ -164,7 +164,13 @@ function parseDate(v) {
   }
   // ISO format YYYY-MM-DD
   const Ymd = datePart.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-  if (Ymd) return new Date(Number(Ymd[1]), Number(Ymd[2]) - 1, Number(Ymd[3]));
+  if (Ymd) {
+    const y = Number(Ymd[1]);
+    const m = Number(Ymd[2]);
+    const d = Number(Ymd[3]);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) return new Date(y, m - 1, d);
+    return null;
+  }
   return null;
 }
 
@@ -309,7 +315,15 @@ function ingestWorkbook(wb) {
     const info = catalog[normalizeGroup(rawProduct)] || catalogByStyle[p9] || {};
     const txDate = parseDate(readField(r, ['date', 'trans_date', 'transdate', '날짜', '日付']));
     const monthDate = parseMonthFromRow(r, ['mm/yyyy', 'm/yyyy', 'mm-yyyy', 'm-yyyy', 'monthyear', 'month_year', 'month']);
-    const date = txDate || monthDate;
+    // The synced DATE column is unreliable: the source DATA.xlsx has scrambled dates
+    // for ~40% of rows (the DATE month often disagrees with MM/YYYY, scattering rows
+    // into future months and pushing the forecast a year or two ahead). MM/YYYY is
+    // authoritative, so when DATE's month contradicts it, fall back to MM/YYYY.
+    let date = txDate || monthDate;
+    if (txDate && monthDate &&
+        (txDate.getFullYear() !== monthDate.getFullYear() || txDate.getMonth() !== monthDate.getMonth())) {
+      date = monthDate;
+    }
     if (!date) return null;
     const baseMonth = monthDate || date;
     const billFlag = num(readField(r, BILL_FIELD_ALIASES));
@@ -1780,9 +1794,6 @@ function preprocessGSheetCsv(text) {
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
   // Fix EU-style decimal commas in quoted numbers: "5860000,86" -> 5860000.86
   text = text.replace(/"(\d+),(\d+)"/g, '$1.$2');
-  // Convert US M/D/YYYY -> ISO YYYY-MM-DD so parseDate doesn't read as D/M/Y
-  text = text.replace(/(^|[,\n"\s])(\d{1,2})\/(\d{1,2})\/(\d{4})(?=[,\n"\s]|$)/g,
-    (_, pre, mo, d, y) => `${pre}${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
   return text;
 }
 
