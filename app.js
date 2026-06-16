@@ -1749,7 +1749,10 @@ async function fetchSheetWithRetry(name, url, attempts = 3) {
         throw new Error(`Sheet "${name}" is not publicly accessible. In Google Sheets → Share → set "Anyone with the link – Viewer".`);
       }
       const text = preprocessGSheetCsv(rawText);
-      const parsed = XLSX.read(text, { type: 'string', cellDates: true });
+      // raw:true keeps date cells as their original text (e.g. "03/10/2024") so our
+      // DD/MM/YYYY-aware parseDate handles them. With cellDates:true, SheetJS auto-
+      // parses CSV dates as US MM/DD/YYYY, swapping day↔month whenever day ≤ 12.
+      const parsed = XLSX.read(text, { type: 'string', raw: true });
       return parsed.Sheets[parsed.SheetNames[0]];
     } catch (err) {
       lastErr = err;
@@ -1777,7 +1780,10 @@ async function fetchSheetCandidatesWithRetry(name, urls, attempts = 3) {
         }
         const text = preprocessGSheetCsv(rawText);
         if (!text.trim()) throw new Error(`Sheet "${name}" is empty.`);
-        const parsed = XLSX.read(text, { type: 'string', cellDates: true });
+        // raw:true keeps date cells as their original text (e.g. "03/10/2024") so our
+      // DD/MM/YYYY-aware parseDate handles them. With cellDates:true, SheetJS auto-
+      // parses CSV dates as US MM/DD/YYYY, swapping day↔month whenever day ≤ 12.
+      const parsed = XLSX.read(text, { type: 'string', raw: true });
         return parsed.Sheets[parsed.SheetNames[0]];
       } catch (err) {
         lastErr = err;
@@ -1807,7 +1813,8 @@ async function loadFile(file) {
     if (lower.endsWith('.csv')) {
       let text = await file.text();
       if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
-      wb = XLSX.read(text, { type: 'string', cellDates: true });
+      // raw:true: keep CSV date text intact for parseDate (see fetchSheet* note).
+      wb = XLSX.read(text, { type: 'string', raw: true });
     } else {
       const buf = await file.arrayBuffer();
       wb = XLSX.read(buf, { type: 'array', cellDates: true });
