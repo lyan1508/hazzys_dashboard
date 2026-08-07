@@ -1,5 +1,5 @@
 const S = {
-  raw: { sales: [], targets: [], inventory: [], inventoryMeta: null },
+  raw: { sales: [], targets: [] },
   filters: { year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all', store: 'all' },
   charts: {},
   revMode: 'monthly',
@@ -12,8 +12,10 @@ const PALETTE = {
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** Bill flag column 0/1 */
-const BILL_FIELD_ALIASES = ['bill', 'billflag', 'bill_flag', 'billno', 'bill_no', 'billnumber', 'billind', 'isbill', 'billindicator'];
+/** Bill flag column 0/1 — one line per receipt is marked */
+const BILL_FLAG_ALIASES = ['bill', 'billflag', 'bill_flag', 'billind', 'isbill', 'billindicator'];
+/** Receipt id column, e.g. "TAKA-0900001IPIP" — preferred over the 0/1 flag */
+const BILLNO_ALIASES = ['billno', 'bill_no', 'billnumber', 'billid', 'invoiceno', 'invoice', 'receiptno', 'receipt'];
 
 // Primary data source: a stable Google Sheet. Keep the file and tab names fixed;
 // the dashboard reads by tab name so changing gid values will not break sync.
@@ -26,7 +28,6 @@ const LEGACY_GSHEET_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT0E
 const GSHEET_URLS = {
   'sale data':  [stableSheetUrl('sale data'), LEGACY_GSHEET_BASE + '1504946670'],
   'target':     [stableSheetUrl('target'), LEGACY_GSHEET_BASE + '227957717'],
-  'inventory':  [stableSheetUrl('inventory'), LEGACY_GSHEET_BASE + '1610910353'],
 };
 
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
@@ -108,23 +109,6 @@ function deriveCategory(rawCategory, infoCategory, typeValue, productKey) {
   const t = normalizeGroup(typeValue);
   if (t !== 'UNKNOWN') return t;
   return 'UNKNOWN';
-}
-
-// Hazzys SKU decode helpers (pos 1-2 = brand, pos 6 = season letter)
-const HAZZYS_GENDER_BY_BRAND = { HU: 'Men', HW: 'Women', HZ: 'Men', HS: 'Women', HJ: 'Men', HI: 'Women', HB: 'Baby' };
-const HAZZYS_LINE_BY_BRAND   = { HU: 'Golf', HW: 'Golf', HZ: 'Casual', HS: 'Casual', HJ: 'Accessory', HI: 'Accessory', HB: 'Baby' };
-const HAZZYS_SEASON_GROUP    = { A: 'SS', B: 'SS', E: 'SS', C: 'FW', D: 'FW', F: 'FW' };
-function skuGender(sku) {
-  const raw = String(sku || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  return HAZZYS_GENDER_BY_BRAND[raw.slice(0, 2)] || null;
-}
-function skuLine(sku) {
-  const raw = String(sku || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  return HAZZYS_LINE_BY_BRAND[raw.slice(0, 2)] || null;
-}
-function skuSeasonGroup(sku) {
-  const raw = String(sku || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  return raw.length >= 6 ? (HAZZYS_SEASON_GROUP[raw[5]] || null) : null;
 }
 
 function parseDate(v) {
@@ -247,6 +231,24 @@ function canonKey(s) {
   return String(s ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+// ---- Bill counting ----
+// The 0/1 BILL flag marks one line per receipt, but 86 of 2005 receipts in the
+// source data have no line flagged, so summing the flag under-counts bills by
+// ~4% and skews ATV / UPT / CVR. Count distinct receipt ids instead, and fall
+// back to the flag only for datasets that carry no bill-number column.
+function newBillAcc() { return { ids: new Set(), flagSum: 0 }; }
+function addBill(acc, r) {
+  if (r.billNo) acc.ids.add(r.billNo);
+  const f = num(r.billFlag);
+  if (f > 0) acc.flagSum += f;
+}
+function billTotal(acc) { return acc.ids.size || acc.flagSum; }
+function countBills(rows) {
+  const acc = newBillAcc();
+  rows.forEach((r) => addBill(acc, r));
+  return billTotal(acc);
+}
+
 function readField(row, aliases) {
   const keys = Object.keys(row || {});
   const keyMap = new Map(keys.map((k) => [canonKey(k), k]));
@@ -264,7 +266,8 @@ function validateRequiredSalesColumns(salesRows) {
     Date: ['date', 'trans_date', 'transdate'],
     Amount: ['amount', 'sales', 'revenue', 'netamount', 'net_amount', 'total'],
     Qty: ['qty', 'quantity', 'pcs', 'count'],
-    Bill: BILL_FIELD_ALIASES
+    // Either a receipt id or the 0/1 flag is enough to count bills.
+    'Bill No. / Bill': BILLNO_ALIASES.concat(BILL_FLAG_ALIASES)
   };
   const missing = Object.entries(requiredMap).filter(([, aliases]) => !aliases.some((a) => headerSet.has(canonKey(a)))).map(([k]) => k);
   if (missing.length) throw new Error(`Missing required columns: ${missing.join(', ')}.`);
@@ -283,7 +286,7 @@ function ingestWorkbook(wb) {
 
   const salesRowsRaw = pickSheet(['sale data', 'sales data', 'transaction', 'sale', 'data']) || Object.values(sheets)[0] || [];
   const targetRowsRaw = pickSheet(['target', 'kpi']) || [];
-  const masterRowsRaw = pickSheet(['master', 'catalog', 'product', 'inventory']) || [];
+  const masterRowsRaw = pickSheet(['master', 'catalog', 'product']) || [];
 
   const salesRaw = rowsToObjects(salesRowsRaw, 'SALES_COL');
   const targetRaw = rowsToObjects(targetRowsRaw, 'TARGET_COL');
@@ -326,7 +329,8 @@ function ingestWorkbook(wb) {
     }
     if (!date) return null;
     const baseMonth = monthDate || date;
-    const billFlag = num(readField(r, BILL_FIELD_ALIASES));
+    const billFlag = num(readField(r, BILL_FLAG_ALIASES));
+    const billNo = normalizeGroup(readField(r, BILLNO_ALIASES));
     const rawCat = readField(r, ['category', 'catogory', 'cat', 'division', 'dept', 'department']);
     const store = normalizeGroup(readField(r, ['store', 'storename', 'store_name', 'shop', 'branch']) || info.store || '');
     return {
@@ -338,6 +342,7 @@ function ingestWorkbook(wb) {
       monthKey: monthKey(baseMonth),
       monthLabelYY: monthLabelYY(baseMonth),
       billFlag,
+      billNo: billNo === 'UNKNOWN' ? '' : billNo,
       store,
       sku: sku,
       upc: normalizeGroup(upc),
@@ -419,13 +424,13 @@ function aggregate() {
         target: 0,
         traffic: 0,
         qty: 0,
-        bills: 0
+        billAcc: newBillAcc()
       });
     }
     const m = monthMap.get(r.monthKey);
     m.actual += num(r.amount);
     m.qty += num(r.qty);
-    m.bills += num(r.billFlag);
+    addBill(m.billAcc, r);
   });
 
   targets.forEach((t) => {
@@ -439,7 +444,7 @@ function aggregate() {
         target: 0,
         traffic: 0,
         qty: 0,
-        bills: 0
+        billAcc: newBillAcc()
       });
     }
     const m = monthMap.get(t.monthKey);
@@ -448,7 +453,7 @@ function aggregate() {
   });
 
   const months = [...monthMap.values()].sort((a, b) => a.monthKey.localeCompare(b.monthKey)).map((m) => {
-    const billCount = num(m.bills);
+    const billCount = billTotal(m.billAcc);
     const actual = num(m.actual);
     const traffic = num(m.traffic);
     const qty = num(m.qty);
@@ -466,7 +471,7 @@ function aggregate() {
   });
   const totalSales = rows.reduce((s, r) => s + num(r.amount), 0);
   const qty = rows.reduce((s, r) => s + num(r.qty), 0);
-  const bills = rows.reduce((s, r) => s + (num(r.billFlag) > 0 ? num(r.billFlag) : 0), 0);
+  const bills = countBills(rows);
   const traffic = months.reduce((s, m) => s + num(m.traffic), 0);
   const target = months.reduce((s, m) => s + num(m.target), 0);
   const cvr = traffic > 0 ? (bills / traffic) * 100 : 0;
@@ -491,53 +496,35 @@ function aggregate() {
     const map = new Map();
     rows.forEach((r) => {
       const key = normalizeGroup(r.promotion);
-      const p = map.get(key) || { label: key, amount: 0, qty: 0, bills: 0 };
+      const p = map.get(key) || { label: key, amount: 0, qty: 0, billAcc: newBillAcc() };
       p.amount += num(r.amount);
       p.qty += num(r.qty);
-      p.bills += num(r.billFlag) > 0 ? num(r.billFlag) : 0;
+      addBill(p.billAcc, r);
       map.set(key, p);
     });
-    return [...map.values()].sort((a, b) => b.amount - a.amount);
+    return [...map.values()]
+      .map((p) => ({ label: p.label, amount: p.amount, qty: p.qty, bills: billTotal(p.billAcc) }))
+      .sort((a, b) => b.amount - a.amount);
   })();
   const cashierStats = (() => {
     const map = new Map();
     rows.forEach((r) => {
       const key = normalizeGroup(r.cashier);
       if (!key || key === 'UNKNOWN') return;
-      const p = map.get(key) || { label: key, amount: 0, qty: 0, bills: 0 };
+      const p = map.get(key) || { label: key, amount: 0, qty: 0, billAcc: newBillAcc() };
       p.amount += num(r.amount);
       p.qty += num(r.qty);
-      p.bills += num(r.billFlag) > 0 ? num(r.billFlag) : 0;
+      addBill(p.billAcc, r);
       map.set(key, p);
     });
-    return [...map.values()].sort((a, b) => b.amount - a.amount);
+    return [...map.values()]
+      .map((p) => ({ label: p.label, amount: p.amount, qty: p.qty, bills: billTotal(p.billAcc) }))
+      .sort((a, b) => b.amount - a.amount);
   })();
 
   const sortedDates = rows.map((r) => r.date).sort((a, b) => a - b);
   const rangeFrom = sortedDates[0]?.toLocaleDateString('vi-VN') || '—';
   const rangeTo = sortedDates[sortedDates.length - 1]?.toLocaleDateString('vi-VN') || '—';
-
-  // ── ABC / Pareto over 9-char product model codes (source: valid 14-char SKUs) ──
-  const abcAll = (() => {
-    const map = new Map();
-    rows.forEach((r) => {
-      const raw = String(r.sku || r.upc || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (raw.length !== 14) return;
-      const key = raw.slice(0, 9);
-      const p = map.get(key) || { sku: key, value: 0, qty: 0 };
-      p.value += num(r.amount);
-      p.qty += num(r.qty);
-      map.set(key, p);
-    });
-    const arr = [...map.values()].filter((p) => p.value > 0).sort((a, b) => b.value - a.value);
-    const total = arr.reduce((s, p) => s + p.value, 0);
-    let cum = 0;
-    arr.forEach((p) => { cum += p.value; p.cumPct = total > 0 ? (cum / total) * 100 : 0; p.tier = p.cumPct <= 80 ? 'A' : p.cumPct <= 95 ? 'B' : 'C'; });
-    const counts = { A: 0, B: 0, C: 0 };
-    const revenue = { A: 0, B: 0, C: 0 };
-    arr.forEach((p) => { counts[p.tier]++; revenue[p.tier] += p.value; });
-    return { arr, total, counts, revenue };
-  })();
 
   // ── Cashier matrix: enrich cashierStats with daysWorked & per-day metrics ──
   const cashierMatrix = (() => {
@@ -545,31 +532,56 @@ function aggregate() {
     rows.forEach((r) => {
       const key = normalizeGroup(r.cashier);
       if (!key || key === 'UNKNOWN') return;
-      const p = map.get(key) || { label: key, amount: 0, qty: 0, bills: 0, dates: new Set() };
+      const p = map.get(key) || { label: key, amount: 0, qty: 0, billAcc: newBillAcc(), dates: new Set() };
       p.amount += num(r.amount);
       p.qty += num(r.qty);
-      p.bills += num(r.billFlag) > 0 ? num(r.billFlag) : 0;
+      addBill(p.billAcc, r);
       p.dates.add(r.dateStr);
       map.set(key, p);
     });
-    return [...map.values()].map((p) => ({
-      label: p.label,
-      amount: p.amount,
-      qty: p.qty,
-      bills: p.bills,
-      days: p.dates.size,
-      billsPerDay: p.dates.size > 0 ? p.bills / p.dates.size : 0,
-      revPerDay: p.dates.size > 0 ? p.amount / p.dates.size : 0,
-      atv: p.bills > 0 ? p.amount / p.bills : 0,
-      upt: p.bills > 0 ? p.qty / p.bills : 0,
-    })).sort((a, b) => b.revPerDay - a.revPerDay);
+    return [...map.values()].map((p) => {
+      const bills = billTotal(p.billAcc);
+      return {
+        label: p.label,
+        amount: p.amount,
+        qty: p.qty,
+        bills,
+        days: p.dates.size,
+        billsPerDay: p.dates.size > 0 ? bills / p.dates.size : 0,
+        revPerDay: p.dates.size > 0 ? p.amount / p.dates.size : 0,
+        atv: bills > 0 ? p.amount / bills : 0,
+        upt: bills > 0 ? p.qty / bills : 0,
+      };
+    }).sort((a, b) => b.revPerDay - a.revPerDay);
+  })();
+
+  // ── Cashier grand totals ──
+  // 28% of receipts list more than one cashier (staff share a sale), so each of
+  // them legitimately counts that bill. Summing the per-cashier columns would
+  // therefore double-count — the footer needs its own de-duplicated totals.
+  const cashierTotals = (() => {
+    const known = rows.filter((r) => {
+      const k = normalizeGroup(r.cashier);
+      return k && k !== 'UNKNOWN';
+    });
+    const bills = countBills(known);
+    const amount = known.reduce((s, r) => s + num(r.amount), 0);
+    const qty = known.reduce((s, r) => s + num(r.qty), 0);
+    const days = new Set(known.map((r) => r.dateStr)).size;
+    return {
+      bills, amount, qty, days,
+      billsPerDay: days > 0 ? bills / days : 0,
+      revPerDay: days > 0 ? amount / days : 0,
+      atv: bills > 0 ? amount / bills : 0,
+      upt: bills > 0 ? qty / bills : 0,
+    };
   })();
 
   // ── DOW stats: Mon..Sun (display order) ──
   const dowStats = (() => {
     const DAY_NAMES_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const buckets = [0,1,2,3,4,5,6].map((d) => ({
-      dow: d, label: DAY_NAMES_EN[d], revenue: 0, qty: 0, bills: 0, dates: new Set()
+      dow: d, label: DAY_NAMES_EN[d], revenue: 0, qty: 0, billAcc: newBillAcc(), dates: new Set()
     }));
     rows.forEach((r) => {
       if (!r.date) return;
@@ -577,23 +589,28 @@ function aggregate() {
       const b = buckets[d];
       b.revenue += num(r.amount);
       b.qty += num(r.qty);
-      b.bills += num(r.billFlag) > 0 ? num(r.billFlag) : 0;
+      addBill(b.billAcc, r);
       b.dates.add(r.dateStr);
     });
     buckets.forEach((b) => {
+      b.bills = billTotal(b.billAcc);
       b.dayCount = b.dates.size;
       b.revPerDay = b.dayCount > 0 ? b.revenue / b.dayCount : 0;
       b.billsPerDay = b.dayCount > 0 ? b.bills / b.dayCount : 0;
       b.atv = b.bills > 0 ? b.revenue / b.bills : 0;
       delete b.dates;
+      delete b.billAcc;
     });
     // Display order: Mon..Sat..Sun
     return [1,2,3,4,5,6,0].map((i) => buckets[i]);
   })();
 
   return {
-    rows, months, totalSales, qty, bills, traffic, target, cvr, atv, upt, topProducts, byType: safeGroupSum(rows, 'type'),
-    byGender: safeGroupSum(rows, 'gender'), promotionStats, cashierStats, cashierMatrix, abcAll, dowStats, rangeFrom, rangeTo
+    rows, months, totalSales, qty, bills, traffic, target, cvr, atv, upt, topProducts,
+    byType: safeGroupSum(rows, 'type'),
+    byGender: safeGroupSum(rows, 'gender'),
+    byCategory: safeGroupSum(rows, 'category'),
+    promotionStats, cashierStats, cashierMatrix, cashierTotals, dowStats, rangeFrom, rangeTo
   };
 }
 
@@ -939,6 +956,7 @@ function renderCharts(m) {
     options: baseOptions((v) => fmtShort(v), (ctx) => `${ctx.dataset.label}: ${fmtN(ctx.raw)}`)
   });
 
+  renderDoughnut('category', 'chartCategory', 'dCategoryVal', 'legendCategory', m.byCategory, PALETTE.multi);
   renderDoughnut('type', 'chartType', 'dTypeVal', 'legendType', m.byType, PALETTE.multi);
   renderDoughnut('gender', 'chartGender', 'dGenderVal', 'legendGender', m.byGender, PALETTE.gender);
   renderPromotionInfo(m);
@@ -956,29 +974,17 @@ function renderKPIs(m) {
 
   // Target + Achievement %
   const target = num(m.target);
-  const tgtEl = document.getElementById('kTarget');
   const achEl = document.getElementById('kAchieve');
-  const achSub = document.getElementById('kAchieveSub');
-  const achBar = document.getElementById('kAchieveBar');
 
-  tgtEl.textContent = target > 0 ? fmtVNDShort(target) : '—';
+  document.getElementById('kTarget').textContent = target > 0 ? fmtVNDShort(target) : '—';
   achEl.classList.remove('good', 'warn', 'bad');
 
   if (target > 0) {
     const pct = (num(m.totalSales) / target) * 100;
     achEl.textContent = fmtPct(pct);
-    const gap = num(m.totalSales) - target;
-    achSub.textContent = (gap >= 0 ? 'Over ' : 'Under ') + fmtVNDShort(Math.abs(gap));
-    let cls, grad;
-    if (pct >= 100)      { cls = 'good'; grad = 'linear-gradient(90deg,#16a34a,#4ade80)'; }
-    else if (pct >= 80)  { cls = 'warn'; grad = 'linear-gradient(90deg,#d97706,#fbbf24)'; }
-    else                 { cls = 'bad';  grad = 'linear-gradient(90deg,#dc2626,#f87171)'; }
-    achEl.classList.add(cls);
-    achBar.style.background = grad;
+    achEl.classList.add(pct >= 100 ? 'good' : pct >= 80 ? 'warn' : 'bad');
   } else {
     achEl.textContent = '—';
-    achSub.textContent = 'No target set';
-    achBar.style.background = 'linear-gradient(90deg,#94a3b8,#cbd5e1)';
   }
 
   renderTargetProgressBar(m);
@@ -1105,93 +1111,11 @@ function renderAll() {
   renderKPIs(m);
   renderCharts(m);
   renderTopProducts(m);
-  renderAbcPareto(m);
   renderCashierMatrix(m);
-  renderTargetPace();
   renderDowHeatmap(m);
   syncYoyFromFilters();
   renderYoy();
-  renderForecast();
-  renderInventory();
   requestAnimationFrame(() => syncCharts());
-}
-
-// ===== ABC / PARETO =====
-function renderAbcPareto(m) {
-  const sumEl = document.getElementById('abcSummary');
-  const abc = m.abcAll;
-  if (!abc || !abc.arr.length) {
-    sumEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-3);font-size:12px;padding:8px">No Data</div>';
-    destroyChart('abc');
-    return;
-  }
-  const totalSKU = abc.arr.length;
-  const tierCard = (tier, lbl) => {
-    const cnt = abc.counts[tier];
-    const rev = abc.revenue[tier];
-    const pctSku = totalSKU > 0 ? (cnt / totalSKU) * 100 : 0;
-    const pctRev = abc.total > 0 ? (rev / abc.total) * 100 : 0;
-    return `<div class="abc-chip tier-${tier.toLowerCase()}">
-      <div class="abc-chip-lbl">${lbl}</div>
-      <div class="abc-chip-val">${fmtN(cnt)} SKU</div>
-      <div class="abc-chip-sub">${fmtPct(pctSku)} of SKUs · ${fmtPct(pctRev)} of revenue</div>
-    </div>`;
-  };
-  sumEl.innerHTML = tierCard('A', 'Tier A · top 80%') + tierCard('B', 'Tier B · next 15%') + tierCard('C', 'Tier C · tail');
-
-  // Chart: top 25 SKU bar + cumulative % line
-  const top = abc.arr.slice(0, 25);
-  const labels = top.map((p) => p.sku.length > 12 ? p.sku.slice(0, 12) + '…' : p.sku);
-  const revData = top.map((p) => p.value);
-  const cumData = top.map((p) => p.cumPct);
-  const colors = top.map((p) => p.tier === 'A' ? css('--green') : p.tier === 'B' ? '#d97706' : css('--red'));
-
-  destroyChart('abc');
-  S.charts.abc = new Chart(document.getElementById('chartAbc'), {
-    data: {
-      labels,
-      datasets: [
-        {
-          type: 'bar', label: 'Revenue', data: revData, backgroundColor: colors,
-          borderRadius: 4, maxBarThickness: 22, yAxisID: 'y', order: 2
-        },
-        {
-          type: 'line', label: 'Cumulative %', data: cumData,
-          borderColor: css('--brand-mid'), backgroundColor: 'transparent',
-          borderWidth: 2, pointRadius: 2, tension: 0.2, yAxisID: 'y1', order: 1
-        }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: true, position: 'top', align: 'end',
-          labels: { color: css('--text-2'), boxWidth: 10, padding: 8, font: { size: 11 } } },
-        tooltip: {
-          backgroundColor: css('--surface'), titleColor: css('--text'), bodyColor: css('--text-2'),
-          borderColor: css('--border'), borderWidth: 1, padding: 10,
-          callbacks: {
-            title: (ctx) => top[ctx[0].dataIndex].sku,
-            label: (ctx) => {
-              const i = ctx.dataIndex; const p = top[i];
-              if (ctx.dataset.label === 'Revenue') return `Revenue: ${fmtVND(p.value)} · ${p.qty} pcs · ${p.tier}`;
-              return `Cumulative: ${fmtPct(p.cumPct)}`;
-            }
-          }
-        }
-      },
-      scales: {
-        x: { grid: { display: false }, ticks: { color: css('--text-3'), font: { size: 10 }, maxRotation: 60, minRotation: 45 } },
-        y: { type: 'linear', position: 'left', beginAtZero: true,
-          title: { display: true, text: 'Revenue', color: css('--text-3'), font: { size: 10 } },
-          grid: { color: css('--border') }, ticks: { color: css('--text-3'), font: { size: 10 }, callback: (v) => fmtShort(v) } },
-        y1: { type: 'linear', position: 'right', beginAtZero: true, max: 100,
-          title: { display: true, text: 'Cum %', color: css('--text-3'), font: { size: 10 } },
-          grid: { drawOnChartArea: false }, ticks: { color: css('--brand-mid'), font: { size: 10 }, callback: (v) => v + '%' } }
-      }
-    }
-  });
 }
 
 // ===== CASHIER PRODUCTIVITY MATRIX =====
@@ -1217,127 +1141,19 @@ function renderCashierMatrix(m) {
       <td>${num(c.upt).toFixed(2)}</td>
     </tr>
   `).join('');
-  const totBills = data.reduce((s, c) => s + c.bills, 0);
-  const totAmount = data.reduce((s, c) => s + c.amount, 0);
-  const totQty = data.reduce((s, c) => s + c.qty, 0);
-  const totDays = data.reduce((s, c) => s + c.days, 0);
-  const avgBillsPerDay = totDays > 0 ? totBills / totDays : 0;
-  const avgRevPerDay = totDays > 0 ? totAmount / totDays : 0;
-  const avgAtv = totBills > 0 ? totAmount / totBills : 0;
-  const avgUpt = totBills > 0 ? totQty / totBills : 0;
+  // De-duplicated totals, not a column sum: one receipt can list several
+  // cashiers, and each of them counts it in their own row.
+  const t = m.cashierTotals || {};
   foot.innerHTML = `<tr>
     <td>TOTAL / AVG</td>
-    <td>${fmtN(totDays)}</td>
-    <td>${fmtN(totBills)}</td>
-    <td>${avgBillsPerDay.toFixed(1)}</td>
-    <td>${fmtShort(totAmount)}</td>
-    <td>${fmtShort(avgRevPerDay)}</td>
-    <td>${fmtShort(avgAtv)}</td>
-    <td>${avgUpt.toFixed(2)}</td>
+    <td>${fmtN(t.days)}</td>
+    <td>${fmtN(t.bills)}</td>
+    <td>${num(t.billsPerDay).toFixed(1)}</td>
+    <td>${fmtShort(t.amount)}</td>
+    <td>${fmtShort(t.revPerDay)}</td>
+    <td>${fmtShort(t.atv)}</td>
+    <td>${num(t.upt).toFixed(2)}</td>
   </tr>`;
-}
-
-// ===== TARGET PACE =====
-// Uses ALL data (ignores filters) to find latest period being run,
-// then computes actual-to-date vs expected-to-date vs required-pace for remaining days.
-function renderTargetPace() {
-  const ctxEl = document.getElementById('paceContext');
-  const allDates = S.raw.sales.map((r) => r.date).filter(Boolean);
-  if (!allDates.length) {
-    ctxEl.textContent = 'No sales data';
-    return;
-  }
-  const latest = new Date(Math.max(...allDates.map((d) => +d)));
-  const cy = latest.getFullYear();
-  const cm = latest.getMonth() + 1;
-  const cq = Math.ceil(cm / 3);
-  ctxEl.textContent = `Reference: latest data ${latest.toLocaleDateString('en-GB')} · measuring run-rate for current month/quarter/year`;
-
-  const sumActual = (filterFn) => S.raw.sales.filter(filterFn).reduce((s, r) => s + num(r.amount), 0);
-  const sumTarget = (filterFn) => S.raw.targets.filter(filterFn).reduce((s, t) => s + num(t.target), 0);
-
-  // Expected-to-date follows the per-month target distribution (seasonality-aware),
-  // not a flat day-proration of the lumped period target: full target for months
-  // already elapsed + the current month prorated by days elapsed within it.
-  const dayFracOfMonth = latest.getDate() / new Date(cy, cm, 0).getDate();
-  const expectedToDate = (startM, endM) => {
-    let e = 0;
-    for (let mi = startM; mi <= endM; mi++) {
-      const t = sumTarget((tg) => tg.year === String(cy) && tg.monthIndex === mi);
-      if (mi < cm) e += t;
-      else if (mi === cm) e += t * dayFracOfMonth;
-      // mi > cm: future month within the period, contributes 0
-    }
-    return e;
-  };
-
-  const setCard = (prefix, name, actual, target, expected, daysElapsed, daysTotal) => {
-    document.getElementById(`pace${prefix}Name`).textContent = name;
-    document.getElementById(`pace${prefix}Actual`).textContent = fmtVNDShort(actual);
-    document.getElementById(`pace${prefix}Target`).textContent = target > 0 ? fmtVNDShort(target) : '—';
-    document.getElementById(`pace${prefix}Expected`).textContent = target > 0 ? fmtVNDShort(expected) : '—';
-    const daysLeft = Math.max(0, daysTotal - daysElapsed);
-    const required = target > 0 && daysLeft > 0 ? Math.max(0, (target - actual) / daysLeft) : 0;
-    document.getElementById(`pace${prefix}Required`).textContent = target > 0
-      ? (daysLeft > 0 ? `${fmtVNDShort(required)} / day × ${daysLeft} days` : 'Period ended')
-      : '—';
-
-    const pctActual = target > 0 ? (actual / target) * 100 : 0;
-    const pctExpected = target > 0 ? (expected / target) * 100 : (daysElapsed / daysTotal) * 100;
-    const bar = document.getElementById(`pace${prefix}Bar`);
-    const exp = document.getElementById(`pace${prefix}Exp`);
-    bar.style.width = `${Math.min(100, pctActual)}%`;
-    exp.style.left = `${Math.min(100, pctExpected)}%`;
-
-    const statusEl = document.getElementById(`pace${prefix}Status`);
-    statusEl.classList.remove('ahead', 'onpace', 'behind', 'idle');
-    if (target <= 0) {
-      statusEl.textContent = 'No target';
-      statusEl.classList.add('idle');
-      bar.style.background = 'var(--text-3)';
-    } else {
-      const ratio = expected > 0 ? actual / expected : 1;
-      let label, cls, color;
-      if (ratio >= 1.05)      { label = `↑ Above pace ${fmtPct((ratio-1)*100)}`; cls = 'ahead';  color = css('--green'); }
-      else if (ratio >= 0.95) { label = `≈ On pace ${fmtPct((ratio-1)*100)}`; cls = 'onpace'; color = css('--brand-mid'); }
-      else                    { label = `↓ Below pace ${fmtPct((1-ratio)*100)}`; cls = 'behind'; color = css('--red'); }
-      statusEl.textContent = label;
-      statusEl.classList.add(cls);
-      bar.style.background = color;
-    }
-  };
-
-  // ── MONTH ──
-  const daysInMonth = new Date(cy, cm, 0).getDate();
-  const mActual = sumActual((r) => r.year === String(cy) && r.monthIndex === cm);
-  const mTarget = sumTarget((t) => t.year === String(cy) && t.monthIndex === cm);
-  setCard('Month', `${MONTH_NAMES[cm-1]} ${cy}`, mActual, mTarget, expectedToDate(cm, cm), latest.getDate(), daysInMonth);
-
-  // ── QUARTER ──
-  const qStartM = (cq - 1) * 3 + 1;
-  const qEndM = qStartM + 2;
-  const qDaysTotal = (() => {
-    let d = 0;
-    for (let mi = qStartM; mi <= qEndM; mi++) d += new Date(cy, mi, 0).getDate();
-    return d;
-  })();
-  const qDaysElapsed = (() => {
-    let d = 0;
-    for (let mi = qStartM; mi < cm; mi++) d += new Date(cy, mi, 0).getDate();
-    return d + latest.getDate();
-  })();
-  const qActual = sumActual((r) => r.year === String(cy) && r.monthIndex >= qStartM && r.monthIndex <= qEndM);
-  const qTarget = sumTarget((t) => t.year === String(cy) && t.monthIndex >= qStartM && t.monthIndex <= qEndM);
-  setCard('Quarter', `Q${cq} ${cy} (${MONTH_NAMES[qStartM-1]}–${MONTH_NAMES[qEndM-1]})`, qActual, qTarget, expectedToDate(qStartM, qEndM), qDaysElapsed, qDaysTotal);
-
-  // ── YEAR ──
-  const yIsLeap = (cy % 4 === 0 && cy % 100 !== 0) || (cy % 400 === 0);
-  const yDaysTotal = yIsLeap ? 366 : 365;
-  const startOfYear = new Date(cy, 0, 1);
-  const yDaysElapsed = Math.floor((latest - startOfYear) / 86400000) + 1;
-  const yActual = sumActual((r) => r.year === String(cy));
-  const yTarget = sumTarget((t) => t.year === String(cy));
-  setCard('Year', `Year ${cy}`, yActual, yTarget, expectedToDate(1, 12), yDaysElapsed, yDaysTotal);
 }
 
 // ===== DOW HEATMAP =====
@@ -1388,277 +1204,11 @@ function renderDowHeatmap(m) {
   }).join('');
 }
 
-// ===== REVENUE FORECAST =====
-// Builds monthly revenue history from ALL sales (ignoring filters so the
-// forecast reflects the business as a whole). Forecast method (per spec):
-//  - Next month:    next month's same-period-last-year (cùng kỳ) × avg YoY growth of this year's completed months
-//  - Next quarter:  next quarter's same-period-last-year × avg YoY growth of past complete quarters
-//  - Current year:  prior full year total × avg YoY growth of past complete years
-//  Each growth multiplier is capped at +10% (declines pass through uncapped).
-//  Next month/quarter are future periods (no actual yet) → shown vs cùng kỳ only.
-function buildMonthlyHistory() {
-  const map = new Map();
-  S.raw.sales.forEach(r => {
-    const d = r.date; if (!d) return;
-    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-    map.set(key, (map.get(key) || 0) + num(r.amount));
-  });
-  return [...map.entries()].sort((a,b) => a[0] < b[0] ? -1 : 1)
-    .map(([k, v]) => ({ key: k, y: Number(k.slice(0,4)), m: Number(k.slice(5,7)), value: v }));
-}
-
-const GROWTH_CAP = 1.10; // forecast assumes at most +10% YoY growth (cùng kỳ +10%)
-
-function yearTotal(history, y) {
-  return history.filter(h => h.y === y).reduce((s, h) => s + h.value, 0);
-}
-function monthsInYear(history, y) {
-  return history.filter(h => h.y === y).map(h => h.m);
-}
-function quarterTotal(history, y, q) {
-  const s = (q - 1) * 3 + 1;
-  return history.filter(h => h.y === y && h.m >= s && h.m <= s + 2).reduce((a, h) => a + h.value, 0);
-}
-function quarterMonthCount(history, y, q) {
-  const s = (q - 1) * 3 + 1;
-  return history.filter(h => h.y === y && h.m >= s && h.m <= s + 2).length;
-}
-
-// Arithmetic mean of YoY ratios; returns null when no comparable pair exists.
-function meanRatio(ratios) {
-  return ratios.length ? ratios.reduce((s, r) => s + r, 0) / ratios.length : null;
-}
-
-// 1) Avg YoY growth across `year`'s months that have a same-month prior-year value,
-//    excluding the in-progress month (avoids partial-month skew).
-function avgMonthlyGrowth(history, year, excludeMonth) {
-  const ratios = [];
-  history.filter(h => h.y === year && h.m !== excludeMonth).forEach(h => {
-    const prev = history.find(p => p.y === year - 1 && p.m === h.m);
-    if (prev && prev.value > 0 && h.value > 0) ratios.push(h.value / prev.value);
-  });
-  return meanRatio(ratios);
-}
-
-// 2) Avg YoY growth across all fully-comparable quarters in history (both the
-//    quarter and the year-earlier quarter have all 3 months), excluding the
-//    in-progress quarter.
-function avgQuarterlyGrowth(history, curYear, curQ) {
-  const ratios = [];
-  [...new Set(history.map(h => h.y))].forEach(y => {
-    for (let q = 1; q <= 4; q++) {
-      if (y === curYear && q === curQ) continue;
-      if (quarterMonthCount(history, y, q) < 3 || quarterMonthCount(history, y - 1, q) < 3) continue;
-      const cur = quarterTotal(history, y, q), prev = quarterTotal(history, y - 1, q);
-      if (cur > 0 && prev > 0) ratios.push(cur / prev);
-    }
-  });
-  return meanRatio(ratios);
-}
-
-// 3) Avg YoY growth across consecutive complete (12-month) years, excluding the
-//    in-progress year.
-function avgYearlyGrowth(history, curYear) {
-  const ratios = [];
-  [...new Set(history.map(h => h.y))].forEach(y => {
-    if (y === curYear) return;
-    if (monthsInYear(history, y).length < 12 || monthsInYear(history, y - 1).length < 12) return;
-    const cur = yearTotal(history, y), prev = yearTotal(history, y - 1);
-    if (cur > 0 && prev > 0) ratios.push(cur / prev);
-  });
-  return meanRatio(ratios);
-}
-
-// Fallback when a period-specific growth can't be computed: avg YoY growth over
-// every same-month pair in history (defaults to flat 1.0 when none exist).
-function overallAvgGrowth(history) {
-  const ratios = [];
-  history.forEach(h => {
-    const prev = history.find(p => p.y === h.y - 1 && p.m === h.m);
-    if (prev && prev.value > 0 && h.value > 0) ratios.push(h.value / prev.value);
-  });
-  return meanRatio(ratios) ?? 1.0;
-}
-
-// ---- Same-period averages (base = trung bình cùng kỳ) ----
-// Average of a calendar month's value across all years strictly before `beforeYear`.
-function avgSameMonth(history, month, beforeYear) {
-  const vals = history.filter(h => h.m === month && h.y < beforeYear).map(h => h.value);
-  return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
-}
-// Average of full-year totals across complete (12-month) years before `beforeYear`;
-// falls back to any prior year that has data.
-function avgPriorYearTotal(history, beforeYear) {
-  const years = [...new Set(history.filter(h => h.y < beforeYear).map(h => h.y))];
-  let totals = years.filter(y => monthsInYear(history, y).length === 12).map(y => yearTotal(history, y));
-  if (!totals.length) totals = years.map(y => yearTotal(history, y)).filter(t => t > 0);
-  return totals.length ? totals.reduce((s, v) => s + v, 0) / totals.length : 0;
-}
-
-function drawFcSparkline(elId, history, fcValue) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  const W = 92, H = 56;
-  const tail = history.slice(-6);
-  if (!tail.length) { el.innerHTML = ''; return; }
-  const allVals = [...tail.map(h => h.value), fcValue];
-  const minV = Math.min(...allVals) * 0.88;
-  const maxV = Math.max(...allVals) * 1.08;
-  const rng = maxV - minV || 1;
-  const sx = (i, n) => 4 + (i / (n - 1)) * (W - 8);
-  const sy = v => H - 8 - ((v - minV) / rng) * (H - 16);
-  const pts = tail.map((h, i) => [sx(i, tail.length + 1), sy(h.value)]);
-  const fp = [sx(tail.length, tail.length + 1), sy(fcValue)];
-  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('');
-  const fcPath = `M${pts[pts.length-1][0].toFixed(1)},${pts[pts.length-1][1].toFixed(1)}L${fp[0].toFixed(1)},${fp[1].toFixed(1)}`;
-  const areaPath = `${linePath}L${pts[pts.length-1][0].toFixed(1)},${H}L${pts[0][0].toFixed(1)},${H}Z`;
-  el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" overflow="visible">
-    <defs><linearGradient id="fcG_${elId}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="var(--brand)" stop-opacity="0.15"/>
-      <stop offset="100%" stop-color="var(--brand)" stop-opacity="0"/>
-    </linearGradient></defs>
-    <path d="${areaPath}" fill="url(#fcG_${elId})"/>
-    <path d="${linePath}" fill="none" stroke="var(--brand)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
-    <path d="${fcPath}" fill="none" stroke="var(--brand)" stroke-width="1.5" stroke-dasharray="3,2.5" stroke-linecap="round"/>
-    ${pts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2" fill="var(--brand)" opacity="0.45"/>`).join('')}
-    <circle cx="${fp[0].toFixed(1)}" cy="${fp[1].toFixed(1)}" r="3.8" fill="var(--brand)" stroke="var(--surface-2)" stroke-width="1.8"/>
-  </svg>`;
-}
-
-function drawFcQuarterBars(elId, months) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  const W = 92, H = 56;
-  const maxV = Math.max(...months.map(m => m.v)) || 1;
-  const bW = 22, gap = (W - months.length * bW) / (months.length + 1);
-  const barMaxH = H - 16;
-  const bars = months.map((m, i) => {
-    const x = gap + i * (bW + gap);
-    const h = Math.max(2, (m.v / maxV) * barMaxH);
-    const y = H - 12 - h;
-    const op = (0.45 + 0.55 * (i / (months.length - 1 || 1))).toFixed(2);
-    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bW}" height="${h.toFixed(1)}" rx="3" fill="var(--brand)" opacity="${op}"/>
-    <text x="${(x + bW/2).toFixed(1)}" y="${(H-2).toFixed(1)}" text-anchor="middle" font-size="8" fill="var(--text-3)" font-family="inherit">${m.label}</text>`;
-  });
-  el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${bars.join('')}</svg>`;
-}
-
-function drawFcYearBars(elId, history, currentYear, fcMap) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  const W = 92, H = 56;
-  const months = Array.from({length: 12}, (_, i) => {
-    const m = i + 1;
-    const act = history.find(h => h.y === currentYear && h.m === m);
-    return { m, value: act ? act.value : (fcMap[m] || 0), isActual: !!act };
-  });
-  const maxV = Math.max(...months.map(d => d.value)) * 1.1 || 1;
-  const bW = (W - 4) / 12;
-  const barMaxH = H - 10;
-  const sepMonth = months.findIndex(d => !d.isActual);
-  const bars = months.map((d, i) => {
-    const x = 2 + i * bW;
-    const h = Math.max(1, (d.value / maxV) * barMaxH);
-    const y = H - 8 - h;
-    const fill = 'var(--brand)';
-    const op = d.isActual ? (0.35 + 0.65 * ((i+1)/12)).toFixed(2) : '0.22';
-    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(bW - 1.2).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="${fill}" opacity="${op}"/>`;
-  });
-  let sep = '';
-  if (sepMonth > 0 && sepMonth < 12) {
-    const sx = (2 + sepMonth * bW - 0.8).toFixed(1);
-    sep = `<line x1="${sx}" y1="2" x2="${sx}" y2="${H-8}" stroke="var(--text-3)" stroke-width="0.8" stroke-dasharray="2,2" opacity="0.6"/>`;
-  }
-  el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${bars.join('')}${sep}</svg>`;
-}
-
-function renderForecast() {
-  const history = buildMonthlyHistory();
-  const methodEl = document.getElementById('forecastMethod');
-  if (history.length < 2) {
-    methodEl.textContent = 'Not enough data to forecast (need ≥ 2 months)';
-    ['fcMonthValue','fcQuarterValue','fcYearValue'].forEach(id =>
-      document.getElementById(id).textContent = '—');
-    return;
-  }
-
-  const last = history[history.length - 1];
-  const cy = last.y, cm = last.m;            // latest month present in data
-  const cq = Math.ceil(cm / 3);              // latest quarter present in data
-  const fallback = overallAvgGrowth(history);
-  const cap = g => Math.min(g, GROWTH_CAP);
-
-  // 1) NEXT MONTH = avg same-month over prior years × avg YoY growth of this year's completed months
-  let nm = cm + 1, nmY = cy;
-  if (nm > 12) { nm = 1; nmY = cy + 1; }
-  const gMonth = cap(avgMonthlyGrowth(history, cy, cm) ?? fallback);
-  const monthBase = avgSameMonth(history, nm, nmY);
-  const monthFc = monthBase * gMonth;
-
-  // 2) NEXT QUARTER = avg same-quarter over prior years × avg historical quarterly YoY growth
-  //    Quarter base = sum of the 3 months' same-period averages (keeps the mini-chart consistent).
-  let nq = cq + 1, nqY = cy;
-  if (nq > 4) { nq = 1; nqY = cy + 1; }
-  const nqStartM = (nq - 1) * 3 + 1, nqEndM = nqStartM + 2;
-  const gQuarter = cap(avgQuarterlyGrowth(history, cy, cq) ?? fallback);
-  const qBase = avgSameMonth(history, nqStartM, nqY) + avgSameMonth(history, nqStartM + 1, nqY) + avgSameMonth(history, nqStartM + 2, nqY);
-  const quarterFc = qBase * gQuarter;
-
-  // 3) CURRENT YEAR = same method as next quarter, scaled to 12 months:
-  //    base = sum of each month's same-period average; × avg yearly YoY growth.
-  //    (pure forecast — ignores actual-to-date, consistent with month/quarter cards)
-  const gYear = cap(avgYearlyGrowth(history, cy) ?? fallback);
-  const fcMap = {};
-  let yBase = 0;
-  for (let m = 1; m <= 12; m++) {
-    const mBase = avgSameMonth(history, m, cy);
-    fcMap[m] = mBase * gYear;
-    yBase += mBase;
-  }
-  const yearFc = yBase * gYear;
-
-  methodEl.textContent = `Method: avg same period × YoY growth · History ${history.length} mo (${history[0].key} → ${last.key})`;
-
-  const vsText = (fcVal, baseVal, baseLabel) => {
-    if (!baseVal || baseVal <= 0) return `<span style="color:var(--text-3)">No ${baseLabel} baseline</span>`;
-    const pct = ((fcVal - baseVal) / baseVal) * 100;
-    const cls = pct >= 0 ? 'up' : 'down';
-    const sign = pct >= 0 ? '↑' : '↓';
-    return `<span class="${cls}">${sign} ${fmtPct(Math.abs(pct))}</span> vs ${baseLabel}`;
-  };
-
-  // MONTH card — next month (future period, no actual yet)
-  document.getElementById('fcMonthName').textContent = `${MONTH_NAMES[nm-1]} ${nmY}`;
-  document.getElementById('fcMonthValue').textContent = fmtVNDShort(monthFc);
-  document.getElementById('fcMonthRange').textContent = `Avg same period ${MONTH_NAMES[nm-1]}: ${fmtVNDShort(monthBase)}`;
-  document.getElementById('fcMonthVs').innerHTML = vsText(monthFc, monthBase, `avg ${MONTH_NAMES[nm-1]}`);
-
-  // QUARTER card — next quarter (future period, no actual yet)
-  document.getElementById('fcQuarterName').textContent = `Q${nq} ${nqY} (${MONTH_NAMES[nqStartM-1]}–${MONTH_NAMES[nqEndM-1]})`;
-  document.getElementById('fcQuarterValue').textContent = fmtVNDShort(quarterFc);
-  document.getElementById('fcQuarterRange').textContent = `Avg same period Q${nq}: ${fmtVNDShort(qBase)}`;
-  document.getElementById('fcQuarterVs').innerHTML = vsText(quarterFc, qBase, `avg Q${nq}`);
-
-  // YEAR card — current year (has actual-to-date + timeline progress)
-  document.getElementById('fcYearName').textContent = `Year ${cy}`;
-  document.getElementById('fcYearValue').textContent = fmtVNDShort(yearFc);
-  document.getElementById('fcYearRange').textContent = `Avg same period (year): ${fmtVNDShort(yBase)}`;
-  document.getElementById('fcYearVs').innerHTML = vsText(yearFc, yBase, `avg year`);
-
-  // Mini charts
-  drawFcSparkline('fcMonthChart', history, monthFc);
-  const qMonths = [];
-  for (let i = 0; i < 3; i++) {
-    const mm = nqStartM + i;
-    qMonths.push({ v: avgSameMonth(history, mm, nqY) * gQuarter, label: MONTH_NAMES[mm-1].slice(0,3) });
-  }
-  drawFcQuarterBars('fcQuarterChart', qMonths);
-  drawFcYearBars('fcYearChart', history, cy, fcMap);
-}
-
 function switchRevChart(mode, btn) {
   S.revMode = mode;
-  document.querySelectorAll('.chart-tab').forEach((t) => t.classList.remove('active'));
+  // Scope to this card's own tab group — a global query would also clear the
+  // Day-of-Week metric tabs, which now sit on the same page.
+  (btn.closest('.chart-tabs') || document).querySelectorAll('.chart-tab').forEach((t) => t.classList.remove('active'));
   btn.classList.add('active');
   if (!S.raw.sales.length) return;
   const m = aggregate();
@@ -1685,26 +1235,8 @@ function setStatus(text, isIdle = false) {
 
 // ---- Shared helper: ingest workbook + reset UI state ----
 function applyWorkbook(wb, successMsg) {
-  const prevInv = S.raw?.inventory;
-  const prevInvMeta = S.raw?.inventoryMeta;
   S.raw = ingestWorkbook(wb);
-  // Auto-detect inventory sheet inside the same workbook — silently ignore if not present
-  try {
-    const inv = parseInventoryWorkbook(wb);
-    if (inv && inv.rows.length) {
-      S.raw.inventory = inv.rows;
-      S.raw.inventoryMeta = inv.meta;
-    } else if (prevInv) {
-      S.raw.inventory = prevInv;
-      S.raw.inventoryMeta = prevInvMeta;
-    }
-  } catch {
-    if (prevInv) {
-      S.raw.inventory = prevInv;
-      S.raw.inventoryMeta = prevInvMeta;
-    }
-  }
-  S.filters = { year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all', store: 'all' };
+  S.filters ={ year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all', store: 'all' };
   initFilters();
   // Default the Year filter to the most recent year in the data — more intuitive
   // than showing all years combined on first load. Month/Quarter stay "all" so the
@@ -1735,35 +1267,6 @@ async function fetchWithTimeout(url, timeoutMs = 20000) {
 // ---- Fetch + parse one Google Sheet, with retry on transient failures ----
 // Mobile networks drop requests intermittently; a single retry avoids the
 // "have to reload a second time" symptom without waiting the full timeout.
-async function fetchSheetWithRetry(name, url, attempts = 3) {
-  let lastErr;
-  for (let i = 0; i < attempts; i++) {
-    try {
-      const res = await fetchWithTimeout(`${url}&single=true&output=csv&_=${Date.now()}`, 20000);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const rawText = await res.text();
-      // Google returns an HTML login page (not CSV) when the sheet is not
-      // shared "Anyone with the link". Detect it so the user gets a real error.
-      const head = rawText.slice(0, 256).trim().toLowerCase();
-      if (head.startsWith('<!doctype') || head.startsWith('<html') || head.includes('<title>sign in')) {
-        throw new Error(`Sheet "${name}" is not publicly accessible. In Google Sheets → Share → set "Anyone with the link – Viewer".`);
-      }
-      const text = preprocessGSheetCsv(rawText);
-      // raw:true keeps date cells as their original text (e.g. "03/10/2024") so our
-      // DD/MM/YYYY-aware parseDate handles them. With cellDates:true, SheetJS auto-
-      // parses CSV dates as US MM/DD/YYYY, swapping day↔month whenever day ≤ 12.
-      const parsed = XLSX.read(text, { type: 'string', raw: true });
-      return parsed.Sheets[parsed.SheetNames[0]];
-    } catch (err) {
-      lastErr = err;
-      // Don't retry a permissions error — it won't fix itself.
-      if (/not publicly accessible/.test(err.message)) break;
-      if (i < attempts - 1) await new Promise(r => setTimeout(r, 600 * (i + 1)));
-    }
-  }
-  throw lastErr;
-}
-
 async function fetchSheetCandidatesWithRetry(name, urls, attempts = 3) {
   const candidates = Array.isArray(urls) ? urls : [urls];
   let lastErr;
@@ -1838,7 +1341,7 @@ async function loadFromGSheets() {
   setStatus('Syncing from Google Sheets…', false);
   try {
     // Fetch all sheets in parallel but tolerate partial failure: only "sale
-    // data" is required to render. If target/inventory fail on a flaky mobile
+    // data" is required to render. If the target sheet fails on a flaky mobile
     // connection we still show the dashboard instead of an empty state.
     const names = Object.keys(GSHEET_URLS);
     const results = await Promise.allSettled(
@@ -1987,7 +1490,7 @@ function calcYoyMetrics(year) {
   const tgts = getYoyTargetRows(year);
   const revenue = rows.reduce((s,r) => s + num(r.amount), 0);
   const qty     = rows.reduce((s,r) => s + num(r.qty), 0);
-  const bills   = rows.reduce((s,r) => s + (num(r.billFlag) > 0 ? num(r.billFlag) : 0), 0);
+  const bills   = countBills(rows);
   const traffic = tgts.reduce((s,t) => s + num(t.traffic), 0);
   const target  = tgts.reduce((s,t) => s + num(t.target), 0);
   const atv  = bills > 0 ? revenue / bills : 0;
@@ -2020,7 +1523,7 @@ function getYoyMonthlyData(year, months) {
     const mt = tgts.filter(t => t.monthIndex === m);
     const revenue = mr.reduce((s,r) => s + num(r.amount), 0);
     const qty     = mr.reduce((s,r) => s + num(r.qty), 0);
-    const bills   = mr.reduce((s,r) => s + (num(r.billFlag) > 0 ? num(r.billFlag) : 0), 0);
+    const bills   = countBills(mr);
     const traffic = mt.reduce((s,t) => s + num(t.traffic), 0);
     const atv  = bills > 0 ? revenue / bills : 0;
     const cvr  = traffic > 0 ? (bills / traffic) * 100 : 0;
@@ -2165,7 +1668,7 @@ function renderYoy() {
         const mt = S.raw.targets.filter(t => t.year===y && Math.ceil(t.monthIndex/3)===q);
         const revenue = mr.reduce((s,r)=>s+num(r.amount),0);
         const qty     = mr.reduce((s,r)=>s+num(r.qty),0);
-        const bills   = mr.reduce((s,r)=>s+(num(r.billFlag)>0?num(r.billFlag):0),0);
+        const bills   = countBills(mr);
         const traffic = mt.reduce((s,t)=>s+num(t.traffic),0);
         const atv = bills>0?revenue/bills:0;
         const cvr = traffic>0?(bills/traffic)*100:0;
@@ -2191,463 +1694,6 @@ function renderYoy() {
   }
 }
 window.renderYoy = renderYoy;
-
-// ============================================================
-// SPRINT 2: INVENTORY
-// ============================================================
-
-// ---- Parse Vietnamese-headered "Tổng hợp Nhập-Xuất-Tồn" sheet ----
-// Sheet layout: rows 1-5 are metadata/title, row 7 has the column headers
-// (Mã SKU | Tồn đầu kỳ | Nhập trong kỳ | Xuất trong kỳ | Tồn cuối kỳ | …),
-// row 8 is the "Số lượng" sub-header, data starts at row 9.
-function parseInventoryWorkbook(wb) {
-  const sheetNames = wb.SheetNames || [];
-  let meta = { periodFrom: null, periodTo: null, store: '' };
-  let rows = [];
-
-  for (const name of sheetNames) {
-    const ws = wb.Sheets[name];
-    if (!ws) continue;
-    const grid = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
-    if (!grid.length) continue;
-
-    // Locate header row by looking for "Mã SKU" or "Tồn cuối kỳ"
-    let headerIdx = -1;
-    for (let r = 0; r < Math.min(grid.length, 20); r++) {
-      const row = grid[r] || [];
-      const flat = row.map((v) => String(v ?? '').toLowerCase()).join('|');
-      if (flat.includes('mã sku') && flat.includes('tồn cuối')) { headerIdx = r; break; }
-    }
-    if (headerIdx < 0) continue;
-
-    // Extract period info from rows above header
-    for (let r = 0; r < headerIdx; r++) {
-      const text = (grid[r] || []).map((v) => String(v ?? '')).join(' ');
-      const m = text.match(/Từ ngày:\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*Đến ngày:\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
-      if (m) { meta.periodFrom = m[1]; meta.periodTo = m[2]; }
-      const s = text.match(/Cửa hàng:\s*([^;]+)/i);
-      if (s) meta.store = s[1].trim();
-    }
-
-    // Map header columns by Vietnamese name
-    const headerRow = (grid[headerIdx] || []).map((v) => String(v ?? '').trim().toLowerCase());
-    const colIdx = {
-      sku: headerRow.findIndex((h) => h.includes('mã sku') || h === 'sku'),
-      opening: headerRow.findIndex((h) => h.includes('tồn đầu')),
-      received: headerRow.findIndex((h) => h.includes('nhập trong')),
-      out: headerRow.findIndex((h) => h.includes('xuất trong')),
-      closing: headerRow.findIndex((h) => h.includes('tồn cuối')),
-      transitOut: headerRow.findIndex((h) => h.includes('chuyển đi')),
-      incoming: headerRow.findIndex((h) => h.includes('sắp nhận')),
-    };
-    if (colIdx.sku < 0 || colIdx.closing < 0) continue;
-
-    // Data rows start 2 after header (skip "Số lượng" sub-row)
-    const dataStart = headerIdx + 2;
-    for (let r = dataStart; r < grid.length; r++) {
-      const row = grid[r] || [];
-      const sku = String(row[colIdx.sku] ?? '').trim();
-      if (!sku) continue;
-      // Only keep 14-character SKUs (full Hazzys product codes incl. color+size)
-      if (sku.length !== 14) continue;
-      // Skip TOTAL / summary rows
-      if (/^(tổng|total|t\.cộng)/i.test(sku)) continue;
-      rows.push({
-        sku: sku,
-        styleKey: styleKey9(sku),
-        opening: num(row[colIdx.opening]),
-        received: num(row[colIdx.received]),
-        out: num(row[colIdx.out]),
-        closing: num(row[colIdx.closing]),
-        transitOut: colIdx.transitOut >= 0 ? num(row[colIdx.transitOut]) : 0,
-        incoming: colIdx.incoming >= 0 ? num(row[colIdx.incoming]) : 0,
-      });
-    }
-    if (rows.length) break;
-  }
-
-  if (!rows.length) throw new Error('No valid stock sheet found. File must contain headers "Mã SKU" and "Tồn cuối kỳ", and 14-char SKU codes.');
-
-  return { rows, meta };
-}
-
-// ---- Aggregate inventory: join with sales velocity ----
-function aggregateInventory() {
-  const inv = S.raw.inventory || [];
-  if (!inv.length) return null;
-
-  // Build per-SKU index from sales: prefer exact 14-char match, fall back to styleKey9.
-  const salesBySku = new Map();
-  const salesByStyle = new Map();
-  S.raw.sales.forEach((r) => {
-    const raw = String(r.sku || r.upc || '').trim();
-    const exactKey = raw.length === 14 ? normalizeGroup(raw) : null;
-    const styleKey = r.productKey || styleKey9(raw);
-    const updateBucket = (map, key) => {
-      if (!key) return;
-      const p = map.get(key) || { key, type: r.type, gender: r.gender, category: r.category, sales90: 0, sales30: 0, salesAll: 0 };
-      p.salesAll += num(r.qty);
-      if (r.date) {
-        const today = new Date();
-        const daysAgo = (today - r.date) / 86400000;
-        if (daysAgo <= 30) p.sales30 += num(r.qty);
-        if (daysAgo <= 90) p.sales90 += num(r.qty);
-      }
-      map.set(key, p);
-    };
-    updateBucket(salesBySku, exactKey);
-    updateBucket(salesByStyle, styleKey);
-  });
-
-  // Enrich each inventory row — exact 14-char SKU join first, fall back to style-level
-  const enriched = inv.map((r) => {
-    const skuKey = normalizeGroup(r.sku);
-    const salesInfo = salesBySku.get(skuKey) || salesByStyle.get(r.styleKey) || {};
-    const stock = r.closing;
-    const sales30 = num(salesInfo.sales30);
-    const sales90 = num(salesInfo.sales90);
-    const dailyVel = sales30 / 30; // units per day, recent
-    const daysOfStock = dailyVel > 0 ? stock / dailyVel : (stock > 0 ? 999 : 0);
-    // Sell-through over the inventory period
-    const denom = num(r.opening) + num(r.received);
-    const sellThrough = denom > 0 ? (num(r.out) / denom) * 100 : 0;
-    // Stockout risk: sales velocity > 0 AND stock < projected 30-day sales
-    const proj30 = sales30; // already 30 days
-    const stockoutRisk = sales30 > 0 && stock < proj30 ? (proj30 - stock) / proj30 : 0;
-    // Aging: high stock + low recent sales
-    const isAging = stock >= 3 && sales90 < (stock * 0.2);
-
-    // Derive category directly from the 14-char SKU (pos 3-4) — never UNKNOWN for valid Hazzys codes
-    const skuCat = deriveCategory('', salesInfo.category, salesInfo.type, r.sku);
-    return {
-      ...r,
-      type: salesInfo.type || 'UNKNOWN',
-      gender: salesInfo.gender || 'UNKNOWN',
-      category: skuCat,
-      sales30, sales90, dailyVel,
-      daysOfStock,
-      sellThrough,
-      stockoutRisk,
-      isAging,
-      hasRecentSales: sales30 > 0,
-    };
-  });
-
-  // Drop any UNKNOWN-category rows from inventory stats per user request
-  const known = enriched.filter((r) => r.category && r.category !== 'UNKNOWN');
-
-  // Apply dimension filters (category/gender/type from main filter bar) — only those that make sense
-  const f = S.filters;
-  const filtered = known.filter((r) => {
-    if (f.gender !== 'all' && r.gender !== f.gender) return false;
-    if (f.type !== 'all' && r.type !== f.type) return false;
-    return true;
-  });
-
-  // Totals
-  const totalSku = filtered.length;
-  const totalStock = filtered.reduce((s, r) => s + num(r.closing), 0);
-  const totalOpening = filtered.reduce((s, r) => s + num(r.opening), 0);
-  const totalReceived = filtered.reduce((s, r) => s + num(r.received), 0);
-  const totalOut = filtered.reduce((s, r) => s + num(r.out), 0);
-  const sellThroughAgg = (totalOpening + totalReceived) > 0
-    ? (totalOut / (totalOpening + totalReceived)) * 100
-    : 0;
-
-  // Group by category
-  const byCategory = (() => {
-    const map = new Map();
-    filtered.forEach((r) => {
-      const cat = r.category || 'UNKNOWN';
-      const p = map.get(cat) || { label: cat, stock: 0, opening: 0, received: 0, out: 0, skuCount: 0 };
-      p.stock += num(r.closing);
-      p.opening += num(r.opening);
-      p.received += num(r.received);
-      p.out += num(r.out);
-      p.skuCount += 1;
-      map.set(cat, p);
-    });
-    return [...map.values()].map((p) => ({
-      ...p,
-      sellThrough: (p.opening + p.received) > 0 ? (p.out / (p.opening + p.received)) * 100 : 0,
-    })).sort((a, b) => b.stock - a.stock);
-  })();
-
-  // Line (Golf/Casual/…) × Season (SS/FW) × Gender matrix
-  const seasonGenderMatrix = (() => {
-    const ALL_GENDERS = ['Men', 'Women', 'Baby'];
-    const ALL_SEASONS = ['SS', 'FW'];
-    const ALL_LINES   = ['Golf', 'Casual', 'Accessory', 'Baby'];
-    const blank = () => ({ opening: 0, received: 0, out: 0, stock: 0 });
-    const cells = new Map(); // key `${line}|${season}|${gender}`
-    const usedGenders = new Set(), usedLines = new Set();
-    let hasData = false;
-    filtered.forEach((r) => {
-      const g = skuGender(r.sku) || (ALL_GENDERS.includes(r.gender) ? r.gender : null);
-      const s = skuSeasonGroup(r.sku);
-      const l = skuLine(r.sku);
-      if (!g || !s || !l) return;
-      hasData = true;
-      usedGenders.add(g); usedLines.add(l);
-      const key = `${l}|${s}|${g}`;
-      const c = cells.get(key) || blank();
-      c.opening += num(r.opening); c.received += num(r.received);
-      c.out += num(r.out); c.stock += num(r.closing);
-      cells.set(key, c);
-    });
-    if (!hasData) return null;
-    const cols  = ALL_GENDERS.filter((g) => usedGenders.has(g));
-    const lines = ALL_LINES.filter((l) => usedLines.has(l));
-    const enrich = (c) => {
-      const d = c.opening + c.received;
-      return { ...c, st: d > 0 ? (c.out   / d) * 100 : 0,
-                      hold: d > 0 ? (c.stock / d) * 100 : 0 };
-    };
-    const sumC = (arr) => arr.reduce((a, c) => ({
-      opening: a.opening + c.opening, received: a.received + c.received,
-      out: a.out + c.out, stock: a.stock + c.stock,
-    }), blank());
-    const lineData = lines.map((l) => {
-      const activeSeasons = ALL_SEASONS.filter((s) => cols.some((g) => cells.has(`${l}|${s}|${g}`)));
-      const rows = activeSeasons.map((s) => {
-        const rowCells = cols.map((g) => cells.get(`${l}|${s}|${g}`) || blank());
-        return { season: s, cells: rowCells.map(enrich), total: enrich(sumC(rowCells)) };
-      });
-      const colTotals = cols.map((_, i) => enrich(sumC(rows.map((r) => {
-        const c = r.cells[i]; return { opening: c.opening, received: c.received, out: c.out, stock: c.stock };
-      }))));
-      return { line: l, rows, colTotals, total: enrich(sumC(rows.map((r) => r.total))) };
-    });
-    const colTotals = cols.map((_, i) => enrich(sumC(lineData.map((ld) => {
-      const c = ld.colTotals[i]; return { opening: c.opening, received: c.received, out: c.out, stock: c.stock };
-    }))));
-    const grand = enrich(sumC(lineData.map((ld) => ld.total)));
-    return { cols, lineData, colTotals, grand };
-  })();
-
-  // Aggregate per 9-char product model (Brand+Cat+Year+Season+Design) — sum across size/color variants
-  const byStyle = (() => {
-    const map = new Map();
-    filtered.forEach((r) => {
-      const k = r.styleKey;
-      if (!k || k === 'UNKNOWN') return;
-      const p = map.get(k) || { sku: k, stock: 0, opening: 0, received: 0, out: 0, sales30: 0, sales90: 0 };
-      p.stock    += num(r.closing);
-      p.opening  += num(r.opening);
-      p.received += num(r.received);
-      p.out      += num(r.out);
-      p.sales30  += num(r.sales30);
-      p.sales90  += num(r.sales90);
-      map.set(k, p);
-    });
-    return [...map.values()].map((p) => {
-      const dailyVel    = p.sales30 / 30;
-      const daysOfStock = dailyVel > 0 ? p.stock / dailyVel : (p.stock > 0 ? 999 : 0);
-      return {
-        ...p,
-        dailyVel,
-        daysOfStock,
-        hasRecentSales: p.sales30 > 0,
-        isAging: p.stock >= 3 && p.sales90 < (p.stock * 0.2),
-      };
-    });
-  })();
-
-  // Stockout alerts (style-level): recent sales AND projected to run out in ≤ 30 days (or already out)
-  const stockoutAlerts = byStyle
-    .filter((p) => p.hasRecentSales && (p.stock === 0 || p.daysOfStock <= 30))
-    .map((p) => ({
-      sku: p.sku,
-      stock: p.stock,
-      sales30: p.sales30,
-      daysLeft: p.daysOfStock,
-      severity: p.stock === 0 ? 'critical' : p.daysOfStock <= 7 ? 'critical' : p.daysOfStock <= 14 ? 'warn' : 'ok',
-    }))
-    .sort((a, b) => a.daysLeft - b.daysLeft)
-    .slice(0, 50);
-
-  // Aging (style-level): stock ≥ 3 and 90-day sales < 20% of stock
-  const aging = byStyle
-    .filter((p) => p.isAging)
-    .map((p) => ({
-      sku: p.sku,
-      stock: p.stock,
-      sales90: p.sales90,
-      daysOfStock: p.daysOfStock,
-      severity: p.sales90 === 0 ? 'critical' : p.daysOfStock > 365 ? 'critical' : p.daysOfStock > 180 ? 'warn' : 'ok',
-    }))
-    .sort((a, b) => b.stock - a.stock)
-    .slice(0, 50);
-
-  const atRiskCount = stockoutAlerts.length + aging.length;
-
-  return {
-    rows: filtered,
-    totalSku, totalStock, sellThrough: sellThroughAgg, atRiskCount,
-    totalOpening, totalReceived, totalOut,
-    byCategory, stockoutAlerts, aging, seasonGenderMatrix,
-  };
-}
-
-// ---- Render Inventory section ----
-function renderInventory() {
-  const section = document.getElementById('invSection');
-  const empty = document.getElementById('invEmpty');
-  const content = document.getElementById('invContent');
-  if (!section) return;
-
-  const m = aggregateInventory();
-  if (!m) {
-    empty.style.display = '';
-    content.style.display = 'none';
-    return;
-  }
-  empty.style.display = 'none';
-  content.style.display = '';
-
-  // Header sub-text
-  const meta = S.raw.inventoryMeta || {};
-  const headSub = document.getElementById('invHeadSub');
-  const periodStr = meta.periodFrom ? `${meta.periodFrom} → ${meta.periodTo}` : '—';
-  headSub.textContent = `${meta.store || 'All stores'} · ${periodStr}`;
-
-  // KPIs
-  document.getElementById('invKpiSkuVal').textContent = fmtN(m.totalSku);
-  document.getElementById('invKpiStockVal').textContent = fmtN(m.totalStock);
-  document.getElementById('invKpiSellThroughVal').textContent = fmtPct(m.sellThrough);
-  document.getElementById('invKpiAtRiskVal').textContent = fmtN(m.atRiskCount);
-
-  // Color KPIs based on health
-  const sellKpi = document.getElementById('invKpiSellThrough');
-  sellKpi.classList.remove('good', 'warn', 'bad');
-  if (m.sellThrough >= 70) sellKpi.classList.add('good');
-  else if (m.sellThrough >= 40) sellKpi.classList.add('warn');
-  else sellKpi.classList.add('bad');
-
-  // Charts
-  renderInvByCategoryChart(m);
-  renderInvSellThroughChart(m);
-  renderInvSeasonGenderMatrix(m);
-}
-
-function renderInvByCategoryChart(m) {
-  const data = m.byCategory.slice(0, 10);
-  document.getElementById('invStockByCatSub').textContent = `Top ${data.length} · ${fmtN(m.totalStock)} units`;
-  destroyChart('invByCat');
-  if (!data.length) return;
-  S.charts.invByCat = new Chart(document.getElementById('chartInvByCat'), {
-    type: 'bar',
-    data: {
-      labels: data.map((d) => d.label),
-      datasets: [
-        { label: 'Closing', data: data.map((d) => d.stock), backgroundColor: css('--brand-mid'), borderRadius: 4, maxBarThickness: 28 },
-        { label: 'Out', data: data.map((d) => d.out), backgroundColor: css('--green'), borderRadius: 4, maxBarThickness: 28 },
-      ],
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: false,
-      indexAxis: 'y',
-      plugins: {
-        legend: { display: true, position: 'top', align: 'end', labels: { color: css('--text-2'), boxWidth: 10, font: { size: 11 } } },
-        tooltip: { backgroundColor: css('--surface'), titleColor: css('--text'), bodyColor: css('--text-2'), borderColor: css('--border'), borderWidth: 1, padding: 10,
-          callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmtN(ctx.raw)} units` } },
-      },
-      scales: {
-        x: { beginAtZero: true, grid: { color: css('--border') }, ticks: { color: css('--text-3'), font: { size: 10 }, callback: (v) => fmtShort(v) } },
-        y: { grid: { display: false }, ticks: { color: css('--text-3'), font: { size: 10 }, autoSkip: false } },
-      },
-    },
-  });
-}
-
-function renderInvSellThroughChart(m) {
-  const data = m.byCategory.filter((d) => (d.opening + d.received) > 0).slice(0, 12);
-  document.getElementById('invSellThroughSub').textContent = `Average ${fmtPct(m.sellThrough)}`;
-  destroyChart('invSellThrough');
-  if (!data.length) return;
-  const colors = data.map((d) => d.sellThrough >= 70 ? css('--green') : d.sellThrough >= 40 ? '#d97706' : css('--red'));
-  S.charts.invSellThrough = new Chart(document.getElementById('chartInvSellThrough'), {
-    type: 'bar',
-    data: {
-      labels: data.map((d) => d.label),
-      datasets: [{ label: 'Sell-through %', data: data.map((d) => d.sellThrough), backgroundColor: colors, borderRadius: 4, maxBarThickness: 28 }],
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { backgroundColor: css('--surface'), titleColor: css('--text'), bodyColor: css('--text-2'), borderColor: css('--border'), borderWidth: 1, padding: 10,
-          callbacks: {
-            label: (ctx) => {
-              const d = data[ctx.dataIndex];
-              return [`Sell-through: ${fmtPct(d.sellThrough)}`, `Out ${fmtN(d.out)} / In+Opening ${fmtN(d.opening + d.received)}`];
-            },
-          },
-        },
-      },
-      scales: {
-        x: { grid: { display: false }, ticks: { color: css('--text-3'), font: { size: 10 }, maxRotation: 45, minRotation: 30 } },
-        y: { beginAtZero: true, max: 100, grid: { color: css('--border') }, ticks: { color: css('--text-3'), font: { size: 10 }, callback: (v) => v + '%' } },
-      },
-    },
-  });
-}
-
-function renderInvSeasonGenderMatrix(m) {
-  const card = document.getElementById('invSeasonGenderCard');
-  const sg = m.seasonGenderMatrix;
-  if (!sg || !sg.lineData.length) { if (card) card.style.display = 'none'; return; }
-  if (card) card.style.display = '';
-
-  const sub = document.getElementById('invSeasonGenderSub');
-  if (sub) sub.textContent = `${fmtN(sg.grand.stock)} units on hand · ST ${fmtPct(sg.grand.st)} · Hold ${fmtPct(sg.grand.hold)}`;
-
-  const stCls   = (v) => v >= 70 ? 'good' : v >= 40 ? 'warn' : 'bad';
-  const holdCls = (v) => v <= 30 ? 'good' : v <= 60 ? 'warn' : 'bad';
-
-  const cell = (c) => {
-    if ((c.opening + c.received + c.out + c.stock) === 0) return `<td><span class="sg-empty">–</span></td>`;
-    return `<td>
-      <div class="sg-stock">${fmtN(c.stock)} <span class="sg-unit">units</span></div>
-      <div class="sg-sold">Sold: ${fmtN(c.out)}</div>
-      <div class="sg-metrics">
-        <span class="sg-st ${stCls(c.st)}">ST ${fmtPct(c.st)}</span>
-        <span class="sg-hold ${holdCls(c.hold)}">Hold ${fmtPct(c.hold)}</span>
-      </div>
-    </td>`;
-  };
-
-  document.getElementById('invSeasonGenderHead').innerHTML =
-    `<tr><th>Line</th><th>Season</th>${sg.cols.map((g) => `<th>${esc(g)}</th>`).join('')}<th>Total</th></tr>`;
-
-  document.getElementById('invSeasonGenderBody').innerHTML = sg.lineData.map((ld) => {
-    const span = ld.rows.length + 1;
-    const seasonRows = ld.rows.map((row, ri) =>
-      `<tr class="sg-season-row">
-        ${ri === 0 ? `<td class="sg-line-cell" rowspan="${span}">${esc(ld.line)}</td>` : ''}
-        <td class="sg-season-lbl">${esc(row.season)}</td>
-        ${row.cells.map(cell).join('')}${cell(row.total)}
-      </tr>`
-    ).join('');
-    const totRow =
-      `<tr class="sg-line-total">
-        <td class="sg-season-lbl sg-total-lbl">Total</td>
-        ${ld.colTotals.map(cell).join('')}${cell(ld.total)}
-      </tr>`;
-    return seasonRows + totRow;
-  }).join('');
-
-  document.getElementById('invSeasonGenderFoot').innerHTML =
-    `<tr><td colspan="2">Grand Total</td>${sg.colTotals.map(cell).join('')}${cell(sg.grand)}</tr>`;
-}
-
-// ===== TAB SWITCHING =====
-window.switchTab = function(name) {
-  document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
-  document.querySelectorAll('.tab-pane').forEach((p) => p.classList.toggle('active', p.dataset.tabPane === name));
-  // Re-size charts after the pane becomes visible (Chart.js needs visible canvas to measure)
-  requestAnimationFrame(() => syncCharts());
-};
 
 function bindEvents() {
   [['fYear', 'year'], ['fQuarter', 'quarter'], ['fMonth', 'month'], ['fGender', 'gender'], ['fType', 'type'], ['fStore', 'store']]
@@ -2683,7 +1729,6 @@ function bindEvents() {
   document.addEventListener('touchstart', hideExtTooltip, { passive: true });
 
   document.getElementById('fileInput').addEventListener('change', onUpload);
-  // inventory now comes from the same workbook as sales — no separate upload
   // theme toggle removed — dark mode only
 
   const dz = document.getElementById('dropZone');

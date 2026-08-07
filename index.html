@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=20260807-single-page">
 </head>
 <body>
 <div class="app">
@@ -105,106 +105,43 @@
   <!-- DASHBOARD CONTENT -->
   <div id="dashContent" style="display:none">
 
-    <!-- KPI CARDS (always visible across tabs) -->
+    <!-- KPI CARDS -->
     <div class="kpi-grid" id="kpiGrid">
       <div class="kpi-card">
-        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#0a2463,#1a56a8)"></div>
-        <div class="kpi-header">
-          <div class="kpi-label">Revenue</div>
-          <div class="kpi-icon" style="background:#eff6ff;color:#1a56a8">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 9l4-4 3 3 4-4 3 2"/></svg>
-          </div>
-        </div>
         <div class="kpi-value" id="kSales">—</div>
-        <div class="kpi-sub" id="kSalesSub">Total revenue</div>
+        <div class="kpi-label">Revenue</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#475569,#94a3b8)"></div>
-        <div class="kpi-header">
-          <div class="kpi-label">Target</div>
-          <div class="kpi-icon" style="background:#f1f5f9;color:#475569">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="1" fill="currentColor"/></svg>
-          </div>
-        </div>
         <div class="kpi-value" id="kTarget">—</div>
-        <div class="kpi-sub" id="kTargetSub">Revenue target</div>
+        <div class="kpi-label">Target</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-accent-bar" id="kAchieveBar" style="background:linear-gradient(90deg,#16a34a,#4ade80)"></div>
-        <div class="kpi-header">
-          <div class="kpi-label">Achievement</div>
-          <div class="kpi-icon" style="background:#dcfce7;color:#16a34a">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 13l4-4 3 3 5-6"/><path d="M10 6h4v4"/></svg>
-          </div>
-        </div>
         <div class="kpi-value" id="kAchieve">—</div>
-        <div class="kpi-sub" id="kAchieveSub">Revenue / Target</div>
+        <div class="kpi-label">Achievement</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#0891b2,#22d3ee)"></div>
-        <div class="kpi-header">
-          <div class="kpi-label">Bills</div>
-          <div class="kpi-icon" style="background:#cffafe;color:#0891b2">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2h10v12H3z"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>
-          </div>
-        </div>
         <div class="kpi-value" id="kBills">—</div>
-        <div class="kpi-sub" id="kBillsSub">Total bills</div>
+        <div class="kpi-label">Bills</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#059669,#10b981)"></div>
-        <div class="kpi-header">
-          <div class="kpi-label">Units Sold</div>
-          <div class="kpi-icon" style="background:#d1fae5;color:#059669">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
-          </div>
-        </div>
         <div class="kpi-value" id="kQty">—</div>
-        <div class="kpi-sub" id="kQtySub">Items sold</div>
+        <div class="kpi-label">Units Sold</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#db2777,#f472b6)"></div>
-        <div class="kpi-header">
-          <div class="kpi-label">Traffic</div>
-          <div class="kpi-icon" style="background:#fce7f3;color:#db2777">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="5" r="2"/><circle cx="10" cy="5" r="2"/><path d="M2 14c0-3 2-5 4-5h4c2 0 4 2 4 5"/></svg>
-          </div>
-        </div>
         <div class="kpi-value" id="kTraffic">—</div>
-        <div class="kpi-sub" id="kTrafficSub">Store traffic</div>
+        <div class="kpi-label">Traffic</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#0ea5e9,#38bdf8)"></div>
-        <div class="kpi-header">
-          <div class="kpi-label">Conversion</div>
-          <div class="kpi-icon" style="background:#e0f2fe;color:#0369a1">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 8A6 6 0 1 1 8 2"/><path d="M14 2l-4 4 4 0V2z"/></svg>
-          </div>
-        </div>
         <div class="kpi-value" id="kCVR">—</div>
-        <div class="kpi-sub" id="kCVRSub">Bills / Traffic</div>
+        <div class="kpi-label">Conversion</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#7c3aed,#a78bfa)"></div>
-        <div class="kpi-header">
-          <div class="kpi-label">UPT</div>
-          <div class="kpi-icon" style="background:#ede9fe;color:#7c3aed">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
-          </div>
-        </div>
         <div class="kpi-value" id="kUPT">—</div>
-        <div class="kpi-sub" id="kUPTSub">Items / Bill</div>
+        <div class="kpi-label">UPT</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-accent-bar" style="background:linear-gradient(90deg,#f59e0b,#fbbf24)"></div>
-        <div class="kpi-header">
-          <div class="kpi-label">ATV</div>
-          <div class="kpi-icon" style="background:#fef3c7;color:#d97706">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4h12l-1 8H3L2 4z"/><path d="M6 4V3a2 2 0 0 1 4 0v1"/></svg>
-          </div>
-        </div>
         <div class="kpi-value" id="kATV">—</div>
-        <div class="kpi-sub" id="kATVSub">Revenue / Bill</div>
+        <div class="kpi-label">ATV</div>
       </div>
     </div>
 
@@ -224,19 +161,11 @@
       </div>
     </div>
 
-    <!-- ====== TABS NAV ====== -->
-    <div class="tabs-nav" id="tabsNav">
-      <button class="tab-btn active" data-tab="overview" onclick="switchTab('overview')">Overview</button>
-      <button class="tab-btn" data-tab="forecast" onclick="switchTab('forecast')">Forecast</button>
-      <button class="tab-btn" data-tab="product" onclick="switchTab('product')">Product &amp; Inventory</button>
-      <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')">Staff</button>
-    </div>
+    <!-- ══════════ GROUP 1 · PERFORMANCE ══════════ -->
+    <section class="dash-group" id="grpPerformance">
+      <div class="group-hd"><h2 class="group-title">Performance</h2></div>
 
-    <!-- ====== TAB: OVERVIEW (merged) ====== -->
-    <div class="tab-pane active" data-tab-pane="overview">
-
-      <!-- ROW 1: Revenue Performance | Bills & Traffic -->
-      <div class="overview-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="g-row g-row-2">
         <div class="chart-card">
           <div class="chart-card-hd">
             <div><div class="chart-card-title">Revenue Performance</div></div>
@@ -245,18 +174,22 @@
               <button class="chart-tab" onclick="switchRevChart('cumulative',this)">Cumulative</button>
             </div>
           </div>
-          <div class="chart-wrap" style="height:240px"><canvas id="chartRevenue"></canvas></div>
+          <div class="chart-wrap chart-wrap--md"><canvas id="chartRevenue"></canvas></div>
         </div>
         <div class="chart-card">
           <div class="chart-card-hd">
             <div class="chart-card-title">Bills &amp; Traffic</div>
           </div>
-          <div class="chart-wrap" style="height:240px"><canvas id="chartTraffic"></canvas></div>
+          <div class="chart-wrap chart-wrap--md"><canvas id="chartTraffic"></canvas></div>
         </div>
       </div>
+    </section>
 
-      <!-- ROW 2: Promotion | DOW Heatmap -->
-      <div class="overview-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;align-items:stretch">
+    <!-- ══════════ GROUP 2 · PATTERNS ══════════ -->
+    <section class="dash-group" id="grpPatterns">
+      <div class="group-hd"><h2 class="group-title">Patterns</h2></div>
+
+      <div class="g-row g-row-2">
         <div class="chart-card" id="promoCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Promotion</div>
@@ -264,12 +197,11 @@
           <div id="promotionInfo"></div>
         </div>
 
-        <!-- DOW Heatmap (compact, fits half-width) -->
-        <div class="panel dow-section" id="dowSection" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden;margin:0;display:flex;flex-direction:column">
-          <div class="panel-head" style="padding:10px 14px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div class="chart-card dow-section" id="dowSection">
+          <div class="chart-card-hd">
             <div>
-              <div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">Day of Week</div>
-              <div style="font-size:var(--fs-xs);color:var(--text-3);margin-top:2px" id="dowContext">Calculating...</div>
+              <div class="chart-card-title">Day of Week</div>
+              <div class="chart-card-sub" id="dowContext">Calculating...</div>
             </div>
             <div class="chart-tabs" id="dowMetricTabs">
               <button class="chart-tab active" data-dow-metric="revenue" onclick="switchDowMetric('revenue',this)">Rev</button>
@@ -277,14 +209,17 @@
               <button class="chart-tab" data-dow-metric="atv" onclick="switchDowMetric('atv',this)">ATV</button>
             </div>
           </div>
-          <div class="dow-strip" id="dowStrip" style="flex:1"></div>
+          <div class="dow-strip" id="dowStrip"></div>
         </div>
       </div>
+    </section>
 
-      <!-- ROW 3: YoY (full width) -->
+    <!-- ══════════ GROUP 3 · YEAR OVER YEAR ══════════ -->
+    <section class="dash-group" id="grpYoy">
+      <div class="group-hd"><h2 class="group-title">Year over Year</h2></div>
+
       <div class="yoy-section" id="yoySection">
         <div class="yoy-controls">
-          <span class="yoy-label">Year over Year</span>
           <span id="yoyFilterBadge" style="display:none"></span>
           <div class="yoy-range-group">
             <span class="yoy-label" style="font-weight:400;color:var(--text-3)">Period:</span>
@@ -339,258 +274,106 @@
           </div>
         </div>
       </div>
+    </section>
 
-    </div><!-- /tab overview -->
+    <!-- ══════════ GROUP 4 · PRODUCT ══════════ -->
+    <section class="dash-group" id="grpProduct">
+      <div class="group-hd"><h2 class="group-title">Product</h2></div>
 
-    <!-- ====== TAB: FORECAST & TARGET ====== -->
-    <div class="tab-pane" data-tab-pane="forecast">
-
-      <!-- TARGET PACE -->
-      <div class="panel" id="targetPaceSection" style="margin-bottom:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden">
-        <div class="panel-head" style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">
-          <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Target Pace</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-3)" id="paceContext">Calculating...</div>
-        </div>
-        <div class="pace-grid">
-          <div class="pace-card" data-pace="month">
-            <div class="pace-card-label">Current Month</div>
-            <div class="pace-card-period" id="paceMonthName">—</div>
-            <div class="pace-bar-wrap">
-              <div class="pace-bar-actual" id="paceMonthBar" style="width:0%;background:var(--brand-mid)"></div>
-              <div class="pace-bar-expected" id="paceMonthExp" style="left:0%"></div>
-            </div>
-            <div class="pace-row"><span>Actual</span><strong id="paceMonthActual">—</strong></div>
-            <div class="pace-row"><span>Target</span><strong id="paceMonthTarget">—</strong></div>
-            <div class="pace-row"><span>Expected to date</span><strong id="paceMonthExpected">—</strong></div>
-            <div class="pace-row"><span>Required / day</span><strong id="paceMonthRequired">—</strong></div>
-            <span class="pace-status idle" id="paceMonthStatus">—</span>
-          </div>
-          <div class="pace-card" data-pace="quarter">
-            <div class="pace-card-label">Current Quarter</div>
-            <div class="pace-card-period" id="paceQuarterName">—</div>
-            <div class="pace-bar-wrap">
-              <div class="pace-bar-actual" id="paceQuarterBar" style="width:0%;background:var(--brand-mid)"></div>
-              <div class="pace-bar-expected" id="paceQuarterExp" style="left:0%"></div>
-            </div>
-            <div class="pace-row"><span>Actual</span><strong id="paceQuarterActual">—</strong></div>
-            <div class="pace-row"><span>Target</span><strong id="paceQuarterTarget">—</strong></div>
-            <div class="pace-row"><span>Expected to date</span><strong id="paceQuarterExpected">—</strong></div>
-            <div class="pace-row"><span>Required / day</span><strong id="paceQuarterRequired">—</strong></div>
-            <span class="pace-status idle" id="paceQuarterStatus">—</span>
-          </div>
-          <div class="pace-card" data-pace="year">
-            <div class="pace-card-label">Current Year</div>
-            <div class="pace-card-period" id="paceYearName">—</div>
-            <div class="pace-bar-wrap">
-              <div class="pace-bar-actual" id="paceYearBar" style="width:0%;background:var(--brand-mid)"></div>
-              <div class="pace-bar-expected" id="paceYearExp" style="left:0%"></div>
-            </div>
-            <div class="pace-row"><span>Actual</span><strong id="paceYearActual">—</strong></div>
-            <div class="pace-row"><span>Target</span><strong id="paceYearTarget">—</strong></div>
-            <div class="pace-row"><span>Expected to date</span><strong id="paceYearExpected">—</strong></div>
-            <div class="pace-row"><span>Required / day</span><strong id="paceYearRequired">—</strong></div>
-            <span class="pace-status idle" id="paceYearStatus">—</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- FORECAST -->
-      <div class="panel" id="forecastSection" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:visible">
-        <div class="panel-head" style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">
-          <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Revenue Forecast</div>
-          <div style="display:flex;align-items:center;gap:8px;min-width:0">
-            <div style="font-size:var(--fs-xs);color:var(--text-3)" id="forecastMethod">Calculating...</div>
-            <span class="fc-info" tabindex="0" role="button" aria-label="Cách tính dự báo">i<span class="fc-info-pop">
-              <span class="fc-pop-title">Cách tính dự báo</span>
-              <span class="fc-pop-formula">Trung bình cùng kỳ × Tăng trưởng YoY trung bình = Dự báo</span>
-              <span class="fc-pop-row"><b>Tháng kế tiếp:</b> trung bình doanh thu tháng đó qua các năm trước × trung bình YoY các tháng đã chốt của năm nay.</span>
-              <span class="fc-pop-row"><b>Quý kế tiếp:</b> trung bình doanh thu quý đó qua các năm trước × trung bình YoY các quý đủ 3 tháng.</span>
-              <span class="fc-pop-row"><b>Năm hiện tại:</b> tổng trung bình cùng kỳ của 12 tháng × trung bình YoY các năm (tính giống quý, thuần dự báo).</span>
-              <span class="fc-pop-note">Dùng toàn bộ dữ liệu đã nạp, bỏ qua bộ lọc. Tháng &amp; quý kế tiếp là kỳ tương lai nên chỉ so với cùng kỳ.</span>
-            </span></span>
-          </div>
-        </div>
-        <div class="forecast-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px">
-          <div class="forecast-card" data-period="month">
-            <div class="fc-left">
-              <div class="forecast-card-label">Next Month · forecast</div>
-              <div class="forecast-card-name" id="fcMonthName">—</div>
-              <div class="forecast-card-value" id="fcMonthValue">—</div>
-              <div class="forecast-card-range" id="fcMonthRange">—</div>
-              <div class="forecast-card-vs" id="fcMonthVs">—</div>
-            </div>
-            <div class="fc-right" id="fcMonthChart"></div>
-          </div>
-          <div class="forecast-card" data-period="quarter">
-            <div class="fc-left">
-              <div class="forecast-card-label">Next Quarter · forecast</div>
-              <div class="forecast-card-name" id="fcQuarterName">—</div>
-              <div class="forecast-card-value" id="fcQuarterValue">—</div>
-              <div class="forecast-card-range" id="fcQuarterRange">—</div>
-              <div class="forecast-card-vs" id="fcQuarterVs">—</div>
-            </div>
-            <div class="fc-right" id="fcQuarterChart"></div>
-          </div>
-          <div class="forecast-card" data-period="year">
-            <div class="fc-left">
-              <div class="forecast-card-label">Current Year · estimate</div>
-              <div class="forecast-card-name" id="fcYearName">—</div>
-              <div class="forecast-card-value" id="fcYearValue">—</div>
-              <div class="forecast-card-range" id="fcYearRange">—</div>
-              <div class="forecast-card-vs" id="fcYearVs">—</div>
-            </div>
-            <div class="fc-right" id="fcYearChart"></div>
-          </div>
-        </div>
-      </div>
-
-    </div><!-- /tab forecast -->
-
-    <!-- ====== TAB: PRODUCT & INVENTORY ====== -->
-    <div class="tab-pane product-tab" data-tab-pane="product">
-
-      <!-- Top row: Left col (Top Products + Type/Gender) | Right col (ABC) -->
-      <div class="product-main-row">
-        <div class="product-col-left">
-          <div class="chart-card" id="topProductCard">
-            <div class="chart-card-hd">
-              <div class="chart-card-title">Top Products</div>
-            </div>
-            <div class="product-list" id="topProductList" style="align-content:start"></div>
-          </div>
-
-          <div class="product-mix-row">
-            <div class="chart-card">
-              <div class="chart-card-hd">
-                <div class="chart-card-title">By Type</div>
-              </div>
-              <div class="split-inner">
-                <div class="doughnut-wrap">
-                  <canvas id="chartType"></canvas>
-                  <div class="doughnut-center"><div class="d-val" id="dTypeVal">—</div><div class="d-lbl">Total</div></div>
-                </div>
-                <div class="legend-list" id="legendType"></div>
-              </div>
-            </div>
-            <div class="chart-card">
-              <div class="chart-card-hd">
-                <div class="chart-card-title">By Gender</div>
-              </div>
-              <div class="split-inner">
-                <div class="doughnut-wrap">
-                  <canvas id="chartGender"></canvas>
-                  <div class="doughnut-center"><div class="d-val" id="dGenderVal">—</div><div class="d-lbl">Total</div></div>
-                </div>
-                <div class="legend-list" id="legendGender"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="chart-card" id="abcCard">
-          <div class="chart-card-hd">
-            <div>
-              <div class="chart-card-title">ABC / Pareto</div>
-              <div class="chart-card-desc">Phân loại model theo đóng góp doanh thu: <strong>Tier A</strong> = top 80% · <strong>Tier B</strong> = 15% tiếp theo · <strong>Tier C</strong> = phần còn lại. Dùng để tập trung tái đặt hàng và ưu tiên trưng bày.</div>
-            </div>
-          </div>
-          <div class="abc-summary" id="abcSummary"></div>
-          <div class="chart-wrap"><canvas id="chartAbc"></canvas></div>
-        </div>
-      </div><!-- /product-main-row -->
-
-      <!-- Inventory section (merged here from former Inventory tab) -->
-      <div class="inv-section" id="invSection" style="margin-top:10px;border:none;background:transparent;box-shadow:none;border-radius:0">
-        <div class="inv-head inv-head--inline" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0">
-          <div class="inv-head-left">
-            <div class="inv-head-title">Inventory</div>
-            <div class="inv-head-sub" id="invHeadSub">—</div>
-          </div>
-          <div class="inv-head-kpis" id="invHeadKpis">
-            <div class="inv-hkpi" id="invKpiSku"><span class="inv-hkpi-val" id="invKpiSkuVal">—</span><span class="inv-hkpi-lbl">SKUs</span></div>
-            <div class="inv-hkpi" id="invKpiStock"><span class="inv-hkpi-val" id="invKpiStockVal">—</span><span class="inv-hkpi-lbl">Stock</span></div>
-            <div class="inv-hkpi" id="invKpiSellThrough"><span class="inv-hkpi-val" id="invKpiSellThroughVal">—</span><span class="inv-hkpi-lbl">Sell-through</span></div>
-            <div class="inv-hkpi" id="invKpiAtRisk"><span class="inv-hkpi-val" id="invKpiAtRiskVal">—</span><span class="inv-hkpi-lbl">At-risk</span></div>
-          </div>
-        </div>
-
-        <div id="invEmpty" class="inv-empty" style="background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius)">
-          <strong>No inventory data loaded</strong>
-          Add a sheet with header <em>Mã SKU · Tồn đầu kỳ · Nhập trong kỳ · Xuất trong kỳ · Tồn cuối kỳ</em> to the same workbook.
-        </div>
-
-        <div id="invContent" style="display:none;background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius)">
-          <div class="inv-body">
-            <div class="inv-row-2col">
-              <div class="inv-card">
-                <div class="inv-card-title">Stock by Category <span class="inv-card-sub" id="invStockByCatSub"></span></div>
-                <div class="inv-chart-wrap"><canvas id="chartInvByCat"></canvas></div>
-              </div>
-              <div class="inv-card">
-                <div class="inv-card-title">Sell-through by Category <span class="inv-card-sub" id="invSellThroughSub"></span></div>
-                <div class="inv-chart-wrap"><canvas id="chartInvSellThrough"></canvas></div>
-              </div>
-            </div>
-            <div class="inv-row-2col" style="grid-template-columns:1fr">
-              <div class="inv-card" id="invSeasonGenderCard">
-                <div class="inv-card-title">Stock · Sold · Holding by Season &amp; Gender <span class="inv-card-sub" id="invSeasonGenderSub"></span></div>
-                <div class="matrix-wrap" style="max-height:none">
-                  <table class="matrix-table" id="invSeasonGenderMatrix">
-                    <thead id="invSeasonGenderHead"></thead>
-                    <tbody id="invSeasonGenderBody"></tbody>
-                    <tfoot id="invSeasonGenderFoot"></tfoot>
-                  </table>
-                </div>
-                <div class="inv-card-note">Mỗi ô: Tồn kho (units) · Đã bán · <strong>ST%</strong> sell-through = đã bán ÷ nhập (cao = tốt) · <strong>Hold%</strong> = còn lại ÷ nhập (thấp = tốt)</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div><!-- /inv-section -->
-
-    </div><!-- /tab product -->
-
-    <!-- ====== TAB: STAFF ====== -->
-    <div class="tab-pane" data-tab-pane="staff">
-
-      <!-- Revenue by Cashier -->
-      <div class="chart-card" id="cashierBarCard">
-        <div class="chart-card-hd">
-          <div class="chart-card-title">Revenue by Cashier</div>
-        </div>
-        <div class="chart-wrap">
-          <canvas id="chartCashierBar"></canvas>
-        </div>
-      </div>
-
-      <!-- Cashier Productivity Matrix -->
-      <div class="chart-card" id="cashierMatrixCard">
+      <!-- Top products by style (full width) -->
+      <div class="chart-card" id="topProductCard">
         <div class="chart-card-hd">
           <div>
-            <div class="chart-card-title">Cashier Productivity</div>
+            <div class="chart-card-title">Top Products by Style</div>
+            <div class="chart-card-sub">Gom theo mã model 9 ký tự (Brand + Category + Year + Season + Design)</div>
           </div>
         </div>
-        <div class="matrix-wrap">
-          <table class="matrix-table" id="cashierMatrix">
-            <thead>
-              <tr>
-                <th>Cashier</th>
-                <th>Days</th>
-                <th>Bills</th>
-                <th>Bills/day</th>
-                <th>Revenue</th>
-                <th>Rev/day</th>
-                <th>ATV</th>
-                <th>UPT</th>
-              </tr>
-            </thead>
-            <tbody id="cashierMatrixBody"></tbody>
-            <tfoot id="cashierMatrixFoot"></tfoot>
-          </table>
-        </div>
+        <div class="product-list" id="topProductList"></div>
       </div>
 
-    </div><!-- /tab staff -->
+      <!-- Mix breakdowns: Category | Type | Gender -->
+      <div class="g-row g-row-3">
+        <div class="chart-card">
+          <div class="chart-card-hd">
+            <div class="chart-card-title">By Category</div>
+          </div>
+          <div class="split-inner">
+            <div class="doughnut-wrap">
+              <canvas id="chartCategory"></canvas>
+              <div class="doughnut-center"><div class="d-val" id="dCategoryVal">—</div><div class="d-lbl">Total</div></div>
+            </div>
+            <div class="legend-list" id="legendCategory"></div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-hd">
+            <div class="chart-card-title">By Type</div>
+          </div>
+          <div class="split-inner">
+            <div class="doughnut-wrap">
+              <canvas id="chartType"></canvas>
+              <div class="doughnut-center"><div class="d-val" id="dTypeVal">—</div><div class="d-lbl">Total</div></div>
+            </div>
+            <div class="legend-list" id="legendType"></div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-hd">
+            <div class="chart-card-title">By Gender</div>
+          </div>
+          <div class="split-inner">
+            <div class="doughnut-wrap">
+              <canvas id="chartGender"></canvas>
+              <div class="doughnut-center"><div class="d-val" id="dGenderVal">—</div><div class="d-lbl">Total</div></div>
+            </div>
+            <div class="legend-list" id="legendGender"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ GROUP 5 · STAFF ══════════ -->
+    <section class="dash-group" id="grpStaff">
+      <div class="group-hd"><h2 class="group-title">Staff</h2></div>
+
+      <div class="g-row g-row-2">
+        <div class="chart-card" id="cashierBarCard">
+          <div class="chart-card-hd">
+            <div class="chart-card-title">Revenue by Cashier</div>
+          </div>
+          <div class="chart-wrap chart-wrap--md">
+            <canvas id="chartCashierBar"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card" id="cashierMatrixCard">
+          <div class="chart-card-hd">
+            <div>
+              <div class="chart-card-title">Cashier Productivity</div>
+              <div class="chart-card-sub">Một hóa đơn có thể do nhiều nhân viên cùng bán nên cột Bills cộng lại sẽ lớn hơn dòng TOTAL — TOTAL là số hóa đơn thực, không trùng lặp.</div>
+            </div>
+          </div>
+          <div class="matrix-wrap">
+            <table class="matrix-table" id="cashierMatrix">
+              <thead>
+                <tr>
+                  <th>Cashier</th>
+                  <th>Days</th>
+                  <th>Bills</th>
+                  <th>Bills/day</th>
+                  <th>Revenue</th>
+                  <th>Rev/day</th>
+                  <th>ATV</th>
+                  <th>UPT</th>
+                </tr>
+              </thead>
+              <tbody id="cashierMatrixBody"></tbody>
+              <tfoot id="cashierMatrixFoot"></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
 
 
   </div><!-- /dashContent -->
@@ -608,6 +391,6 @@
 
 </div><!-- /app -->
 
-<script defer src="app.js?v=20260615-stable-gsheet"></script>
+<script defer src="app.js?v=20260807-single-page"></script>
 </body>
 </html>

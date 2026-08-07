@@ -5,7 +5,6 @@ const DASHBOARD_SHEET_ID = '1l53PyTaGzb92aagtMTJwBoc8E_0p-EaSvLAv4dVehC8';
 const TARGET_TABS = {
   sales: 'sale data',
   target: 'target',
-  inventory: 'inventory',
 };
 
 function syncDashboardData() {
@@ -25,7 +24,6 @@ function syncDashboardData() {
 
     copySheetValues_(pickSalesSheet_(sourceSheets), target, TARGET_TABS.sales);
     copySheetValues_(pickTargetSheet_(sourceSheets), target, TARGET_TABS.target);
-    copySheetValues_(pickInventorySheet_(sourceSheets), target, TARGET_TABS.inventory);
 
     PropertiesService.getScriptProperties().setProperty('LAST_SYNC_AT', new Date().toISOString());
   } finally {
@@ -85,11 +83,6 @@ function pickSalesSheet_(sheets) {
 
 function pickTargetSheet_(sheets) {
   return findByName_(sheets, ['target', 'kpi']);
-}
-
-function pickInventorySheet_(sheets) {
-  return findByName_(sheets, ['inventory', 'stock', 'ton', 'nhap', 'xuat']) ||
-    findByHeaders_(sheets, ['ma sku', 'ton cuoi ky']);
 }
 
 function findByName_(sheets, keywords) {

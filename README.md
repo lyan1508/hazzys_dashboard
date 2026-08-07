@@ -45,15 +45,11 @@ File Excel local **không commit lên GitHub** (đã có `.gitignore` chặn) �
 
 ## Báo cáo hiện có
 
-**Sprint 1 đã release:**
-- KPI cards (Revenue, Target, Bills, Traffic, CVR, UPT, ATV, …)
-- Revenue Performance, Bills & Traffic, Cashier
-- By Type / By Gender, Top Products, Promotion
-- **ABC / Pareto SKU** (mới)
-- **Cashier Productivity Matrix** (mới)
-- **Target Pace** — tiến độ chạy target tháng/quý/năm (mới)
-- Forecast doanh thu
-- YoY Comparison
-- **DOW Heatmap** — doanh thu theo thứ trong tuần (mới)
+Toàn bộ thống kê nằm trên **một trang duy nhất**, chia 5 nhóm:
 
-**Roadmap:** Sprint 2 (Inventory tab), Sprint 3 (Customer RFM + Product Mix nâng cao).
+- **KPI cards** (Revenue, Target, Achievement, Bills, Units, Traffic, CVR, UPT, ATV) + thanh Revenue vs Target
+- **Performance** — Revenue Performance (Monthly / Cumulative), Bills & Traffic
+- **Patterns** — Promotion, DOW Heatmap (Rev / Bills / ATV)
+- **Year over Year** — biểu đồ xu hướng + bảng tóm tắt theo năm
+- **Product** — Top Products by Style, By Category, By Type, By Gender
+- **Staff** — Revenue by Cashier, Cashier Productivity Matrix

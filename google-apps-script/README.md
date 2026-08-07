@@ -31,6 +31,5 @@ Keep the dashboard sheet tabs named exactly:
 
 - `sale data`
 - `target`
-- `inventory`
 
 The dashboard reads these tab names, so changing sheet `gid` values will not break it.
