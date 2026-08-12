@@ -5,9 +5,11 @@ const S = {
   revMode: 'monthly',
 };
 
+// Categorical colours tuned for the dark surface: same lightness band so no
+// slice visually outranks another, hues far enough apart to stay distinct.
 const PALETTE = {
-  multi: ['#1a56a8', '#059669', '#f59e0b', '#7c3aed', '#0891b2', '#db2777', '#dc2626', '#d97706'],
-  gender: ['#1a56a8', '#db2777', '#f59e0b', '#6b7280']
+  multi: ['#5b8def', '#2dd4a7', '#e8a765', '#a78bfa', '#3fc0e0', '#f472b6', '#f2708a', '#8fb0ff'],
+  gender: ['#5b8def', '#f472b6', '#e8a765', '#8892a8']
 };
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1057,8 +1059,6 @@ function initFilters() {
     const value = String(m).padStart(2, '0');
     return `<option value="${value}">${MONTH_NAMES[m - 1]}</option>`;
   }).join('')}`;
-  options(s.map((r) => r.gender), 'fGender', '—');
-  options(s.map((r) => r.type), 'fType', '—');
   // Store filter — only shown when multiple distinct stores exist in the data
   const stores = [...new Set(s.map((r) => r.store).filter((v) => v && v !== 'UNKNOWN'))].sort();
   const storeGroup = document.getElementById('fStoreGroup');
@@ -1072,15 +1072,13 @@ function syncFilters() {
   document.getElementById('fYear').value = S.filters.year;
   document.getElementById('fQuarter').value = S.filters.quarter;
   document.getElementById('fMonth').value = S.filters.month;
-  document.getElementById('fGender').value = S.filters.gender;
-  document.getElementById('fType').value = S.filters.type;
   const fStore = document.getElementById('fStore');
   if (fStore) fStore.value = S.filters.store;
   highlightActiveFilters();
 }
 
 function highlightActiveFilters() {
-  [['fYear','year'],['fQuarter','quarter'],['fMonth','month'],['fGender','gender'],['fType','type'],['fStore','store']]
+  [['fYear','year'],['fQuarter','quarter'],['fMonth','month'],['fStore','store']]
     .forEach(([id, key]) => {
       const sel = document.getElementById(id);
       const group = sel?.closest('.filter-group');
@@ -1124,7 +1122,7 @@ function renderCashierMatrix(m) {
   const foot = document.getElementById('cashierMatrixFoot');
   const data = m.cashierMatrix || [];
   if (!data.length) {
-    body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:14px">No cashier data</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:14px">No cashier data</td></tr>';
     foot.innerHTML = '';
     return;
   }
@@ -1133,7 +1131,6 @@ function renderCashierMatrix(m) {
     <tr>
       <td title="${esc(c.label)}">${esc(c.label)}</td>
       <td>${fmtN(c.days)}</td>
-      <td>${fmtN(c.bills)}</td>
       <td>${num(c.billsPerDay).toFixed(1)}</td>
       <td>${fmtShort(c.amount)}</td>
       <td>${fmtShort(c.revPerDay)}</td>
@@ -1147,7 +1144,6 @@ function renderCashierMatrix(m) {
   foot.innerHTML = `<tr>
     <td>TOTAL / AVG</td>
     <td>${fmtN(t.days)}</td>
-    <td>${fmtN(t.bills)}</td>
     <td>${num(t.billsPerDay).toFixed(1)}</td>
     <td>${fmtShort(t.amount)}</td>
     <td>${fmtShort(t.revPerDay)}</td>
@@ -1167,12 +1163,10 @@ window.switchDowMetric = function(metric, btn) {
 
 function renderDowHeatmap(m) {
   const strip = document.getElementById('dowStrip');
-  const ctxEl = document.getElementById('dowContext');
   const data = m.dowStats || [];
   const hasData = data.some((d) => d.dayCount > 0);
   if (!hasData) {
     strip.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-3);font-size:var(--fs-sm);padding:20px">No Data</div>';
-    ctxEl.textContent = 'No data';
     return;
   }
   const valFn = (d) => DOW_METRIC === 'bills' ? d.billsPerDay : DOW_METRIC === 'atv' ? d.atv : d.revPerDay;
@@ -1185,10 +1179,6 @@ function renderDowHeatmap(m) {
   const lowIdx = minV > 0 ? values.indexOf(minV) : -1;
 
   const totalRev = data.reduce((s, d) => s + d.revenue, 0);
-  const totalDays = data.reduce((s, d) => s + d.dayCount, 0);
-  const metricLbl = DOW_METRIC === 'bills' ? 'Bills/day' : DOW_METRIC === 'atv' ? 'ATV' : 'Revenue/day';
-  const peakLbl = peakIdx >= 0 ? data[peakIdx].label : '—';
-  ctxEl.textContent = `${metricLbl} · ${fmtN(totalDays)} days of data · Total revenue ${fmtVNDShort(totalRev)} · Peak: ${peakLbl}`;
 
   strip.innerHTML = data.map((d, i) => {
     const v = valFn(d);
@@ -1551,10 +1541,10 @@ function renderYoy() {
 
   // ── Year summary cards (all metrics per year) ──
   const YEAR_COLORS = [
-    { accent:'#3558a8', bg:'rgba(53,88,168,.07)',  border:'rgba(53,88,168,.20)',  head:'#3558a8' },
-    { accent:'#2a7a50', bg:'rgba(42,122,80,.07)',  border:'rgba(42,122,80,.22)',  head:'#2a7a50' },
-    { accent:'#b85c28', bg:'rgba(184,92,40,.07)',  border:'rgba(184,92,40,.22)',  head:'#b85c28' },
-    { accent:'#6040a0', bg:'rgba(96,64,160,.07)',  border:'rgba(96,64,160,.20)',  head:'#6040a0' },
+    { accent:'#5b8def', bg:'rgba(91,141,239,.09)',  border:'rgba(91,141,239,.26)',  head:'#8fb0ff' },
+    { accent:'#2dd4a7', bg:'rgba(45,212,167,.09)',  border:'rgba(45,212,167,.26)',  head:'#5fe0bd' },
+    { accent:'#e8a765', bg:'rgba(232,167,101,.09)', border:'rgba(232,167,101,.26)', head:'#f0bd8b' },
+    { accent:'#a78bfa', bg:'rgba(167,139,250,.09)', border:'rgba(167,139,250,.26)', head:'#c0abff' },
   ];
   let kpiHtml = '';
   years.forEach((y, i) => {
@@ -1597,8 +1587,7 @@ function renderYoy() {
   const _fb = document.getElementById('yoyFilterBadge');
   if (_fb) {
     const _dims = [
-      S.filters.gender !== 'all' ? S.filters.gender : null,
-      S.filters.type   !== 'all' ? S.filters.type   : null,
+      S.filters.store !== 'all' ? S.filters.store : null,
     ].filter(Boolean);
     if (_dims.length) {
       _fb.style.display = '';
@@ -1622,7 +1611,7 @@ function renderYoy() {
     for (let m = mLo; m <= mHi; m++) monthRange.push(m);
     const labels = monthRange.map(m => MONTH_NAMES[m-1]);
 
-    const COLORS = ['#1a56a8','#059669','#f59e0b','#7c3aed','#0891b2','#db2777'];
+    const COLORS = PALETTE.multi;
     const datasets = years.map((y, i) => {
       const data = getYoyMonthlyData(y, monthRange);
       return {
@@ -1661,7 +1650,7 @@ function renderYoy() {
     // Quarter view: bar per quarter per year
     const quarters = [1,2,3,4];
     const labels = quarters.map(q => `Q${q}`);
-    const COLORS = ['#1a56a8','#059669','#f59e0b','#7c3aed','#0891b2','#db2777'];
+    const COLORS = PALETTE.multi;
     const datasets = years.map((y, i) => {
       const data = quarters.map(q => {
         const mr = applyDimFilters(S.raw.sales).filter(r => r.year===y && Math.ceil(r.monthIndex/3)===q);
@@ -1696,7 +1685,7 @@ function renderYoy() {
 window.renderYoy = renderYoy;
 
 function bindEvents() {
-  [['fYear', 'year'], ['fQuarter', 'quarter'], ['fMonth', 'month'], ['fGender', 'gender'], ['fType', 'type'], ['fStore', 'store']]
+  [['fYear', 'year'], ['fQuarter', 'quarter'], ['fMonth', 'month'], ['fStore', 'store']]
     .forEach(([id, key]) => {
       document.getElementById(id)?.addEventListener('change', (e) => {
         S.filters[key] = e.target.value;

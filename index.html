@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260807-single-page">
+<link rel="stylesheet" href="styles.css?v=20260812-layout">
 </head>
 <body>
 <div class="app">
@@ -40,14 +40,6 @@
       <div class="filter-group">
         <div class="filter-label">Month</div>
         <select class="filter-select" id="fMonth"><option value="all">—</option></select>
-      </div>
-      <div class="filter-group">
-        <div class="filter-label">Gender</div>
-        <select class="filter-select" id="fGender"><option value="all">—</option></select>
-      </div>
-      <div class="filter-group">
-        <div class="filter-label">Type</div>
-        <select class="filter-select" id="fType"><option value="all">—</option></select>
       </div>
       <div class="filter-group" id="fStoreGroup" style="display:none">
         <div class="filter-label">Store</div>
@@ -199,10 +191,7 @@
 
         <div class="chart-card dow-section" id="dowSection">
           <div class="chart-card-hd">
-            <div>
-              <div class="chart-card-title">Day of Week</div>
-              <div class="chart-card-sub" id="dowContext">Calculating...</div>
-            </div>
+            <div class="chart-card-title">Day of Week</div>
             <div class="chart-tabs" id="dowMetricTabs">
               <button class="chart-tab active" data-dow-metric="revenue" onclick="switchDowMetric('revenue',this)">Rev</button>
               <button class="chart-tab" data-dow-metric="bills" onclick="switchDowMetric('bills',this)">Bills</button>
@@ -283,10 +272,7 @@
       <!-- Top products by style (full width) -->
       <div class="chart-card" id="topProductCard">
         <div class="chart-card-hd">
-          <div>
-            <div class="chart-card-title">Top Products by Style</div>
-            <div class="chart-card-sub">Gom theo mã model 9 ký tự (Brand + Category + Year + Season + Design)</div>
-          </div>
+          <div class="chart-card-title">Top Products by Style</div>
         </div>
         <div class="product-list" id="topProductList"></div>
       </div>
@@ -348,10 +334,7 @@
 
         <div class="chart-card" id="cashierMatrixCard">
           <div class="chart-card-hd">
-            <div>
-              <div class="chart-card-title">Cashier Productivity</div>
-              <div class="chart-card-sub">Một hóa đơn có thể do nhiều nhân viên cùng bán nên cột Bills cộng lại sẽ lớn hơn dòng TOTAL — TOTAL là số hóa đơn thực, không trùng lặp.</div>
-            </div>
+            <div class="chart-card-title">Cashier Productivity</div>
           </div>
           <div class="matrix-wrap">
             <table class="matrix-table" id="cashierMatrix">
@@ -359,7 +342,6 @@
                 <tr>
                   <th>Cashier</th>
                   <th>Days</th>
-                  <th>Bills</th>
                   <th>Bills/day</th>
                   <th>Revenue</th>
                   <th>Rev/day</th>
@@ -391,6 +373,6 @@
 
 </div><!-- /app -->
 
-<script defer src="app.js?v=20260807-single-page"></script>
+<script defer src="app.js?v=20260812-layout"></script>
 </body>
 </html>
