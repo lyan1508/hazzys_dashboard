@@ -103,6 +103,55 @@ function styleKey9(v) {
   if (!raw) return 'UNKNOWN';
   return raw.slice(0, 9);
 }
+
+// ===== HAZZYS STYLE CODE =====
+// Layout: [1-2] brand/gender · [3-4] category · [5] product year · [6] season
+// · [7-9] design · [10-11] colour · [12-14] size.  e.g. HUSW3D750BK095
+// Char 6 carries six seasons, but they only ever roll up to SS/FW for reporting —
+// six slices per month is too fine to compare.
+const SEASON_INFO = {
+  A: { label: 'Spring',        group: 'SS' },
+  B: { label: 'Summer',        group: 'SS' },
+  C: { label: 'Fall',          group: 'FW' },
+  D: { label: 'Winter',        group: 'FW' },
+  E: { label: 'Spring-Summer', group: 'SS' },
+  F: { label: 'Fall-Winter',   group: 'FW' },
+};
+// Warm hue for Spring/Summer, cool for Fall/Winter.
+const SEASON_GROUP = {
+  SS: { name: 'Spring / Summer', color: '#e8a765' },
+  FW: { name: 'Fall / Winter',   color: '#5b8def' },
+};
+const SEASON_GROUP_ORDER = ['SS', 'FW'];
+
+/** Collection code the way the trade writes it: SS25, FW24 — never mistakable
+ *  for the sales year, which is what the topbar filter controls. */
+function collectionLabel(group, year) {
+  if (!group) return '—';
+  return year ? `${group}${String(year).slice(-2)}` : `${group} ?`;
+}
+// Only 3–6 are defined in the Hazzys code book. Digits outside that range show up
+// on ~0,8% of rows (legacy stock) and are left unmapped rather than guessed.
+const PRODUCT_YEAR = { '3': '2023', '4': '2024', '5': '2025', '6': '2026' };
+
+// Category = style code chars 3-4. Codes missing from the Hazzys book (e.g. SH)
+// are shown as the bare code rather than guessed at.
+const CATEGORY_NAME = {
+  BA: 'Túi',        BE: 'Thắt lưng',   CO: 'Áo khoác dài', DR: 'Đầm',
+  GF: 'Túi golf',   GV: 'Găng tay',    HE: 'Nón',          HO: 'Áo hoodie',
+  JA: 'Áo khoác',   JU: 'Áo khoác nhẹ', LG: 'Móc khóa',    MU: 'Phụ kiện khác',
+  PA: 'Quần',       SC: 'Khăn',        SK: 'Váy',          SO: 'Giày',
+  SS: 'Vớ',         SW: 'Áo len',      TS: 'Áo phông',     WA: 'Ví',
+};
+
+/** Decode product year (char 5) + season (char 6) from a style code. */
+function productSeason(code) {
+  const raw = String(code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (raw.length < 6) return null;
+  const info = SEASON_INFO[raw[5]];
+  if (!info) return null;
+  return { year: PRODUCT_YEAR[raw[4]] || '', group: info.group };
+}
 function deriveCategory(rawCategory, infoCategory, typeValue, productKey) {
   const product = String(productKey || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (product.length >= 4) return product.slice(2, 4);
@@ -317,6 +366,7 @@ function ingestWorkbook(wb) {
     const upc = String(readField(r, ['upc', 'barcode', 'ean']) || '').trim();
     const rawProduct = sku || upc;
     const p9 = styleKey9(rawProduct);
+    const season = productSeason(rawProduct);
     const info = catalog[normalizeGroup(rawProduct)] || catalogByStyle[p9] || {};
     const txDate = parseDate(readField(r, ['date', 'trans_date', 'transdate', '날짜', '日付']));
     const monthDate = parseMonthFromRow(r, ['mm/yyyy', 'm/yyyy', 'mm-yyyy', 'm-yyyy', 'monthyear', 'month_year', 'month']);
@@ -349,6 +399,8 @@ function ingestWorkbook(wb) {
       sku: sku,
       upc: normalizeGroup(upc),
       productKey: p9,
+      prodYear: season ? season.year : '',
+      seasonGroup: season ? season.group : '',
       type: normalizeGroup(readField(r, ['type', 'itemtype', 'product_type', 'producttype']) || info.type),
       gender: normalizeGender(readField(r, ['gender', 'sex']) || info.gender),
       promotion: normalizeGroup(readField(r, ['promotion', 'promo', 'program', 'campaign'])),
@@ -492,7 +544,7 @@ function aggregate() {
       p.qty += num(r.qty);
       map.set(key, p);
     });
-    return [...map.values()].sort((a, b) => b.value - a.value).slice(0, 30);
+    return [...map.values()].sort((a, b) => b.value - a.value).slice(0, 10);
   })();
   const promotionStats = (() => {
     const map = new Map();
@@ -528,17 +580,19 @@ function aggregate() {
   const rangeFrom = sortedDates[0]?.toLocaleDateString('vi-VN') || '—';
   const rangeTo = sortedDates[sortedDates.length - 1]?.toLocaleDateString('vi-VN') || '—';
 
-  // ── Cashier matrix: enrich cashierStats with daysWorked & per-day metrics ──
+  // ── Cashier matrix: revenue + basket quality per cashier ──
+  // No per-day metrics: "days worked" is inferred from rows that happen to carry
+  // the cashier's name, not from a roster, so it understates anyone who shares
+  // receipts and makes Rev/day incomparable between staff.
   const cashierMatrix = (() => {
     const map = new Map();
     rows.forEach((r) => {
       const key = normalizeGroup(r.cashier);
       if (!key || key === 'UNKNOWN') return;
-      const p = map.get(key) || { label: key, amount: 0, qty: 0, billAcc: newBillAcc(), dates: new Set() };
+      const p = map.get(key) || { label: key, amount: 0, qty: 0, billAcc: newBillAcc() };
       p.amount += num(r.amount);
       p.qty += num(r.qty);
       addBill(p.billAcc, r);
-      p.dates.add(r.dateStr);
       map.set(key, p);
     });
     return [...map.values()].map((p) => {
@@ -548,13 +602,10 @@ function aggregate() {
         amount: p.amount,
         qty: p.qty,
         bills,
-        days: p.dates.size,
-        billsPerDay: p.dates.size > 0 ? bills / p.dates.size : 0,
-        revPerDay: p.dates.size > 0 ? p.amount / p.dates.size : 0,
         atv: bills > 0 ? p.amount / bills : 0,
         upt: bills > 0 ? p.qty / bills : 0,
       };
-    }).sort((a, b) => b.revPerDay - a.revPerDay);
+    }).sort((a, b) => b.amount - a.amount);
   })();
 
   // ── Cashier grand totals ──
@@ -569,14 +620,86 @@ function aggregate() {
     const bills = countBills(known);
     const amount = known.reduce((s, r) => s + num(r.amount), 0);
     const qty = known.reduce((s, r) => s + num(r.qty), 0);
-    const days = new Set(known.map((r) => r.dateStr)).size;
     return {
-      bills, amount, qty, days,
-      billsPerDay: days > 0 ? bills / days : 0,
-      revPerDay: days > 0 ? amount / days : 0,
+      bills, amount, qty,
       atv: bills > 0 ? amount / bills : 0,
       upt: bills > 0 ? qty / bills : 0,
     };
+  })();
+
+  // ── Season matrix: product year (char 5) × season (char 6) of the style code ──
+  // This is the year/season the GOODS belong to, not the month they sold in, so a
+  // 2024 row appearing in 2026 sales is carry-over stock rather than new arrivals.
+  const seasonStats = (() => {
+    const map = new Map();
+    rows.forEach((r) => {
+      if (!r.seasonGroup) return;
+      const year = r.prodYear || '';
+      const key = `${year}|${r.seasonGroup}`;
+      const p = map.get(key) || {
+        key, year, group: r.seasonGroup, amount: 0, qty: 0, billAcc: newBillAcc()
+      };
+      p.amount += num(r.amount);
+      p.qty += num(r.qty);
+      addBill(p.billAcc, r);
+      map.set(key, p);
+    });
+    const list = [...map.values()];
+    const total = list.reduce((s, p) => s + p.amount, 0);
+    return list.map((p) => {
+      const bills = billTotal(p.billAcc);
+      return {
+        key: p.key, year: p.year, group: p.group,
+        collection: collectionLabel(p.group, p.year),
+        name: (SEASON_GROUP[p.group] || {}).name || '',
+        amount: p.amount, qty: p.qty, bills,
+        share: total > 0 ? (p.amount / total) * 100 : 0,
+        atv: bills > 0 ? p.amount / bills : 0,
+        upt: bills > 0 ? p.qty / bills : 0,
+      };
+    }).sort((a, b) => {
+      // Newest collection year first (undecodable legacy codes last), SS before FW.
+      if (a.year !== b.year) {
+        if (!a.year) return 1;
+        if (!b.year) return -1;
+        return b.year.localeCompare(a.year);
+      }
+      return SEASON_GROUP_ORDER.indexOf(a.group) - SEASON_GROUP_ORDER.indexOf(b.group);
+    });
+  })();
+
+  // Bills are de-duplicated across the whole table: one receipt often mixes items
+  // from several seasons, so summing the per-season bill counts would overcount.
+  const seasonTotals = (() => {
+    const known = rows.filter((r) => r.seasonGroup);
+    const bills = countBills(known);
+    const amount = known.reduce((s, r) => s + num(r.amount), 0);
+    const qtyAll = known.reduce((s, r) => s + num(r.qty), 0);
+    return {
+      bills, amount, qty: qtyAll,
+      atv: bills > 0 ? amount / bills : 0,
+      upt: bills > 0 ? qtyAll / bills : 0,
+    };
+  })();
+
+  // ── Season split per month, for the stacked revenue chart ──
+  const seasonMonthly = (() => {
+    const present = SEASON_GROUP_ORDER.filter((g) => rows.some((r) => r.seasonGroup === g));
+    const idx = new Map(months.map((m, i) => [m.monthKey, i]));
+    const series = present.map((g) => ({
+      code: g,
+      label: SEASON_GROUP[g].name,
+      color: SEASON_GROUP[g].color,
+      data: new Array(months.length).fill(0),
+    }));
+    const byGroup = new Map(series.map((s) => [s.code, s]));
+    rows.forEach((r) => {
+      const s = byGroup.get(r.seasonGroup);
+      const i = idx.get(r.monthKey);
+      if (!s || i === undefined) return;
+      s.data[i] += num(r.amount);
+    });
+    return { labels: months.map((m) => m.monthLabelYY), series };
   })();
 
   // ── DOW stats: Mon..Sun (display order) ──
@@ -612,7 +735,8 @@ function aggregate() {
     byType: safeGroupSum(rows, 'type'),
     byGender: safeGroupSum(rows, 'gender'),
     byCategory: safeGroupSum(rows, 'category'),
-    promotionStats, cashierStats, cashierMatrix, cashierTotals, dowStats, rangeFrom, rangeTo
+    promotionStats, cashierStats, cashierMatrix, cashierTotals, dowStats, rangeFrom, rangeTo,
+    seasonStats, seasonTotals, seasonMonthly
   };
 }
 
@@ -958,11 +1082,108 @@ function renderCharts(m) {
     options: baseOptions((v) => fmtShort(v), (ctx) => `${ctx.dataset.label}: ${fmtN(ctx.raw)}`)
   });
 
-  renderDoughnut('category', 'chartCategory', 'dCategoryVal', 'legendCategory', m.byCategory, PALETTE.multi);
+  renderCategoryList(m);
   renderDoughnut('type', 'chartType', 'dTypeVal', 'legendType', m.byType, PALETTE.multi);
   renderDoughnut('gender', 'chartGender', 'dGenderVal', 'legendGender', m.byGender, PALETTE.gender);
   renderPromotionInfo(m);
   renderCashierBar(m);
+  renderSeasonChart(m);
+}
+
+// ===== CATEGORY — ranked bar list =====
+// 19 categories is far past what a doughnut can hold: the palette only has 8
+// colours so hues repeat, and the bottom 14 groups share 8% of revenue. A ranked
+// list encodes value as bar length instead, so one accent colour is enough.
+function renderCategoryList(m) {
+  const el = document.getElementById('categoryList');
+  const list = (m.byCategory || []).filter((x) => num(x.value) > 0);
+  if (!list.length) {
+    el.innerHTML = '<div style="padding:14px 16px;color:var(--text-3);font-size:12px;text-align:center">No Data</div>';
+    return;
+  }
+  const maxVal = num(list[0].value) || 1;
+  const total = list.reduce((s, x) => s + num(x.value), 0);
+  el.innerHTML = list.map((x, i) => {
+    const code = String(x.label || '').toUpperCase();
+    const name = CATEGORY_NAME[code];
+    return `
+    <div class="product-item">
+      <div class="p-rank ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}">${i + 1}</div>
+      <div class="p-info">
+        <div class="p-name" title="${esc(code)}${name ? ' · ' + esc(name) : ''}">${esc(code)}${name ? ` <span class="p-name-sub">${esc(name)}</span>` : ''}</div>
+        <div class="p-bar-wrap"><div class="p-bar" style="width:${Math.max(2, (num(x.value) / maxVal) * 100)}%"></div></div>
+      </div>
+      <div class="p-value">
+        <div class="p-amount">${fmtShort(x.value)}</div>
+        <div class="p-qty">${fmtPct(total > 0 ? (num(x.value) / total) * 100 : 0)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== SEASON — stacked revenue per month =====
+function renderSeasonChart(m) {
+  const sm = m.seasonMonthly || { labels: [], series: [] };
+  destroyChart('season');
+  if (!sm.series.length) return;
+  const opts = baseOptions(
+    (v) => fmtShort(v),
+    (ctx) => `${ctx.dataset.label}: ${fmtVNDShort(ctx.raw)}`,
+    true
+  );
+  opts.scales.x.stacked = true;
+  opts.scales.y.stacked = true;
+  opts.plugins.tooltip.itemSort = (a, b) => b.raw - a.raw;
+  S.charts.season = new Chart(document.getElementById('chartSeason'), {
+    type: 'bar',
+    data: {
+      labels: sm.labels,
+      datasets: sm.series.map((s) => ({
+        label: s.label,
+        data: s.data,
+        backgroundColor: s.color,
+        borderRadius: 3,
+        maxBarThickness: 44,
+      }))
+    },
+    options: opts
+  });
+}
+
+// ===== SEASON — product year × season table =====
+function renderSeasonMatrix(m) {
+  const body = document.getElementById('seasonMatrixBody');
+  const foot = document.getElementById('seasonMatrixFoot');
+  const data = m.seasonStats || [];
+  if (!data.length) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:14px">No season data</td></tr>';
+    foot.innerHTML = '';
+    return;
+  }
+  body.innerHTML = data.map((s, i) => {
+    const newYear = i > 0 && data[i - 1].year !== s.year;
+    const color = (SEASON_GROUP[s.group] || {}).color || 'var(--text-3)';
+    return `
+    <tr${newYear ? ' class="year-start"' : ''}>
+      <td class="coll-cell" title="Bộ sưu tập ${esc(s.name)} ${esc(s.year || '?')}">
+        <span class="season-dot" style="background:${color}"></span>${esc(s.collection)}
+      </td>
+      <td>${fmtShort(s.amount)}</td>
+      <td>${fmtPct(s.share)}</td>
+      <td>${fmtN(s.qty)}</td>
+      <td>${fmtShort(s.atv)}</td>
+      <td>${num(s.upt).toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+  const t = m.seasonTotals || {};
+  foot.innerHTML = `<tr title="Số hóa đơn đã loại trùng: một hóa đơn thường gồm hàng của nhiều bộ sưu tập nên ATV/UPT tổng cao hơn từng dòng.">
+    <td>TOTAL / AVG</td>
+    <td>${fmtShort(t.amount)}</td>
+    <td>100%</td>
+    <td>${fmtN(t.qty)}</td>
+    <td>${fmtShort(t.atv)}</td>
+    <td>${num(t.upt).toFixed(2)}</td>
+  </tr>`;
 }
 
 function renderKPIs(m) {
@@ -1026,7 +1247,7 @@ function renderTopProducts(m) {
     el.innerHTML = '<div style="padding:14px 16px;color:var(--text-3);font-size:12px;text-align:center">No Data</div>';
     return;
   }
-  const list = m.topProducts.slice(0, 30);
+  const list = m.topProducts.slice(0, 10);
   const maxVal = num(list[0].value) || 1;
   el.innerHTML = list.map((p, i) => `
     <div class="product-item">
@@ -1051,11 +1272,11 @@ function initFilters() {
     const values = [...new Set(arr.filter((v) => v && (includeUnknown || v !== 'UNKNOWN')))].sort();
     document.getElementById(id).innerHTML = `<option value="all">${allLabel}</option>${values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('')}`;
   };
-  options(s.map((r) => r.year), 'fYear', '—');
-  options(s.map((r) => r.quarter), 'fQuarter', '—');
+  options(s.map((r) => r.year), 'fYear', 'All');
+  options(s.map((r) => r.quarter), 'fQuarter', 'All');
   const monthValues = [...new Set(s.map((r) => Number(r.monthIndex)).filter((v) => Number.isFinite(v) && v >= 1 && v <= 12))]
     .sort((a, b) => a - b);
-  document.getElementById('fMonth').innerHTML = `<option value="all">—</option>${monthValues.map((m) => {
+  document.getElementById('fMonth').innerHTML = `<option value="all">All</option>${monthValues.map((m) => {
     const value = String(m).padStart(2, '0');
     return `<option value="${value}">${MONTH_NAMES[m - 1]}</option>`;
   }).join('')}`;
@@ -1064,7 +1285,7 @@ function initFilters() {
   const storeGroup = document.getElementById('fStoreGroup');
   if (storeGroup) {
     storeGroup.style.display = stores.length > 1 ? '' : 'none';
-    options(s.map((r) => r.store), 'fStore', '—');
+    options(s.map((r) => r.store), 'fStore', 'All');
   }
 }
 
@@ -1110,6 +1331,7 @@ function renderAll() {
   renderCharts(m);
   renderTopProducts(m);
   renderCashierMatrix(m);
+  renderSeasonMatrix(m);
   renderDowHeatmap(m);
   syncYoyFromFilters();
   renderYoy();
@@ -1122,18 +1344,15 @@ function renderCashierMatrix(m) {
   const foot = document.getElementById('cashierMatrixFoot');
   const data = m.cashierMatrix || [];
   if (!data.length) {
-    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:14px">No cashier data</td></tr>';
+    body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:14px">No cashier data</td></tr>';
     foot.innerHTML = '';
     return;
   }
-  // (sorted by revPerDay desc inside aggregate)
+  // (sorted by revenue desc inside aggregate)
   body.innerHTML = data.map((c) => `
     <tr>
       <td title="${esc(c.label)}">${esc(c.label)}</td>
-      <td>${fmtN(c.days)}</td>
-      <td>${num(c.billsPerDay).toFixed(1)}</td>
       <td>${fmtShort(c.amount)}</td>
-      <td>${fmtShort(c.revPerDay)}</td>
       <td>${fmtShort(c.atv)}</td>
       <td>${num(c.upt).toFixed(2)}</td>
     </tr>
@@ -1141,12 +1360,9 @@ function renderCashierMatrix(m) {
   // De-duplicated totals, not a column sum: one receipt can list several
   // cashiers, and each of them counts it in their own row.
   const t = m.cashierTotals || {};
-  foot.innerHTML = `<tr>
+  foot.innerHTML = `<tr title="Số hóa đơn đã loại trùng: 28% hóa đơn có nhiều thu ngân cùng bán nên ATV/UPT tổng cao hơn từng dòng.">
     <td>TOTAL / AVG</td>
-    <td>${fmtN(t.days)}</td>
-    <td>${num(t.billsPerDay).toFixed(1)}</td>
     <td>${fmtShort(t.amount)}</td>
-    <td>${fmtShort(t.revPerDay)}</td>
     <td>${fmtShort(t.atv)}</td>
     <td>${num(t.upt).toFixed(2)}</td>
   </tr>`;
@@ -1226,13 +1442,10 @@ function setStatus(text, isIdle = false) {
 // ---- Shared helper: ingest workbook + reset UI state ----
 function applyWorkbook(wb, successMsg) {
   S.raw = ingestWorkbook(wb);
+  // Every filter starts at "All" — the dashboard opens on the full data set and
+  // the user narrows it down themselves.
   S.filters ={ year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all', store: 'all' };
   initFilters();
-  // Default the Year filter to the most recent year in the data — more intuitive
-  // than showing all years combined on first load. Month/Quarter stay "all" so the
-  // Overview still shows the full-year trend. (The "Clear filters" button resets to all.)
-  const yearsInData = [...new Set(S.raw.sales.map((r) => r.year).filter(Boolean))].sort();
-  if (yearsInData.length) S.filters.year = yearsInData[yearsInData.length - 1];
   syncFilters();
   destroyAllCharts();
   document.getElementById('emptyState').style.display = 'none';

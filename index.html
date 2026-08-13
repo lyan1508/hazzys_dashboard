@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260812-layout">
+<link rel="stylesheet" href="styles.css?v=20260813-scrollgutter">
 </head>
 <body>
 <div class="app">
@@ -30,20 +30,20 @@
 
     <div class="filters" id="filterBar">
       <div class="filter-group">
-        <div class="filter-label">Year</div>
-        <select class="filter-select" id="fYear"><option value="all">—</option></select>
+        <div class="filter-label">Sales Year</div>
+        <select class="filter-select" id="fYear"><option value="all">All</option></select>
       </div>
       <div class="filter-group">
         <div class="filter-label">Quarter</div>
-        <select class="filter-select" id="fQuarter"><option value="all">—</option></select>
+        <select class="filter-select" id="fQuarter"><option value="all">All</option></select>
       </div>
       <div class="filter-group">
         <div class="filter-label">Month</div>
-        <select class="filter-select" id="fMonth"><option value="all">—</option></select>
+        <select class="filter-select" id="fMonth"><option value="all">All</option></select>
       </div>
       <div class="filter-group" id="fStoreGroup" style="display:none">
         <div class="filter-label">Store</div>
-        <select class="filter-select" id="fStore"><option value="all">—</option></select>
+        <select class="filter-select" id="fStore"><option value="all">All</option></select>
       </div>
     </div>
 
@@ -279,17 +279,11 @@
 
       <!-- Mix breakdowns: Category | Type | Gender -->
       <div class="g-row g-row-3">
-        <div class="chart-card">
+        <div class="chart-card" id="categoryCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">By Category</div>
           </div>
-          <div class="split-inner">
-            <div class="doughnut-wrap">
-              <canvas id="chartCategory"></canvas>
-              <div class="doughnut-center"><div class="d-val" id="dCategoryVal">—</div><div class="d-lbl">Total</div></div>
-            </div>
-            <div class="legend-list" id="legendCategory"></div>
-          </div>
+          <div class="product-list" id="categoryList"></div>
         </div>
         <div class="chart-card">
           <div class="chart-card-hd">
@@ -313,6 +307,38 @@
               <div class="doughnut-center"><div class="d-val" id="dGenderVal">—</div><div class="d-lbl">Total</div></div>
             </div>
             <div class="legend-list" id="legendGender"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Season: doanh thu theo tháng tách mùa | bảng Năm SP × Season -->
+      <div class="g-row g-row-2">
+        <div class="chart-card" id="seasonChartCard">
+          <div class="chart-card-hd">
+            <div class="chart-card-title">Revenue by Season (SS / FW)</div>
+          </div>
+          <div class="chart-wrap chart-wrap--md"><canvas id="chartSeason"></canvas></div>
+        </div>
+
+        <div class="chart-card" id="seasonMatrixCard">
+          <div class="chart-card-hd">
+            <div class="chart-card-title">Collection Performance</div>
+          </div>
+          <div class="matrix-wrap">
+            <table class="matrix-table" id="seasonMatrix">
+              <thead>
+                <tr>
+                  <th>Collection</th>
+                  <th>Revenue</th>
+                  <th>Share</th>
+                  <th>Qty</th>
+                  <th>ATV</th>
+                  <th>UPT</th>
+                </tr>
+              </thead>
+              <tbody id="seasonMatrixBody"></tbody>
+              <tfoot id="seasonMatrixFoot"></tfoot>
+            </table>
           </div>
         </div>
       </div>
@@ -341,10 +367,7 @@
               <thead>
                 <tr>
                   <th>Cashier</th>
-                  <th>Days</th>
-                  <th>Bills/day</th>
                   <th>Revenue</th>
-                  <th>Rev/day</th>
                   <th>ATV</th>
                   <th>UPT</th>
                 </tr>
@@ -373,6 +396,6 @@
 
 </div><!-- /app -->
 
-<script defer src="app.js?v=20260812-layout"></script>
+<script defer src="app.js?v=20260813-scrollgutter"></script>
 </body>
 </html>

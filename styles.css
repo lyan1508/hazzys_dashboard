@@ -798,7 +798,7 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 
 /* Row helpers — mọi nhóm dùng chung, dễ cân bố cục */
 .g-row{display:grid;gap:10px;align-items:stretch;min-width:0}
-.g-row + .g-row{margin-top:10px}
+.g-row + .g-row{margin-top:var(--gap)}
 .g-row-2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .g-row-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .g-row > *{min-width:0;margin-bottom:0}
@@ -892,7 +892,10 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 .dash-group:last-child{margin-bottom:6px}
 .group-hd{margin:0 0 var(--gap);padding-bottom:8px}
 .g-row{gap:var(--gap)}
-.g-row + .g-row{margin-top:var(--gap)}
+/* Mọi khối liên tiếp trong một nhóm, không riêng .g-row — thẻ full-width
+   (Top Products) trước đây dính sát hàng bên dưới vì không khớp .g-row + .g-row.
+   Margin của group-hd và margin-top ở đây tự collapse nên vẫn đúng 1 nhịp. */
+.dash-group > * + *{margin-top:var(--gap)}
 .chart-card{padding:var(--pad-card)}
 /* min-height = chiều cao của header có tab, để thẻ chỉ-có-tiêu-đề cao bằng */
 .chart-card-hd{margin-bottom:14px;min-height:32px;align-items:center}
@@ -932,15 +935,22 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 /* ---------- 4. Thẻ cùng hàng cao bằng nhau ---------- */
 .chart-wrap--md{height:var(--card-body)}
 #promoCard #promotionInfo{height:var(--card-body);max-height:var(--card-body);min-height:0}
-#cashierMatrixCard .matrix-wrap{height:var(--card-body);max-height:var(--card-body)}
+.chart-card .matrix-wrap{height:var(--card-body);max-height:var(--card-body)}
 #topProductList{max-height:var(--card-body-lg)}
 .g-row-3 .split-inner{min-height:146px;height:146px}
 .g-row-3 .legend-list{max-height:146px}
 
+/* Hàng 3 doughnut giữ nguyên 3 cột tới tận mốc xếp dọc 820px.
+   Rớt xuống 2 cột ở 1100px sẽ để lại 1 thẻ mồ côi ở dòng dưới, mà
+   ở 830px mỗi cột vẫn còn ~256px — thừa chỗ cho doughnut 100px + chú thích. */
+@media(min-width:821px){
+  .g-row-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
 @media(max-width:820px){
   :root{--card-body:224px;--card-body-lg:380px}
   .dash-group{margin-bottom:18px}
-  #cashierMatrixCard .matrix-wrap{height:300px;max-height:300px}
+  .chart-card .matrix-wrap{height:300px;max-height:300px}
 }
 @media(max-width:640px){
   :root{--card-body:200px}
@@ -966,6 +976,21 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
   border-top:1px solid var(--border-2);
   color:var(--brand-light);
 }
+
+/* Bảng Collection — mã SS25 / FW24 kiểu ngành thời trang, không lẫn với năm bán */
+#seasonMatrix .coll-cell{
+  text-align:left;white-space:nowrap;
+  font-family:var(--mono);font-weight:700;color:var(--text);
+  letter-spacing:.6px;width:92px;
+}
+#seasonMatrix .season-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  margin-right:8px;vertical-align:middle;
+}
+/* Đường kẻ đậm hơn mỗi khi sang năm bộ sưu tập mới */
+#seasonMatrix tr.year-start td{border-top:1px solid var(--border-2)}
+#seasonMatrix tfoot td:first-child{text-align:left}
+#seasonMatrix thead th:first-child{text-align:left}
 
 /* ---------- 6. Màu: một sắc nhấn duy nhất ---------- */
 .group-title::before{background:var(--brand-mid)}
@@ -1017,3 +1042,150 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 .upload-zone:hover{border-color:var(--brand-mid);background:rgba(var(--brand-rgb),.05)}
 .upload-zone.dragover{border-color:var(--brand);background:rgba(var(--brand-rgb),.10)}
 .spinner{border-top-color:var(--brand-mid)}
+
+/* =========================================
+   HOÀN THIỆN — chi tiết cho cảm giác chuyên nghiệp
+   ========================================= */
+
+/* 1. Mọi thẻ có cùng một đường phân cách tiêu đề/nội dung.
+      min-height tính cả padding + border (box-sizing:border-box) nên thẻ
+      chỉ có tiêu đề cao đúng bằng thẻ có tab. */
+.chart-card-hd{
+  border-bottom:1px solid var(--border);
+  padding-bottom:11px;
+  margin-bottom:13px;
+  min-height:44px;
+}
+.chart-card-title{letter-spacing:-.01em}
+
+/* 2. Tiêu đề nhóm: chữ nhỏ in hoa + đường kẻ chạy hết chiều ngang */
+.group-hd{border-bottom:1px solid var(--border);gap:12px}
+.group-title{
+  font-size:var(--fs-sm);
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.9px;
+  color:var(--text-2);
+}
+.group-title::before{width:3px;height:12px;background:var(--brand-mid)}
+
+/* 3. KPI: số là nhân vật chính, nhãn lùi về sau */
+.kpi-card{border-radius:var(--radius-sm)}
+.kpi-value{font-weight:800;letter-spacing:-.5px}
+.kpi-label{font-size:10px;color:var(--text-3)}
+
+/* 4. Bảng: sọc nhẹ + cột đầu dính khi cuộn ngang */
+.matrix-table tbody tr:nth-child(even){background:rgba(255,255,255,.018)}
+.matrix-table tbody tr:hover{background:rgba(var(--brand-rgb),.08)}
+.matrix-table tbody td:first-child,
+.matrix-table tfoot td:first-child{
+  position:sticky;left:0;z-index:1;
+  background:var(--surface);
+}
+.matrix-table tbody tr:nth-child(even) td:first-child{background:#161b28}
+.matrix-table tbody tr:hover td:first-child{background:#1a2130}
+.matrix-table tfoot td:first-child{background:var(--surface-2)}
+.matrix-table thead th:first-child{position:sticky;left:0;z-index:2}
+#seasonMatrix .season-cell{position:static}
+
+/* 5. Chú thích biểu đồ gọn hơn (chart Season có legend) */
+.chart-card canvas{cursor:default}
+
+/* 6. Vòng focus rõ ràng cho bàn phím */
+:focus-visible{outline:2px solid var(--brand-mid);outline-offset:2px;border-radius:6px}
+.btn-icon:focus-visible{outline-offset:1px}
+
+/* 7. Bôi đen văn bản dùng đúng sắc nhấn */
+::selection{background:rgba(var(--brand-rgb),.32);color:var(--text)}
+
+/* 8. Thanh trạng thái: cùng nhịp lề với nội dung */
+.statusbar{padding:7px var(--pad-page)}
+.statusbar-inner{max-width:1720px}
+
+/* =========================================
+   NHÓM PRODUCT — cân lại sau khi Category
+   đổi sang bar list và Top Products còn 10
+   ========================================= */
+
+/* Top Products: đúng 10 mục nên chia 5×2 hoặc 2×5 — hàng nào cũng đầy,
+   không còn ô lẻ như lưới auto-fill trước đây. Không cần cuộn. */
+#topProductList{
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  max-height:none;
+  gap:8px;
+}
+@media(max-width:1280px){#topProductList{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){#topProductList{grid-template-columns:1fr}}
+
+/* Hàng mix: cả 3 thẻ cao bằng các hàng khác (--card-body) */
+#categoryList{
+  grid-template-columns:1fr;
+  gap:4px;
+  height:var(--card-body);
+  max-height:var(--card-body);
+  overflow-y:auto;
+  align-content:start;
+  padding-right:3px;
+}
+/* Mục category nén 1 dòng: tiền và % nằm ngang nhau thay vì xếp chồng,
+   nhờ vậy thấy được ~7/19 nhóm thay vì 5 — top 7 đã là 96% doanh thu. */
+/* Cột giá trị để auto: tiền và % nằm ngang nên rộng hơn track 76px mặc định
+   của .product-item — để cố định thì "390.8M 1.9%" tràn ra ngoài mép. */
+#categoryList .product-item{padding:5px 9px;align-items:center;grid-template-columns:18px minmax(0,1fr) auto;gap:8px}
+#categoryList .p-value{flex-direction:row;align-items:baseline;gap:8px}
+#categoryList .p-qty{min-width:38px;text-align:right}
+#categoryList .p-bar-wrap{height:3px;margin-top:4px}
+#categoryList .p-name{
+  display:flex;align-items:baseline;gap:7px;
+  font-family:var(--mono);letter-spacing:.4px;
+}
+#categoryList .p-name-sub{
+  font-family:var(--font);font-weight:500;
+  font-size:var(--fs-xs);color:var(--text-3);letter-spacing:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+/* Type / Gender chỉ có 2 giá trị — phóng to doughnut cho lấp đầy cột */
+.g-row-3 .split-inner{height:var(--card-body);min-height:0;justify-content:center;gap:18px}
+.g-row-3 .doughnut-wrap,
+.g-row-3 .doughnut-wrap canvas{width:150px!important;height:150px!important}
+.g-row-3 .legend-list{max-height:none;flex:0 1 auto}
+.g-row-3 .legend-name{font-size:var(--fs-md)}
+.g-row-3 .legend-pct{font-size:var(--fs-sm)}
+.g-row-3 .doughnut-center .d-val{font-size:var(--fs-lg)}
+
+@media(max-width:820px){
+  #categoryList{height:300px;max-height:300px}
+  .g-row-3 .split-inner{height:200px}
+}
+
+/* =========================================
+   THANH CUỘN — luôn chừa máng riêng
+   scrollbar-gutter:stable giữ sẵn chỗ cho thanh cuộn nên số liệu
+   không bao giờ nằm dưới nó, và khung không nhảy khi nội dung đổi.
+   ========================================= */
+/* Chỉ những vùng thật sự cuộn mới chừa máng — Top Products (10 mục vừa khung)
+   và legend không cuộn, chừa máng ở đó chỉ làm lề phải dày hơn lề trái 8px. */
+.matrix-wrap,
+#categoryList,
+#promoCard #promotionInfo{
+  scrollbar-gutter:stable;
+}
+#topProductList,
+.g-row-3 .legend-list{overflow:visible}
+
+/* Danh sách: số nằm cách thanh cuộn một khoảng thở */
+#categoryList{padding-right:8px}
+#promoCard #promotionInfo{padding-right:8px}
+
+/* Bảng: đẩy cột cuối ra thay vì đệm cả khung, để nền dòng tiêu đề
+   và dòng TOTAL vẫn chạy hết chiều ngang. */
+.matrix-table th:last-child,
+.matrix-table td:last-child{padding-right:16px}
+
+/* Thanh cuộn dày hơn chút cho dễ bấm, và chỉ hiện rõ khi rê vào vùng cuộn */
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:4px}
+.matrix-wrap:hover::-webkit-scrollbar-thumb,
+#categoryList:hover::-webkit-scrollbar-thumb,
+#promotionInfo:hover::-webkit-scrollbar-thumb{background:var(--text-3)}
