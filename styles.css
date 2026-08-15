@@ -762,8 +762,8 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
   .yoy-controls{gap:5px!important;padding:6px 10px!important}
   .yoy-metric-tabs{margin-left:0!important;flex-wrap:wrap}
 
-  /* --- Cashier bar chart: chiều cao vừa mobile --- */
-  #cashierBarCard .chart-wrap{height:220px!important}
+  /* --- Personal Sales: thanh thưa hơn cho vừa màn hình --- */
+  #staffTargetCard .st-list{gap:10px}
 
 }
 
@@ -1189,3 +1189,66 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 .matrix-wrap:hover::-webkit-scrollbar-thumb,
 #categoryList:hover::-webkit-scrollbar-thumb,
 #promotionInfo:hover::-webkit-scrollbar-thumb{background:var(--text-3)}
+
+/* =========================================
+   PERSONAL SALES — doanh thu vs target từng nhân viên
+   Nền nhạt = tổng target (dài ngắn theo hệ số), thanh đậm = doanh thu,
+   vạch dọc = target theo timeline. Mọi dòng chung một thang đo.
+   ========================================= */
+.st-legend{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.st-legend-item{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--text-3);white-space:nowrap}
+.st-legend-item i{display:inline-block;width:10px;height:9px;border-radius:2px}
+.st-key-fill{background:linear-gradient(90deg,var(--brand-mid),var(--brand))}
+.st-key-pace{width:2px!important;height:12px!important;border-radius:0!important;background:var(--text)}
+.st-key-target{background:rgba(var(--brand-rgb),.14);border:1px solid rgba(var(--brand-rgb),.42)}
+
+.st-list{
+  display:flex;flex-direction:column;justify-content:center;gap:14px;
+  flex:1;min-height:0;overflow:auto;padding:4px 2px;
+}
+
+.st-row{display:grid;grid-template-columns:62px 1fr 46px;align-items:center;gap:10px}
+.st-name{
+  font-size:11px;font-weight:700;color:var(--text-2);text-align:right;
+  text-transform:uppercase;letter-spacing:.3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.st-track{position:relative;height:22px;min-width:0}
+.st-target{
+  position:absolute;left:0;top:0;height:100%;border-radius:5px;
+  background:rgba(var(--brand-rgb),.10);border:1px solid rgba(var(--brand-rgb),.35);
+}
+.st-fill{
+  position:absolute;left:0;top:0;height:100%;border-radius:5px;z-index:1;
+  background:linear-gradient(90deg,var(--brand-mid),var(--brand));
+  transition:width .35s ease;
+}
+.st-row.behind .st-fill{background:linear-gradient(90deg,#c9863f,var(--accent))}
+.st-pace{
+  position:absolute;top:-3px;height:calc(100% + 6px);width:2px;z-index:2;
+  background:var(--text);opacity:.8;transform:translateX(-1px);border-radius:1px;
+}
+.st-val{
+  position:absolute;top:50%;transform:translateY(-50%);z-index:3;
+  font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-2);
+  font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none;
+}
+.st-val.in{left:9px;color:#fff}
+.st-pct{
+  font-size:11px;font-weight:700;color:var(--text-2);text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+
+.st-foot{flex-shrink:0}
+.st-foot:not(:empty){border-top:1px solid var(--border-2);margin-top:10px;padding-top:8px}
+.st-foot-main{
+  display:grid;grid-template-columns:62px 1fr 46px;gap:10px;align-items:baseline;
+  font-size:11px;font-weight:800;color:var(--text);
+}
+.st-foot-main span:first-child{text-align:right;color:var(--text-3);letter-spacing:.3px}
+.st-foot-pct{text-align:right}
+
+@media (max-width:640px){
+  .st-legend{display:none}
+  .st-row,.st-foot-main{grid-template-columns:52px 1fr 42px;gap:8px}
+}

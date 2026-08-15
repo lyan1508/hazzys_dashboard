@@ -349,13 +349,17 @@
       <div class="group-hd"><h2 class="group-title">Staff</h2></div>
 
       <div class="g-row g-row-2">
-        <div class="chart-card" id="cashierBarCard">
+        <div class="chart-card" id="staffTargetCard">
           <div class="chart-card-hd">
-            <div class="chart-card-title">Revenue by Cashier</div>
+            <div class="chart-card-title">Personal Sales</div>
+            <div class="st-legend">
+              <span class="st-legend-item"><i class="st-key-fill"></i>Doanh thu</span>
+              <span class="st-legend-item"><i class="st-key-pace"></i>Timeline</span>
+              <span class="st-legend-item"><i class="st-key-target"></i>Target</span>
+            </div>
           </div>
-          <div class="chart-wrap chart-wrap--md">
-            <canvas id="chartCashierBar"></canvas>
-          </div>
+          <div class="st-list" id="staffTargetList"></div>
+          <div class="st-foot" id="staffTargetFoot"></div>
         </div>
 
         <div class="chart-card" id="cashierMatrixCard">

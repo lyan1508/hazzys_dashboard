@@ -85,6 +85,37 @@ function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).pad
 function monthLabelYY(d) { return `${MONTH_NAMES[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`; }
 function localDateKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 
+// ===== STAFF TARGET WEIGHTS =====
+// The store target is split among the staff who sold that month in proportion to
+// these weights; anyone not listed carries a full share. Keys are the cashier
+// name upper-cased exactly as it appears in the sheet. This is the only place to
+// edit when someone joins, leaves, or changes weight.
+const STAFF_COEF = { 'AN': 0.85 };
+function staffCoef(name) {
+  const c = STAFF_COEF[normalizeGroup(name)];
+  return c === undefined ? 1 : num(c);
+}
+
+// Share of a month already elapsed, measured against the last day that has sales
+// data rather than today's date — otherwise a late data refresh makes everyone
+// look behind pace. Finished months return 1, months not started yet return 0.
+function monthElapsedRatio(mKey, lastDate) {
+  const [y, mo] = String(mKey).split('-').map(Number);
+  if (!y || !mo) return 1;
+  const daysInMonth = new Date(y, mo, 0).getDate();
+  if (!lastDate) return 1;
+  const lastKey = monthKey(lastDate);
+  if (mKey < lastKey) return 1;
+  if (mKey > lastKey) return 0;
+  return Math.min(lastDate.getDate(), daysInMonth) / daysInMonth;
+}
+
+function latestSaleDate() {
+  let max = null;
+  S.raw.sales.forEach((r) => { if (r.date && (!max || r.date > max)) max = r.date; });
+  return max;
+}
+
 function normalizeText(v) {
   const base = String(v ?? '').trim().toUpperCase();
   return base || 'UNKNOWN';
@@ -627,6 +658,55 @@ function aggregate() {
     };
   })();
 
+  // ── Staff targets: personal revenue vs a weighted slice of the store target ──
+  // The store target is one number per month. It is split among whoever actually
+  // sold that month, weighted by STAFF_COEF, so a month where someone joins or
+  // leaves re-splits on its own without a roster file. Revenue is summed per
+  // item line: every line names exactly one person, so a receipt shared by four
+  // staff already splits itself line by line.
+  const staffMatrix = (() => {
+    const revByMonth = new Map();   // monthKey -> Map(name -> amount)
+    rows.forEach((r) => {
+      const key = normalizeGroup(r.cashier);
+      if (!key || key === 'UNKNOWN') return;
+      if (!revByMonth.has(r.monthKey)) revByMonth.set(r.monthKey, new Map());
+      const bucket = revByMonth.get(r.monthKey);
+      bucket.set(key, num(bucket.get(key)) + num(r.amount));
+    });
+
+    const lastDate = latestSaleDate();
+    const staff = new Map();        // name -> { label, amount, target, pace }
+
+    months.forEach((mo) => {
+      const bucket = revByMonth.get(mo.monthKey);
+      const names = bucket ? [...bucket.keys()] : [];
+      // A month nobody is named on (Sep–Dec 2024) leaves its target undivided.
+      if (!names.length) return;
+      const totalCoef = names.reduce((s, n) => s + staffCoef(n), 0);
+      const elapsed = monthElapsedRatio(mo.monthKey, lastDate);
+      const monthTarget = num(mo.target);
+
+      names.forEach((n) => {
+        const e = staff.get(n) || { label: n, coef: staffCoef(n), amount: 0, target: 0, pace: 0 };
+        e.amount += num(bucket.get(n));
+        if (totalCoef > 0 && monthTarget > 0) {
+          const share = (monthTarget * staffCoef(n)) / totalCoef;
+          e.target += share;
+          e.pace += share * elapsed;
+        }
+        staff.set(n, e);
+      });
+    });
+
+    const list = [...staff.values()].sort((a, b) => b.amount - a.amount);
+    return {
+      list,
+      totalAmount: list.reduce((s, e) => s + e.amount, 0),
+      totalTarget: list.reduce((s, e) => s + e.target, 0),
+      totalPace: list.reduce((s, e) => s + e.pace, 0)
+    };
+  })();
+
   // ── Season matrix: product year (char 5) × season (char 6) of the style code ──
   // This is the year/season the GOODS belong to, not the month they sold in, so a
   // 2024 row appearing in 2026 sales is carry-over stock rather than new arrivals.
@@ -735,7 +815,7 @@ function aggregate() {
     byType: safeGroupSum(rows, 'type'),
     byGender: safeGroupSum(rows, 'gender'),
     byCategory: safeGroupSum(rows, 'category'),
-    promotionStats, cashierStats, cashierMatrix, cashierTotals, dowStats, rangeFrom, rangeTo,
+    promotionStats, cashierStats, cashierMatrix, cashierTotals, staffMatrix, dowStats, rangeFrom, rangeTo,
     seasonStats, seasonTotals, seasonMonthly
   };
 }
@@ -909,113 +989,64 @@ function renderPromotionInfo(m) {
   `).join('')}</div>`;
 }
 
-function renderCashierBar(m) {
-  const all = m.cashierStats || [];
-  const shown = all.slice(0, 20);
-  if (!shown.length) {
-    destroyChart('cashier');
+// ===== PERSONAL SALES — revenue vs a weighted slice of the store target =====
+// One shared scale across every row, so bar lengths compare between staff. The
+// pale track is the person's total target (AN's is visibly shorter at coef 0.85),
+// the solid fill is actual revenue, and the tick marks the timeline target.
+function renderStaffTargets(m) {
+  const el = document.getElementById('staffTargetList');
+  const footEl = document.getElementById('staffTargetFoot');
+  if (!el) return;
+  const sm = m.staffMatrix || {};
+  const list = sm.list || [];
+  // Months with no named staff (Sep–Dec 2024) simply draw nothing.
+  if (!list.length) {
+    el.innerHTML = '';
+    if (footEl) footEl.innerHTML = '';
     return;
   }
 
-  destroyChart('cashier');
-  S.charts.cashier = new Chart(document.getElementById('chartCashierBar'), {
-    type: 'bar',
-    data: {
-      labels: shown.map((x) => x.label),
-      datasets: [
-        {
-          type: 'bar',
-          label: 'Revenue',
-          data: shown.map((x) => x.amount),
-          yAxisID: 'y',
-          backgroundColor: css('--brand-mid'),
-          borderRadius: 6,
-          maxBarThickness: 48,
-          categoryPercentage: 0.65,
-          barPercentage: 0.9,
-          order: 2
-        },
-        {
-          type: 'line',
-          label: 'Units',
-          data: shown.map((x) => x.qty),
-          yAxisID: 'y1',
-          borderColor: css('--accent'),
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          pointRadius: 4,
-          pointHoverRadius: 5,
-          tension: 0.25,
-          order: 1
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: {
-          display: true,
-          position: 'top',
-          align: 'end',
-          labels: {
-            color: css('--text-2'),
-            boxWidth: 10,
-            padding: 10,
-            font: { size: 11 }
-          }
-        },
-        tooltip: {
-          enabled: true,
-          backgroundColor: css('--surface'),
-          titleColor: css('--text-2'),
-          bodyColor: css('--text-2'),
-          borderColor: css('--border'),
-          borderWidth: 1,
-          padding: 10,
-          callbacks: {
-            label: (ctx) => {
-              const label = ctx.dataset.label || '';
-              const raw = num(ctx.raw);
-              if (label === 'Revenue') {
-                return `Revenue: ${fmtVND(raw)}`;
-              }
-              if (label === 'Units') {
-                return `Units: ${fmtN(raw)}`;
-              }
-              return `${label}: ${raw}`;
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid: { color: css('--border'), drawBorder: false },
-          ticks: { color: css('--text-3'), font: { size: 11 }, maxRotation: 45, minRotation: 0 }
-        },
-        y: {
-          type: 'linear',
-          position: 'left',
-          beginAtZero: true,
-          grace: '8%',
-          title: { display: true, text: 'Revenue', color: css('--text-3'), font: { size: 11 } },
-          grid: { color: css('--border'), drawBorder: false },
-          ticks: { color: css('--text-3'), font: { size: 11 }, callback: (v) => fmtShort(v) }
-        },
-        y1: {
-          type: 'linear',
-          position: 'right',
-          beginAtZero: true,
-          grace: '8%',
-          title: { display: true, text: 'Units', color: css('--text-3'), font: { size: 11 } },
-          grid: { drawOnChartArea: false },
-          ticks: { color: css('--accent'), font: { size: 11 }, callback: (v) => fmtN(v) }
-        }
-      }
-    }
-  });
+  // Scale on the longest of any bar so nothing clips, target track included.
+  const scale = Math.max(...list.map((s) => Math.max(num(s.amount), num(s.target)))) || 1;
+  const hasTarget = list.some((s) => num(s.target) > 0);
+
+  el.innerHTML = list.map((s) => {
+    const amount = num(s.amount);
+    const target = num(s.target);
+    const pace = num(s.pace);
+    const onPace = amount >= pace;
+    const fillPct = Math.min((amount / scale) * 100, 100);
+    const targetPct = Math.min((target / scale) * 100, 100);
+    const pacePct = Math.min((pace / scale) * 100, 100);
+    const pct = target > 0 ? (amount / target) * 100 : 0;
+    // Short bars cannot hold the number, so the label steps outside instead.
+    const inside = fillPct >= 22;
+    const tip = target > 0
+      ? `${esc(s.label)} · hệ số ${s.coef} — Doanh thu ${fmtVND(amount)} / Timeline ${fmtVND(pace)} / Target ${fmtVND(target)}`
+      : `${esc(s.label)} — Doanh thu ${fmtVND(amount)} (kỳ này chưa có target)`;
+    return `
+      <div class="st-row${onPace ? '' : ' behind'}" title="${esc(tip)}">
+        <div class="st-name">${esc(s.label)}</div>
+        <div class="st-track">
+          ${target > 0 ? `<div class="st-target" style="width:${targetPct}%"></div>` : ''}
+          <div class="st-fill" style="width:${fillPct}%"></div>
+          ${pace > 0 ? `<div class="st-pace" style="left:${pacePct}%"></div>` : ''}
+          <span class="st-val${inside ? ' in' : ''}" style="${inside ? '' : `left:calc(${fillPct}% + 6px)`}">${fmtShort(amount)}</span>
+        </div>
+        <div class="st-pct">${target > 0 ? fmtPct(pct) : '—'}</div>
+      </div>
+    `;
+  }).join('');
+
+  if (!footEl) return;
+  const totalPct = num(sm.totalTarget) > 0 ? (num(sm.totalAmount) / num(sm.totalTarget)) * 100 : 0;
+  footEl.innerHTML = `
+    <div class="st-foot-main">
+      <span>TOTAL</span>
+      <span>${fmtShort(sm.totalAmount)}${hasTarget ? ` / ${fmtShort(sm.totalTarget)}` : ''}</span>
+      <span class="st-foot-pct">${hasTarget ? fmtPct(totalPct) : '—'}</span>
+    </div>
+  `;
 }
 
 function renderCharts(m) {
@@ -1086,7 +1117,7 @@ function renderCharts(m) {
   renderDoughnut('type', 'chartType', 'dTypeVal', 'legendType', m.byType, PALETTE.multi);
   renderDoughnut('gender', 'chartGender', 'dGenderVal', 'legendGender', m.byGender, PALETTE.gender);
   renderPromotionInfo(m);
-  renderCashierBar(m);
+  renderStaffTargets(m);
   renderSeasonChart(m);
 }
 
