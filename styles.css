@@ -752,11 +752,7 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
   .dow-cell-rev{font-size:11px!important}
   .dow-cell-meta{font-size:9px!important;line-height:1.2}
 
-  /* --- Cashier Matrix & Inventory tables: luôn scroll ngang --- */
-  .matrix-wrap,
-
-  /* Đảm bảo table không bị collapse */
-  .matrix-table{min-width:480px}
+  /* Bảng vừa bề ngang màn hình: xem khối MOBILE FIT ở cuối file */
 
   /* --- YoY controls: xếp 2 dòng gọn hơn --- */
   .yoy-controls{gap:5px!important;padding:6px 10px!important}
@@ -1251,4 +1247,61 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 @media (max-width:640px){
   .st-legend{display:none}
   .st-row,.st-foot-main{grid-template-columns:52px 1fr 42px;gap:8px}
+}
+
+/* =========================================
+   MOBILE FIT — hiện hết thông tin, không phải kéo ngang (≤640px)
+
+   Khối này phải nằm CUỐI FILE: các quy tắc bảng ở trên (padding-right:16px,
+   width:11% cho cột số, .kpi-label font-size) không nằm trong media query nên
+   đứng sau sẽ đè lên nếu đặt sớm hơn.
+
+   Trước đây .matrix-table bị ép min-width:480px trong khi card chỉ rộng ~338px
+   và card thì overflow:hidden — bảng bị cắt cụt mà cũng không kéo ngang được.
+   Giờ bảng co theo bề rộng card: cột số giữ một dòng (giá trị luôn ngắn), cột
+   đầu được xuống dòng để tên dài không đẩy bảng rộng ra.
+   ========================================= */
+@media(max-width:640px){
+  .matrix-wrap,
+  .matrix-table{min-width:0}
+  .matrix-wrap{scrollbar-gutter:auto;overflow-x:hidden}
+  .matrix-table{width:100%;table-layout:auto;font-size:10px}
+  .matrix-table thead th{padding:5px 3px;font-size:9px;letter-spacing:0}
+  .matrix-table tbody td,
+  .matrix-table tfoot td{padding:5px 3px;font-size:10px}
+  .matrix-table th:last-child,
+  .matrix-table td:last-child{padding-right:6px}
+  /* Bỏ khoá 11% cho cột số: để trình duyệt tự chia theo nội dung thật */
+  .matrix-table thead th:not(:first-child),
+  .matrix-table tbody td:not(:first-child),
+  .matrix-table tfoot td:not(:first-child){width:auto}
+  .matrix-table th:first-child,
+  .matrix-table td:first-child{
+    font-size:10px;
+    white-space:normal;
+    word-break:break-word;
+  }
+
+  /* Nhãn KPI dài (Achievement, Conversion, Units Sold) xuống dòng thay vì bị cắt */
+  .kpi-label{white-space:normal;overflow:visible;text-overflow:clip}
+
+  /* Revenue vs Target: dòng số liệu chiếm hàng riêng thay vì bị cắt */
+  .tp-header{flex-wrap:wrap}
+  .tp-meta{margin-left:0;flex:1 0 100%;white-space:normal;overflow:visible;text-overflow:clip}
+}
+
+/* Màn hình rất hẹp: bóp thêm padding để bảng 6 cột vẫn đủ chỗ */
+@media(max-width:400px){
+  .matrix-table thead th,
+  .matrix-table tbody td,
+  .matrix-table tfoot td{padding:5px 2px}
+  .matrix-table th:last-child,
+  .matrix-table td:last-child{padding-right:4px}
+}
+
+/* Nhãn KPI dài nhất ("Achievement") không thể xuống dòng vì là một từ, nên màn
+   hình rất hẹp phải nới ô và thu chữ lại mới hiện đủ. */
+@media(max-width:400px){
+  .kpi-card{padding-left:8px;padding-right:8px}
+  .kpi-label{font-size:9px;letter-spacing:0}
 }

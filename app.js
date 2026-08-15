@@ -1022,7 +1022,7 @@ function renderStaffTargets(m) {
     // Short bars cannot hold the number, so the label steps outside instead.
     const inside = fillPct >= 22;
     const tip = target > 0
-      ? `${esc(s.label)} · hệ số ${s.coef} — Doanh thu ${fmtVND(amount)} / Timeline ${fmtVND(pace)} / Target ${fmtVND(target)}`
+      ? `${esc(s.label)} — Doanh thu ${fmtVND(amount)} / Timeline ${fmtVND(pace)} / Target ${fmtVND(target)}`
       : `${esc(s.label)} — Doanh thu ${fmtVND(amount)} (kỳ này chưa có target)`;
     return `
       <div class="st-row${onPace ? '' : ' behind'}" title="${esc(tip)}">
