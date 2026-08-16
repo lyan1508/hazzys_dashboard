@@ -4,6 +4,17 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Sales Intelligence Dashboard</title>
+<script>
+/* Áp theme đã lưu TRƯỚC khi trình duyệt vẽ khung đầu tiên. Nếu để việc này cho
+   app.js (defer, chạy sau khi parse xong) thì người dùng chế độ sáng sẽ thấy
+   một nháy tối rồi mới chuyển. */
+(function(){
+  try{
+    var t = localStorage.getItem('hz-theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  }catch(e){/* localStorage bị chặn (chế độ riêng tư) — giữ mặc định tối */}
+})();
+</script>
 <link rel="preconnect" href="https://cdn.jsdelivr.net/" crossorigin>
 <link rel="preconnect" href="https://docs.google.com">
 <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -11,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260813-scrollgutter">
+<link rel="stylesheet" href="styles.css?v=20260816-final">
 </head>
 <body>
 <div class="app">
@@ -48,9 +59,13 @@
     </div>
 
     <div class="topbar-actions">
-      <button class="btn-icon btn-filter-toggle" id="filterToggle" title="Bộ lọc" aria-label="Bộ lọc">
+      <button class="btn-icon btn-filter-toggle" id="filterToggle" title="Filters" aria-label="Filters">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h14M6 10h8M9 15h2"/></svg>
         <span class="filter-count" id="filterCount"></span>
+      </button>
+      <button class="btn-icon btn-theme" id="themeBtn" title="Switch light / dark theme" aria-label="Switch light / dark theme" aria-pressed="false">
+        <svg class="ico-sun" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3.6"/><path d="M10 1.5v2M10 16.5v2M18.5 10h-2M3.5 10h-2M16 4l-1.4 1.4M5.4 14.6L4 16M16 16l-1.4-1.4M5.4 5.4L4 4"/></svg>
+        <svg class="ico-moon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 12.3A7.5 7.5 0 0 1 7.7 3a7.5 7.5 0 1 0 9.3 9.3z"/></svg>
       </button>
       <button class="btn-icon" id="resetBtn" title="Clear filters" aria-label="Clear filters">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.84 2.5H1.67l6.66 7.88v5.45l3.34 1.67v-7.12l.75-.88"/><path d="M18.33 2.5l-4.16 4.17"/><path d="M14.17 2.5l4.16 4.17"/></svg>
@@ -94,46 +109,67 @@
     </label>
   </div>
 
+  <!-- SKELETON — hiện trong lúc đồng bộ lần đầu, thay cho overlay che cả trang.
+       Cùng thời gian chờ nhưng người dùng thấy ngay bố cục sắp có gì. -->
+  <div class="skel" id="skeleton" style="display:none" aria-hidden="true">
+    <div class="skel-kpis">
+      <div class="skel-box skel-kpi"></div><div class="skel-box skel-kpi"></div><div class="skel-box skel-kpi"></div>
+      <div class="skel-box skel-kpi"></div><div class="skel-box skel-kpi"></div><div class="skel-box skel-kpi"></div>
+      <div class="skel-box skel-kpi"></div><div class="skel-box skel-kpi"></div><div class="skel-box skel-kpi"></div>
+    </div>
+    <div class="skel-box skel-bar"></div>
+    <div class="skel-row">
+      <div class="skel-box skel-card"></div>
+      <div class="skel-box skel-card"></div>
+    </div>
+    <div class="skel-row">
+      <div class="skel-box skel-card"></div>
+      <div class="skel-box skel-card"></div>
+    </div>
+  </div>
+
   <!-- DASHBOARD CONTENT -->
   <div id="dashContent" style="display:none">
 
     <!-- KPI CARDS -->
+    <!-- Mỗi thẻ: số → (nhãn + chip so kỳ trước) → sparkline nằm sát đáy thẻ.
+         Sparkline đặt tuyệt đối nên không chiếm chỗ của chữ. -->
     <div class="kpi-grid" id="kpiGrid">
       <div class="kpi-card">
         <div class="kpi-value" id="kSales">—</div>
-        <div class="kpi-label">Revenue</div>
+        <div class="kpi-foot"><span class="kpi-label">Revenue</span><span class="kpi-delta-slot" id="dSales"></span></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value" id="kTarget">—</div>
-        <div class="kpi-label">Target</div>
+        <div class="kpi-foot"><span class="kpi-label">Target</span><span class="kpi-delta-slot" id="dTarget"></span></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value" id="kAchieve">—</div>
-        <div class="kpi-label">Achievement</div>
+        <div class="kpi-foot"><span class="kpi-label">Achievement</span><span class="kpi-delta-slot" id="dAchieve"></span></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value" id="kBills">—</div>
-        <div class="kpi-label">Bills</div>
+        <div class="kpi-foot"><span class="kpi-label">Bills</span><span class="kpi-delta-slot" id="dBills"></span></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value" id="kQty">—</div>
-        <div class="kpi-label">Units Sold</div>
+        <div class="kpi-foot"><span class="kpi-label">Units Sold</span><span class="kpi-delta-slot" id="dQty"></span></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value" id="kTraffic">—</div>
-        <div class="kpi-label">Traffic</div>
+        <div class="kpi-foot"><span class="kpi-label">Traffic</span><span class="kpi-delta-slot" id="dTraffic"></span></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value" id="kCVR">—</div>
-        <div class="kpi-label">Conversion</div>
+        <div class="kpi-foot"><span class="kpi-label">Conversion</span><span class="kpi-delta-slot" id="dCVR"></span></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value" id="kUPT">—</div>
-        <div class="kpi-label">UPT</div>
+        <div class="kpi-foot"><span class="kpi-label">UPT</span><span class="kpi-delta-slot" id="dUPT"></span></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value" id="kATV">—</div>
-        <div class="kpi-label">ATV</div>
+        <div class="kpi-foot"><span class="kpi-label">ATV</span><span class="kpi-delta-slot" id="dATV"></span></div>
       </div>
     </div>
 
@@ -353,7 +389,7 @@
           <div class="chart-card-hd">
             <div class="chart-card-title">Personal Sales</div>
             <div class="st-legend">
-              <span class="st-legend-item"><i class="st-key-fill"></i>Doanh thu</span>
+              <span class="st-legend-item"><i class="st-key-fill"></i>Revenue</span>
               <span class="st-legend-item"><i class="st-key-pace"></i>Timeline</span>
               <span class="st-legend-item"><i class="st-key-target"></i>Target</span>
             </div>
@@ -400,6 +436,6 @@
 
 </div><!-- /app -->
 
-<script defer src="app.js?v=20260813-scrollgutter"></script>
+<script defer src="app.js?v=20260816-final"></script>
 </body>
 </html>

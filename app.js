@@ -5,11 +5,25 @@ const S = {
   revMode: 'monthly',
 };
 
-// Categorical colours tuned for the dark surface: same lightness band so no
-// slice visually outranks another, hues far enough apart to stay distinct.
+// Categorical colours: same lightness band so no slice visually outranks
+// another, hues far enough apart to stay distinct. Two sets — the dark-surface
+// tones wash out on white, so the light theme uses the same hues pushed darker
+// and a touch more saturated.
+const PALETTE_SETS = {
+  dark: {
+    multi:  ['#5b8def', '#2dd4a7', '#e8a765', '#a78bfa', '#3fc0e0', '#f472b6', '#f2708a', '#8fb0ff'],
+    gender: ['#5b8def', '#f472b6', '#e8a765', '#8892a8']
+  },
+  light: {
+    multi:  ['#2f6fd8', '#0f9d76', '#c9821f', '#7c56e0', '#1a8fb8', '#d1418c', '#d8425f', '#5b7fc7'],
+    gender: ['#2f6fd8', '#d1418c', '#c9821f', '#6b7688']
+  }
+};
+// Getters, not fixed arrays: call sites read PALETTE.multi at render time so a
+// theme switch picks up the right set without touching any of them.
 const PALETTE = {
-  multi: ['#5b8def', '#2dd4a7', '#e8a765', '#a78bfa', '#3fc0e0', '#f472b6', '#f2708a', '#8fb0ff'],
-  gender: ['#5b8def', '#f472b6', '#e8a765', '#8892a8']
+  get multi()  { return PALETTE_SETS[currentTheme()].multi; },
+  get gender() { return PALETTE_SETS[currentTheme()].gender; }
 };
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -33,6 +47,77 @@ const GSHEET_URLS = {
 };
 
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+/* ======== THEME ========
+   Chart.js nướng màu vào canvas lúc khởi tạo, không đọc lại CSS var, nên đổi
+   theme bắt buộc phải vẽ lại biểu đồ — đổi thuộc tính data-theme là chưa đủ. */
+const THEME_KEY = 'hz-theme';
+
+function currentTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+
+function setTheme(theme, animate) {
+  const root = document.documentElement;
+  if (animate) {
+    root.classList.add('theme-anim');
+    // Gỡ sau khi chuyển xong, nếu không mọi hover/tab về sau đều bị làm chậm.
+    setTimeout(() => root.classList.remove('theme-anim'), 450);
+  }
+  root.setAttribute('data-theme', theme);
+  const btn = document.getElementById('themeBtn');
+  if (btn) {
+    btn.setAttribute('aria-pressed', String(theme === 'light'));
+    btn.title = theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme';
+  }
+  try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* chế độ riêng tư */ }
+
+  // Chờ một khung hình để trình duyệt áp xong biến CSS mới, rồi mới vẽ lại —
+  // vẽ ngay sẽ đọc trúng giá trị của theme cũ.
+  if (S.raw.sales.length) requestAnimationFrame(() => renderAll());
+}
+
+/* ======== THANH TRÊN CÙNG TỰ ẨN ========
+   Cuộn xuống thì thanh trượt lên khỏi khung nhìn, cuộn lên thì trả về ngay.
+   Ngưỡng 6px để cuộn quán tính trên touchpad/điện thoại không làm thanh
+   nhấp nháy: những nhịp rung nhỏ hơn ngưỡng được cộng dồn thay vì tính là
+   một lần đổi hướng. */
+function initAutoHideTopbar() {
+  const bar = document.querySelector('.topbar');
+  if (!bar) return;
+  const filterBar = document.getElementById('filterBar');
+  let lastY = window.scrollY;
+  let ticking = false;
+
+  function update() {
+    ticking = false;
+    const y = Math.max(window.scrollY, 0);
+    const delta = y - lastY;
+    if (Math.abs(delta) < 6) return;   // cố ý không cập nhật lastY: cộng dồn
+    lastY = y;
+
+    // Giữ thanh lại khi: còn ở đầu trang, panel lọc đang mở, hoặc con trỏ
+    // đang nằm trong một control của chính thanh đó (đang chọn tháng mà thanh
+    // biến mất là kiểu hỏng khó chịu nhất).
+    if (y <= bar.offsetHeight
+        || filterBar?.classList.contains('filter-open')
+        || bar.contains(document.activeElement)) {
+      bar.classList.remove('topbar-hidden');
+      return;
+    }
+    bar.classList.toggle('topbar-hidden', delta > 0);
+  }
+
+  window.addEventListener('scroll', () => {
+    if (!ticking) { ticking = true; requestAnimationFrame(update); }
+  }, { passive: true });
+}
+
+function initTheme() {
+  // Giá trị đã lưu được script inline trong <head> áp trước khi vẽ khung đầu;
+  // ở đây chỉ đồng bộ lại nhãn của nút.
+  setTheme(currentTheme(), false);
+}
 function num(v) {
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
   if (v === null || v === undefined) return 0;
@@ -81,6 +166,57 @@ function fmtShort(v) {
   return String(Math.round(n));
 }
 function esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+/* ======== MÀU & GRADIENT CHO BIỂU ĐỒ ======== */
+
+/** Đổi độ trong của một màu, nhận cả #abc, #aabbcc lẫn rgb()/rgba(). */
+function withAlpha(color, a) {
+  const c = String(color).trim();
+  if (c.startsWith('#')) {
+    const hex = c.length === 4 ? c.slice(1).split('').map((x) => x + x).join('') : c.slice(1);
+    const n = parseInt(hex, 16);
+    if (!Number.isFinite(n)) return c;
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+  const m = c.match(/rgba?\(([^)]+)\)/);
+  if (m) {
+    const p = m[1].split(',').map((s) => s.trim());
+    return `rgba(${p[0]},${p[1]},${p[2]},${a})`;
+  }
+  return c;
+}
+
+/** Gradient dọc theo vùng vẽ. Chart.js gọi các option scriptable một lần
+    TRƯỚC khi vùng vẽ tồn tại — lúc đó trả về màu đặc để không vẽ hỏng, lần
+    cập nhật ngay sau đó sẽ có gradient thật. */
+function vGradient(chart, color, from = 1, to = 0.22) {
+  const area = chart?.chartArea;
+  if (!area) return color;
+  const g = chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+  g.addColorStop(0, withAlpha(color, from));
+  g.addColorStop(1, withAlpha(color, to));
+  return g;
+}
+
+/* ======== CHIP SO KỲ TRƯỚC ========
+   unit 'pt' cho các chỉ số vốn đã là phần trăm (Conversion, Achievement):
+   chênh lệch của chúng phải đọc là điểm phần trăm, không phải "% của %". */
+function deltaChip(cur, prev, unit = 'pct') {
+  const c = num(cur);
+  const p = num(prev);
+  if (!Number.isFinite(p) || p === 0) return '';
+  const diff = unit === 'pt' ? c - p : ((c - p) / Math.abs(p)) * 100;
+  if (!Number.isFinite(diff)) return '';
+  const dir = diff > 0.05 ? 'up' : diff < -0.05 ? 'down' : 'flat';
+  // Dấu +/− thay cho mũi tên: hẹp hơn đáng kể mà vẫn chỉ hướng rõ ràng kể cả
+  // khi người đọc không phân biệt được màu. Chín thẻ KPI trên một hàng thì
+  // từng pixel bề ngang đều phải giành với chính con số.
+  const sign = dir === 'up' ? '+' : dir === 'down' ? '−' : '';
+  const text = unit === 'pt'
+    ? `${Math.abs(diff).toFixed(1)}pt`
+    : `${Math.abs(diff).toFixed(1)}%`;
+  return `<span class="kpi-delta ${dir}">${sign}${text}</span>`;
+}
 function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
 function monthLabelYY(d) { return `${MONTH_NAMES[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`; }
 function localDateKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
@@ -820,6 +956,44 @@ function aggregate() {
   };
 }
 
+/* Số liệu của kỳ liền trước, để so sánh trên thẻ KPI.
+
+   Chỉ có nghĩa khi bộ lọc đã chốt đúng MỘT kỳ (một tháng của một năm, hoặc
+   một quý của một năm). Ở chế độ "All", KPI là tổng của cả chục tháng — đem
+   nó so với "tháng trước" là so hai đại lượng khác nhau, nên trả về null và
+   thẻ không hiện chip nào. Thà không có con số còn hơn có một con số sai.
+
+   Các bộ lọc chiều khác (Store) được giữ nguyên để so sánh cùng phạm vi. */
+function previousPeriodMetrics() {
+  const f = S.filters;
+  if (f.year === 'all') return null;
+  const year = +f.year;
+  let prev = null;
+
+  if (f.month !== 'all') {
+    const mo = +f.month;
+    prev = mo === 1
+      ? { year: String(year - 1), month: '12', quarter: 'all' }
+      : { year: String(year), month: String(mo - 1).padStart(2, '0'), quarter: 'all' };
+  } else if (f.quarter !== 'all') {
+    const q = +String(f.quarter).replace(/\D/g, '');
+    if (!q) return null;
+    prev = q === 1
+      ? { year: String(year - 1), quarter: 'Q4', month: 'all' }
+      : { year: String(year), quarter: `Q${q - 1}`, month: 'all' };
+  }
+  if (!prev) return null;
+
+  const saved = { ...f };
+  try {
+    Object.assign(S.filters, prev);
+    const m = aggregate();
+    return m.rows.length ? m : null;   // kỳ trước không có dữ liệu thì thôi
+  } finally {
+    S.filters = saved;
+  }
+}
+
 function destroyChart(key) {
   if (S.charts[key]) {
     try { S.charts[key].destroy(); } catch (_) {}
@@ -842,6 +1016,10 @@ function baseOptions(yFmt, ttFmt, showLegend = false) {
   return {
     responsive: true,
     maintainAspectRatio: false,
+    // Dựng ra là hiện ngay, không tự diễn. Animation do initScrollReveal() kích
+    // khi thẻ lọt vào khung nhìn — để chart tự diễn lúc khởi tạo thì thẻ nằm
+    // dưới màn hình đã diễn xong trước khi người dùng cuộn tới, và mỗi lần đổi
+    // bộ lọc lại phải chờ hết animation mới đọc được số.
     animation: false,
     plugins: {
       legend: {
@@ -867,10 +1045,12 @@ function baseOptions(yFmt, ttFmt, showLegend = false) {
       }
     },
     scales: {
-      x: { grid: { color: css('--border'), drawBorder: false }, ticks: { color: css('--text-3'), font: { size: 11 } } },
+      // Không kẻ lưới: cột đã đủ nói lên độ lớn, thêm lưới chỉ làm nền rối.
+      // Giá trị chính xác đã có ở nhãn trục và tooltip.
+      x: { grid: { display: false, drawBorder: false }, ticks: { color: css('--text-3'), font: { size: 11 } } },
       y: {
         beginAtZero: true,
-        grid: { color: css('--border'), drawBorder: false },
+        grid: { display: false, drawBorder: false },
         ticks: { color: css('--text-3'), font: { size: 11 }, callback: (v) => (yFmt ? yFmt(v) : v) }
       }
     }
@@ -912,7 +1092,7 @@ function renderDoughnut(chartKey, canvasId, centerId, legendId, data, colors) {
   destroyChart(chartKey);
   const clean = (data || []).filter((x) => num(x.value) > 0);
   const total = clean.reduce((s, x) => s + num(x.value), 0);
-  document.getElementById(centerId).textContent = total > 0 ? fmtShort(total) : 'No Data';
+  document.getElementById(centerId).innerHTML = total > 0 ? rollHtml(total, 'short') : 'No Data';
   if (total <= 0) {
     renderNoDataLegend(legendId);
     return;
@@ -958,7 +1138,7 @@ function renderDoughnut(chartKey, canvasId, centerId, legendId, data, colors) {
       <div class="legend-item">
         <div class="legend-dot" style="background:${colors[i % colors.length]}"></div>
         <div class="legend-name" title="${esc(x.label)}">${esc(x.label)}</div>
-        <div class="legend-pct">${fmtPct(pct)}</div>
+        <div class="legend-pct">${rollHtml(pct, 'pct')}</div>
       </div>
     `;
   }).join('');
@@ -978,12 +1158,12 @@ function renderPromotionInfo(m) {
       <div class="p-rank ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}">${i + 1}</div>
       <div class="p-info">
         <div class="p-name" title="${esc(x.label)}">${esc(x.label)}</div>
-        <div class="p-meta">${fmtN(x.qty)} units · ${fmtN(x.bills)} bills</div>
+        <div class="p-meta">${rollHtml(x.qty, 'n')} units · ${rollHtml(x.bills, 'n')} bills</div>
         <div class="p-bar-wrap"><div class="p-bar" style="width:${Math.max(6, (num(x.amount) / maxVal) * 100)}%"></div></div>
       </div>
       <div class="p-value">
-        <div class="p-amount">${fmtShort(x.amount)}</div>
-        <div class="p-qty">${fmtPct(totalVal > 0 ? (num(x.amount) / totalVal) * 100 : 0)}</div>
+        <div class="p-amount">${rollHtml(x.amount, 'short')}</div>
+        <div class="p-qty">${rollHtml(totalVal > 0 ? (num(x.amount) / totalVal) * 100 : 0, 'pct')}</div>
       </div>
     </div>
   `).join('')}</div>`;
@@ -1022,18 +1202,18 @@ function renderStaffTargets(m) {
     // Short bars cannot hold the number, so the label steps outside instead.
     const inside = fillPct >= 22;
     const tip = target > 0
-      ? `${esc(s.label)} — Doanh thu ${fmtVND(amount)} / Timeline ${fmtVND(pace)} / Target ${fmtVND(target)}`
-      : `${esc(s.label)} — Doanh thu ${fmtVND(amount)} (kỳ này chưa có target)`;
+      ? `${esc(s.label)} — Revenue ${fmtVND(amount)} / Timeline ${fmtVND(pace)} / Target ${fmtVND(target)}`
+      : `${esc(s.label)} — Revenue ${fmtVND(amount)} (no target for this period)`;
     return `
       <div class="st-row${onPace ? '' : ' behind'}" title="${esc(tip)}">
         <div class="st-name">${esc(s.label)}</div>
         <div class="st-track">
           ${target > 0 ? `<div class="st-target" style="width:${targetPct}%"></div>` : ''}
           <div class="st-fill" style="width:${fillPct}%"></div>
-          ${pace > 0 ? `<div class="st-pace" style="left:${pacePct}%"></div>` : ''}
-          <span class="st-val${inside ? ' in' : ''}" style="${inside ? '' : `left:calc(${fillPct}% + 6px)`}">${fmtShort(amount)}</span>
+          ${pace > 0 ? `<div class="st-pace" data-pct="${pacePct}" style="left:${pacePct}%"></div>` : ''}
+          <span class="st-val${inside ? ' in' : ''}" style="${inside ? '' : `left:calc(${fillPct}% + 6px)`}">${rollHtml(amount, 'short')}</span>
         </div>
-        <div class="st-pct">${target > 0 ? fmtPct(pct) : '—'}</div>
+        <div class="st-pct">${target > 0 ? rollHtml(pct, 'pct') : '—'}</div>
       </div>
     `;
   }).join('');
@@ -1043,8 +1223,8 @@ function renderStaffTargets(m) {
   footEl.innerHTML = `
     <div class="st-foot-main">
       <span>TOTAL</span>
-      <span>${fmtShort(sm.totalAmount)}${hasTarget ? ` / ${fmtShort(sm.totalTarget)}` : ''}</span>
-      <span class="st-foot-pct">${hasTarget ? fmtPct(totalPct) : '—'}</span>
+      <span>${rollHtml(sm.totalAmount, 'short')}${hasTarget ? ` / ${rollHtml(sm.totalTarget, 'short')}` : ''}</span>
+      <span class="st-foot-pct">${hasTarget ? rollHtml(totalPct, 'pct') : '—'}</span>
     </div>
   `;
 }
@@ -1061,7 +1241,7 @@ function renderCharts(m) {
   const tgtData = S.revMode === 'cumulative' ? target.reduce((acc, x, i) => [...acc, x + (acc[i - 1] || 0)], []) : target;
   const revOptions = baseOptions((v) => fmtShort(v), (ctx) => `${ctx.dataset.label}: ${fmtVND(ctx.raw)}`);
   revOptions.layout = { padding: { top: 4, right: 8, bottom: 2, left: 2 } };
-  revOptions.scales.x.grid = { color: css('--border'), drawBorder: false };
+  revOptions.scales.x.grid = { display: false, drawBorder: false };
   revOptions.scales.x.ticks.color = css('--text-3');
   revOptions.scales.x.ticks.font = { size: 11 };
   revOptions.scales.x.ticks.maxRotation = labels.length > 10 ? 40 : 0;
@@ -1077,7 +1257,13 @@ function renderCharts(m) {
           type: 'bar',
           label: 'Actual',
           data: revData,
-          backgroundColor: revData.map((v, i) => (v >= num(tgtData[i]) && num(tgtData[i]) > 0 ? css('--green') : css('--brand-mid'))),
+          // Cột đạt target xanh lá, còn lại xanh dương; cả hai đổ gradient nhạt
+          // dần xuống đáy để cột không còn là một khối màu phẳng.
+          backgroundColor: (ctx) => {
+            const i = ctx.dataIndex;
+            const base = revData[i] >= num(tgtData[i]) && num(tgtData[i]) > 0 ? css('--green') : css('--brand-mid');
+            return vGradient(ctx.chart, base, 1, 0.3);
+          },
           borderRadius: 6,
           maxBarThickness: 44,
           categoryPercentage: 0.72,
@@ -1106,8 +1292,18 @@ function renderCharts(m) {
     data: {
       labels,
       datasets: [
-        { type: 'bar', label: 'Bills', data: bills, backgroundColor: css('--brand-mid'), borderRadius: 4 },
-        { type: 'line', label: 'Traffic', data: traffic, borderColor: css('--green'), borderWidth: 2, pointRadius: 3, tension: 0.2 }
+        {
+          type: 'bar', label: 'Bills', data: bills, borderRadius: 4,
+          backgroundColor: (ctx) => vGradient(ctx.chart, css('--brand-mid'), 1, 0.3)
+        },
+        {
+          type: 'line', label: 'Traffic', data: traffic,
+          borderColor: css('--green'), borderWidth: 2, pointRadius: 3, tension: 0.2,
+          // Vùng nền mờ dưới đường Traffic — đọc ra "khối lượng khách", không
+          // chỉ là một sợi chỉ vắt ngang.
+          fill: true,
+          backgroundColor: (ctx) => vGradient(ctx.chart, css('--green'), 0.20, 0)
+        }
       ]
     },
     options: baseOptions((v) => fmtShort(v), (ctx) => `${ctx.dataset.label}: ${fmtN(ctx.raw)}`)
@@ -1145,8 +1341,8 @@ function renderCategoryList(m) {
         <div class="p-bar-wrap"><div class="p-bar" style="width:${Math.max(2, (num(x.value) / maxVal) * 100)}%"></div></div>
       </div>
       <div class="p-value">
-        <div class="p-amount">${fmtShort(x.value)}</div>
-        <div class="p-qty">${fmtPct(total > 0 ? (num(x.value) / total) * 100 : 0)}</div>
+        <div class="p-amount">${rollHtml(x.value, 'short')}</div>
+        <div class="p-qty">${rollHtml(total > 0 ? (num(x.value) / total) * 100 : 0, 'pct')}</div>
       </div>
     </div>`;
   }).join('');
@@ -1199,49 +1395,157 @@ function renderSeasonMatrix(m) {
       <td class="coll-cell" title="Bộ sưu tập ${esc(s.name)} ${esc(s.year || '?')}">
         <span class="season-dot" style="background:${color}"></span>${esc(s.collection)}
       </td>
-      <td>${fmtShort(s.amount)}</td>
-      <td>${fmtPct(s.share)}</td>
-      <td>${fmtN(s.qty)}</td>
-      <td>${fmtShort(s.atv)}</td>
-      <td>${num(s.upt).toFixed(2)}</td>
+      <td>${rollHtml(s.amount, 'short')}</td>
+      <td>${rollHtml(s.share, 'pct')}</td>
+      <td>${rollHtml(s.qty, 'n')}</td>
+      <td>${rollHtml(s.atv, 'short')}</td>
+      <td>${rollHtml(s.upt, 'fixed2')}</td>
     </tr>`;
   }).join('');
   const t = m.seasonTotals || {};
   foot.innerHTML = `<tr title="Số hóa đơn đã loại trùng: một hóa đơn thường gồm hàng của nhiều bộ sưu tập nên ATV/UPT tổng cao hơn từng dòng.">
     <td>TOTAL / AVG</td>
-    <td>${fmtShort(t.amount)}</td>
+    <td>${rollHtml(t.amount, 'short')}</td>
     <td>100%</td>
-    <td>${fmtN(t.qty)}</td>
-    <td>${fmtShort(t.atv)}</td>
-    <td>${num(t.upt).toFixed(2)}</td>
+    <td>${rollHtml(t.qty, 'n')}</td>
+    <td>${rollHtml(t.atv, 'short')}</td>
+    <td>${rollHtml(t.upt, 'fixed2')}</td>
   </tr>`;
 }
 
+/* ======== SỐ CHẠY DẦN ========
+   Thứ hiển thị trên thẻ là chuỗi đã định dạng ("20.1 B ₫"), không phải số —
+   nên không thể nội suy thẳng trên chuỗi. Phải giữ lại số thô, nội suy trên
+   số, rồi định dạng lại ở TỪNG khung hình. */
+const KPI_ROLL_MS = 1500;
+
+function rollNumber(el, to, fmt) {
+  const from = Number.isFinite(el._kpiFrom) ? el._kpiFrom : 0;
+  el._kpiFrom = to;
+  if (el._kpiRaf) cancelAnimationFrame(el._kpiRaf);   // huỷ lượt đang chạy dở
+
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || from === to) { el.textContent = fmt(to); el._kpiRaf = null; return; }
+
+  const t0 = performance.now();
+  const step = (now) => {
+    const p = Math.min((now - t0) / KPI_ROLL_MS, 1);
+    const eased = 1 - Math.pow(1 - p, 4);            // easeOutQuart, khớp nhịp với biểu đồ
+    el.textContent = fmt(from + (to - from) * eased);
+    el._kpiRaf = p < 1 ? requestAnimationFrame(step) : null;
+  };
+  el._kpiRaf = requestAnimationFrame(step);
+}
+
+/* ======== SỐ CHẠY TRONG BẢNG / DANH SÁCH ========
+   Các khối này dựng bằng innerHTML nên node bị tạo mới sau mỗi lần vẽ. Thay
+   vì sửa từng chỗ gọi, template chỉ cần bọc số lại bằng rollHtml(), còn số
+   thô và tên bộ định dạng thì gửi kèm trong data-* để lát nữa nội suy lại. */
+const ROLL_FMT = {
+  short:    (v) => fmtShort(v),
+  vndShort: (v) => fmtVNDShort(v),
+  n:        (v) => fmtN(v),
+  pct:      (v) => fmtPct(v),
+  fixed2:   (v) => num(v).toFixed(2),
+};
+
+function rollHtml(value, fmtName) {
+  const f = ROLL_FMT[fmtName] || ROLL_FMT.n;
+  return `<span data-roll="${num(value)}" data-fmt="${fmtName}">${f(value)}</span>`;
+}
+
+/** Cho mọi số trong một thẻ chạy lên.
+    CHỈ gọi cho thẻ đang hiện trên màn hình: cả trang có gần 200 con số, cho
+    chạy hết cùng lúc là ngần ấy node phải ghi lại chữ mỗi khung hình — máy
+    tính còn gánh được, điện thoại thì giật. */
+function sweepRolls(root) {
+  if (!root) return;
+  root.querySelectorAll('[data-roll]').forEach((el) => {
+    const to = Number(el.dataset.roll);
+    if (!Number.isFinite(to)) return;
+    el._kpiFrom = 0;          // node vừa dựng lại nên luôn chạy từ 0
+    rollNumber(el, to, ROLL_FMT[el.dataset.fmt] || ROLL_FMT.n);
+  });
+}
+
+/** fmt = null (hoặc giá trị không phải số, ví dụ "—") thì đặt thẳng, không chạy. */
+function setKpi(id, value, fmt) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const n = num(value);
+  if (typeof fmt !== 'function' || !Number.isFinite(n) || typeof value !== 'number') {
+    if (el._kpiRaf) { cancelAnimationFrame(el._kpiRaf); el._kpiRaf = null; }
+    el._kpiFrom = 0;               // lần sau có số thật thì chạy lại từ 0
+    el.textContent = value;
+    return;
+  }
+  rollNumber(el, n, fmt);
+}
+
 function renderKPIs(m) {
-  document.getElementById('kSales').textContent = fmtVNDShort(m.totalSales);
-  document.getElementById('kBills').textContent = fmtN(m.bills);
-  document.getElementById('kQty').textContent = fmtN(m.qty);
-  document.getElementById('kTraffic').textContent = fmtN(m.traffic);
-  document.getElementById('kCVR').textContent = fmtPct(m.cvr);
-  document.getElementById('kUPT').textContent = num(m.upt).toFixed(2);
-  document.getElementById('kATV').textContent = fmtVNDShort(m.atv);
+  setKpi('kSales', num(m.totalSales), fmtVNDShort);
+  setKpi('kBills', num(m.bills), fmtN);
+  setKpi('kQty', num(m.qty), fmtN);
+  setKpi('kTraffic', num(m.traffic), fmtN);
+  setKpi('kCVR', num(m.cvr), fmtPct);
+  setKpi('kUPT', num(m.upt), (v) => num(v).toFixed(2));
+  setKpi('kATV', num(m.atv), fmtVNDShort);
 
   // Target + Achievement %
   const target = num(m.target);
   const achEl = document.getElementById('kAchieve');
 
-  document.getElementById('kTarget').textContent = target > 0 ? fmtVNDShort(target) : '—';
+  if (target > 0) setKpi('kTarget', target, fmtVNDShort);
+  else setKpi('kTarget', '—');
   achEl.classList.remove('good', 'warn', 'bad');
 
   if (target > 0) {
     const pct = (num(m.totalSales) / target) * 100;
-    achEl.textContent = fmtPct(pct);
+    setKpi('kAchieve', pct, fmtPct);
     achEl.classList.add(pct >= 100 ? 'good' : pct >= 80 ? 'warn' : 'bad');
   } else {
-    achEl.textContent = '—';
+    setKpi('kAchieve', '—');
   }
 
+  renderKpiContext(m);
   renderTargetProgressBar(m);
+}
+
+/* Chip so kỳ trước cho từng thẻ KPI. Chỉ xuất hiện khi previousPeriodMetrics()
+   có kỳ để so — xem chú thích ở đó. */
+function renderKpiContext(m) {
+  const prev = previousPeriodMetrics();
+
+  const cards = [
+    ['Sales',   m.totalSales,                                            prev && prev.totalSales, 'pct'],
+    ['Target',  m.target,                                                prev && prev.target,     'pct'],
+    ['Achieve', m.target > 0 ? (m.totalSales / m.target) * 100 : 0,
+                prev && prev.target > 0 ? (prev.totalSales / prev.target) * 100 : 0,              'pt'],
+    ['Bills',   m.bills,                                                 prev && prev.bills,      'pct'],
+    ['Qty',     m.qty,                                                   prev && prev.qty,        'pct'],
+    ['Traffic', m.traffic,                                               prev && prev.traffic,    'pct'],
+    ['CVR',     m.cvr,                                                   prev && prev.cvr,        'pt'],
+    ['UPT',     m.upt,                                                   prev && prev.upt,        'pct'],
+    ['ATV',     m.atv,                                                   prev && prev.atv,        'pct'],
+  ];
+
+  cards.forEach(([key, cur, prevVal, unit]) => {
+    const delta = document.getElementById('d' + key);
+    if (!delta) return;
+    delta.innerHTML = prev ? deltaChip(cur, prevVal, unit) : '';
+    delta.title = prev ? `So với ${prevPeriodLabel()}` : '';
+  });
+}
+
+/** Nhãn kỳ so sánh, chỉ dùng cho tooltip của chip. */
+function prevPeriodLabel() {
+  const f = S.filters;
+  if (f.month !== 'all') {
+    const mo = +f.month;
+    return mo === 1 ? `${MONTH_NAMES[11]} ${+f.year - 1}` : `${MONTH_NAMES[mo - 2]} ${f.year}`;
+  }
+  const q = +String(f.quarter).replace(/\D/g, '');
+  return q === 1 ? `Q4 ${+f.year - 1}` : `Q${q - 1} ${f.year}`;
 }
 
 function renderTargetProgressBar(m) {
@@ -1257,10 +1561,10 @@ function renderTargetProgressBar(m) {
 
   let color;
   if (rawPct >= 100)    color = 'var(--green)';
-  else if (rawPct >= 85) color = '#d97706';
+  else if (rawPct >= 85) color = 'var(--warn)';
   else                   color = 'var(--red)';
 
-  document.getElementById('tpPct').textContent = fmtPct(rawPct);
+  rollNumber(document.getElementById('tpPct'), rawPct, fmtPct);
   document.getElementById('tpPct').style.color = color;
 
   const gap = actual - target;
@@ -1289,8 +1593,8 @@ function renderTopProducts(m) {
         <div class="p-bar-wrap"><div class="p-bar" style="width:${Math.max(6, (num(p.value) / maxVal) * 100)}%"></div></div>
       </div>
       <div class="p-value">
-        <div class="p-amount">${fmtShort(p.value)}</div>
-        <div class="p-qty">${fmtN(p.qty)} pcs</div>
+        <div class="p-amount">${rollHtml(p.value, 'short')}</div>
+        <div class="p-qty">${rollHtml(p.qty, 'n')} pcs</div>
       </div>
     </div>
   `).join('');
@@ -1366,7 +1670,18 @@ function renderAll() {
   renderDowHeatmap(m);
   syncYoyFromFilters();
   renderYoy();
-  requestAnimationFrame(() => syncCharts());
+  requestAnimationFrame(() => {
+    syncCharts();
+    initFadeMasks();
+    snapPaceMarks();
+    initScrollReveal();
+    // Đổi bộ lọc: các thẻ đang hiện đã dựng lại nội dung nhưng observer không
+    // bắn lại (chúng chưa hề rời khung nhìn), nên phải tự cho số chạy. Chỉ
+    // quét thẻ đang hiện — thẻ dưới màn hình để dành cho lúc cuộn tới.
+    document.querySelectorAll(REVEAL_SELECTOR + ', .tp-section').forEach((el) => {
+      if (el.classList.contains('in-view') || el.classList.contains('tp-section')) sweepRolls(el);
+    });
+  });
 }
 
 // ===== CASHIER PRODUCTIVITY MATRIX =====
@@ -1383,9 +1698,9 @@ function renderCashierMatrix(m) {
   body.innerHTML = data.map((c) => `
     <tr>
       <td title="${esc(c.label)}">${esc(c.label)}</td>
-      <td>${fmtShort(c.amount)}</td>
-      <td>${fmtShort(c.atv)}</td>
-      <td>${num(c.upt).toFixed(2)}</td>
+      <td>${rollHtml(c.amount, 'short')}</td>
+      <td>${rollHtml(c.atv, 'short')}</td>
+      <td>${rollHtml(c.upt, 'fixed2')}</td>
     </tr>
   `).join('');
   // De-duplicated totals, not a column sum: one receipt can list several
@@ -1393,9 +1708,9 @@ function renderCashierMatrix(m) {
   const t = m.cashierTotals || {};
   foot.innerHTML = `<tr title="Số hóa đơn đã loại trùng: 28% hóa đơn có nhiều thu ngân cùng bán nên ATV/UPT tổng cao hơn từng dòng.">
     <td>TOTAL / AVG</td>
-    <td>${fmtShort(t.amount)}</td>
-    <td>${fmtShort(t.atv)}</td>
-    <td>${num(t.upt).toFixed(2)}</td>
+    <td>${rollHtml(t.amount, 'short')}</td>
+    <td>${rollHtml(t.atv, 'short')}</td>
+    <td>${rollHtml(t.upt, 'fixed2')}</td>
   </tr>`;
 }
 
@@ -1417,7 +1732,6 @@ function renderDowHeatmap(m) {
     return;
   }
   const valFn = (d) => DOW_METRIC === 'bills' ? d.billsPerDay : DOW_METRIC === 'atv' ? d.atv : d.revPerDay;
-  const fmtFn = (v) => DOW_METRIC === 'bills' ? fmtN(v) : fmtVNDShort(v);
   const values = data.map(valFn);
   const posValues = values.filter((v) => v > 0);
   const maxV = posValues.length ? Math.max(...posValues) : 0;
@@ -1432,11 +1746,15 @@ function renderDowHeatmap(m) {
     const intensity = maxV > 0 ? v / maxV : 0;
     const cls = i === peakIdx && d.dayCount > 0 ? 'peak' : (i === lowIdx && d.dayCount > 0 && v > 0 ? 'low' : '');
     const pctRev = totalRev > 0 ? (d.revenue / totalRev) * 100 : 0;
+    // Viền màu một mình quá dễ bỏ sót, nên ngày cao nhất / thấp nhất có thêm
+    // nhãn chữ, đặt ở chân ô — ngay gốc của cột màu dâng lên từ đáy.
+    const badge = cls ? `<span class="dow-badge ${cls}">${cls === 'peak' ? 'Highest' : 'Lowest'}</span>` : '';
     return `<div class="dow-cell ${cls}">
       <div class="dow-cell-fill" style="height:${Math.max(6, intensity * 100)}%;opacity:${0.35 + intensity * 0.5}"></div>
       <div class="dow-cell-day">${d.label}</div>
-      <div class="dow-cell-rev">${d.dayCount > 0 ? fmtFn(v) : '—'}</div>
-      <div class="dow-cell-meta">${fmtN(d.dayCount)} days<br>${fmtPct(pctRev)} of total</div>
+      <div class="dow-cell-rev">${d.dayCount > 0 ? rollHtml(v, DOW_METRIC === 'bills' ? 'n' : 'vndShort') : '—'}</div>
+      <div class="dow-cell-meta">${rollHtml(d.dayCount, 'n')} days<br>${rollHtml(pctRev, 'pct')} of total</div>
+      ${badge}
     </div>`;
   }).join('');
 }
@@ -1453,7 +1771,140 @@ function switchRevChart(mode, btn) {
 }
 window.switchRevChart = switchRevChart;
 
-// Dark-mode only — theme toggle removed
+/* ======== MASK MỜ DẦN CHO DANH SÁCH CUỘN ========
+   Các danh sách này cuộn trong thẻ cao cố định nên hàng cuối bị cắt ngang
+   thân chữ, trông như hỏng chứ không như "còn nữa". Mask làm nó mờ dần ở
+   đáy, và tắt đi khi đã cuộn tới cuối để hàng cuối cùng đọc được rõ. */
+const FADE_SELECTORS = ['#promotionInfo', '#topProductList', '#categoryList', '.legend-list', '.st-list', '.matrix-wrap'];
+
+function refreshFade(el) {
+  const scrollable = el.scrollHeight - el.clientHeight > 2;
+  el.classList.toggle('hz-fade', scrollable);
+  const atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+  el.classList.toggle('at-end', !scrollable || atEnd);
+}
+
+function initFadeMasks() {
+  document.querySelectorAll(FADE_SELECTORS.join(',')).forEach((el) => {
+    if (el.dataset.fadeBound) return;
+    el.dataset.fadeBound = '1';
+    el.addEventListener('scroll', () => refreshFade(el), { passive: true });
+  });
+  syncFadeMasks();
+}
+
+/* ======== VẠCH TIMELINE: ÉP VỀ PIXEL CHẴN ========
+   Vạch rộng đúng 2px ở mọi dòng, nhưng đặt bằng phần trăm nên mép trái rơi
+   vào toạ độ lẻ (620.338px, 543.450px…). Trình duyệt phải tán một vạch 2px ra
+   2–3 điểm ảnh với độ phủ khác nhau, thành ra dòng thì vạch đậm và dày, dòng
+   thì mảnh và nhạt. Tính lại ra pixel nguyên sau khi đã có bề rộng thật. */
+function snapPaceMarks() {
+  document.querySelectorAll('#staffTargetList .st-row').forEach((row) => {
+    const track = row.querySelector('.st-track');
+    const pace = row.querySelector('.st-pace');
+    if (!track || !pace) return;
+    const pct = parseFloat(pace.dataset.pct);
+    if (!Number.isFinite(pct)) return;
+    pace.style.left = Math.round((track.clientWidth * pct) / 100) + 'px';
+  });
+}
+
+/** Gọi lại sau mỗi lần vẽ: nội dung đổi thì chiều cao cuộn cũng đổi. */
+function syncFadeMasks() {
+  document.querySelectorAll(FADE_SELECTORS.join(',')).forEach(refreshFade);
+}
+
+/* ======== HIỆN DẦN KHI CUỘN TỚI ========
+   Trước đây cả trang diễn một lượt ngay lúc dữ liệu về. Trên máy tính còn kịp
+   thấy vài thẻ đầu, còn trên điện thoại thì mọi thứ dưới màn hình đầu đã diễn
+   xong từ lâu trước khi người dùng cuộn tới — coi như không có hiệu ứng.
+   Giờ mỗi thẻ tự diễn đúng lúc nó lọt vào khung nhìn: thẻ nổi lên, cột trong
+   thẻ dâng từ đáy, biểu đồ Chart.js dựng lại từ đầu. */
+const REVEAL_SELECTOR = '.chart-card, .yoy-card';
+
+function chartsInside(el) {
+  return Object.values(S.charts).filter((ch) => ch && ch.canvas && el.contains(ch.canvas));
+}
+
+/** Diễn lại animation dựng hình của một biểu đồ Chart.js.
+    reset() đưa các phần tử về trạng thái trước animation đầu tiên, update()
+    cho chúng chạy tới giá trị thật. */
+function playChartIntro(chart) {
+  if (!chart) return;
+  const saved = chart.options.animation;
+  const count = (chart.data?.labels?.length) || 1;
+  // Mỗi cột lên sau cột trước một nhịp. Bước nhịp co lại khi có nhiều cột, để
+  // biểu đồ 28 tháng không bắt người xem ngồi đợi cột cuối cùng.
+  const step = Math.min(55, 1100 / Math.max(count, 1));
+  const dur = 1500;
+
+  chart.options.animation = {
+    duration: dur,
+    easing: 'easeOutQuart',
+    // Chart.js gọi hàm này cho từng phần tử; chỉ so le ở lần dựng hình thật,
+    // các mode khác (resize, hover) phải chạy ngay không trễ.
+    delay(ctx) {
+      if (ctx.type !== 'data' || ctx.mode !== 'default') return 0;
+      return ctx.dataIndex * step;
+    }
+  };
+  try { chart.reset(); chart.update(); } catch (_) {}
+
+  // Trả lại cấu hình cũ sau khi diễn xong: đổi bộ lọc thì phải thấy số ngay,
+  // không phải ngồi chờ cột bò lên lần nữa. Mốc này phải tính cả nhịp so le
+  // của cột CUỐI, tắt sớm là animation đứt giữa chừng.
+  setTimeout(() => { if (chart.options) chart.options.animation = saved; },
+             dur + step * count + 250);
+}
+
+let revealObserver = null;
+function initScrollReveal() {
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || !('IntersectionObserver' in window)) return;
+
+  if (!revealObserver) {
+    /* Hai ngưỡng, không phải một — đây là chỗ dễ làm hỏng nhất.
+       Diễn khi thẻ ló vào 12%, nhưng chỉ ĐẶT LẠI khi thẻ ra HẲN khỏi khung
+       nhìn (ratio 0). Nếu đặt lại ngay lúc thẻ mới lấp ló thì chỉ cần rê
+       chuột quanh mép thẻ là nó diễn đi diễn lại liên tục. */
+    revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        const el = e.target;
+        if (e.intersectionRatio >= 0.12) {
+          if (el.classList.contains('in-view')) return;   // đang hiện, đừng diễn chồng
+          el.classList.add('in-view');
+          chartsInside(el).forEach(playChartIntro);
+          sweepRolls(el);                                 // số trong thẻ chạy cùng nhịp với thanh
+        } else if (e.intersectionRatio === 0) {
+          // Gỡ class để lần cuộn tới sau, animation CSS chạy lại từ đầu.
+          el.classList.remove('in-view');
+        }
+      });
+    }, { threshold: [0, 0.12], rootMargin: '0px 0px -6% 0px' });
+  }
+
+  document.querySelectorAll(REVEAL_SELECTOR).forEach((el) => {
+    if (el.dataset.revealBound) return;
+    el.dataset.revealBound = '1';
+    // Class ẩn CHỈ được gắn ở đây, sau khi đã chắc chắn có observer để bật
+    // lại. Gắn sẵn trong HTML mà JS lỗi thì cả trang trắng xoá.
+    el.classList.add('reveal-on-scroll');
+    revealObserver.observe(el);
+  });
+}
+
+/* Cho các khối nổi lên theo thứ tự, một lần duy nhất ở lần dữ liệu đầu tiên.
+   Lặp lại ở mỗi lần sync/đổi file thì thao tác "tải lại số liệu" sẽ biến thành
+   nửa giây chờ hoạt ảnh — đó là phiền, không phải chuyên nghiệp. */
+let dashRevealed = false;
+function revealDashboard(dash) {
+  if (dashRevealed) return;
+  dashRevealed = true;
+  dash.classList.add('reveal');
+  // Gỡ class sau khi diễn xong để animation không chạy lại khi trình duyệt
+  // bố trí lại (ví dụ hiện/ẩn thanh Revenue vs Target theo bộ lọc).
+  setTimeout(() => dash.classList.remove('reveal'), 1500);   // > .8s + .12s trễ
+}
 
 async function onUpload(e) {
   const file = e.target.files?.[0];
@@ -1480,7 +1931,10 @@ function applyWorkbook(wb, successMsg) {
   syncFilters();
   destroyAllCharts();
   document.getElementById('emptyState').style.display = 'none';
-  document.getElementById('dashContent').style.display = 'block';
+  showSkeleton(false);
+  const dash = document.getElementById('dashContent');
+  dash.style.display = 'block';
+  revealDashboard(dash);
   renderAll();
   // Substitute the row count now that S.raw.sales is populated (callers can't
   // know the count before this function parses the workbook).
@@ -1567,11 +2021,23 @@ async function loadFile(file) {
   }
 }
 
+/** Lần tải đầu dùng skeleton; các lần sync sau dùng overlay vì lúc đó màn hình
+    đã có số liệu cũ, thay bằng khung xám sẽ là một bước lùi. */
+function showSkeleton(on) {
+  const sk = document.getElementById('skeleton');
+  const empty = document.getElementById('emptyState');
+  if (sk) sk.style.display = on ? 'block' : 'none';
+  if (empty && on) empty.style.display = 'none';
+}
+
 async function loadFromGSheets() {
   const overlay = document.getElementById('loadingOverlay');
   const syncBtn = document.getElementById('syncBtn');
-  overlay.classList.add('show');
+  const firstLoad = !S.raw.sales.length;
+  if (firstLoad) showSkeleton(true);
+  else overlay.classList.add('show');
   syncBtn.disabled = true;
+  syncBtn.classList.add('syncing');
   setStatus('Syncing from Google Sheets…', false);
   try {
     // Fetch all sheets in parallel but tolerate partial failure: only "sale
@@ -1608,6 +2074,7 @@ async function loadFromGSheets() {
     setStatus(`Sync error: ${msg}`, true);
     if (!S.raw.sales.length) {
       // First load failed — show empty state so user has clear next action
+      showSkeleton(false);
       document.getElementById('emptyState').style.display = 'flex';
       document.getElementById('dashContent').style.display = 'none';
     } else {
@@ -1615,7 +2082,9 @@ async function loadFromGSheets() {
     }
   } finally {
     overlay.classList.remove('show');
+    showSkeleton(false);
     syncBtn.disabled = false;
+    syncBtn.classList.remove('syncing');
   }
 }
 
@@ -1803,14 +2272,14 @@ function renderYoy() {
       return `<span class="yoy-year-metric-delta ${cls}">${arrow}${Math.abs(pct).toFixed(1)}%</span>`;
     };
     const rows = [
-      { lbl: 'Revenue', val: fmtVNDShort(m.revenue), delta: prev ? mkDelta(m.revenue, prev.revenue) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
-      { lbl: 'Target',    val: fmtVNDShort(m.target),  delta: '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
-      { lbl: 'Bills',     val: fmtN(m.bills),          delta: prev ? mkDelta(m.bills, prev.bills) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
-      { lbl: 'Traffic',   val: fmtN(m.traffic),        delta: prev ? mkDelta(m.traffic, prev.traffic) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
-      { lbl: 'CVR',       val: fmtPct(m.cvr),          delta: prev ? mkDelta(m.cvr, prev.cvr) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
-      { lbl: 'ATV',       val: fmtVNDShort(m.atv),     delta: prev ? mkDelta(m.atv, prev.atv) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
-      { lbl: 'UPT',       val: (m.upt||0).toFixed(2),  delta: prev ? mkDelta(m.upt, prev.upt) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
-      { lbl: 'Qty',       val: fmtN(m.qty),            delta: prev ? mkDelta(m.qty, prev.qty) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'Revenue', val: rollHtml(m.revenue, 'vndShort'), delta: prev ? mkDelta(m.revenue, prev.revenue) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'Target',    val: rollHtml(m.target, 'vndShort'), delta: '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'Bills',     val: rollHtml(m.bills, 'n'),         delta: prev ? mkDelta(m.bills, prev.bills) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'Traffic',   val: rollHtml(m.traffic, 'n'),       delta: prev ? mkDelta(m.traffic, prev.traffic) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'CVR',       val: rollHtml(m.cvr, 'pct'),         delta: prev ? mkDelta(m.cvr, prev.cvr) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'ATV',       val: rollHtml(m.atv, 'vndShort'),    delta: prev ? mkDelta(m.atv, prev.atv) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'UPT',       val: rollHtml(m.upt, 'fixed2'),      delta: prev ? mkDelta(m.upt, prev.upt) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'Qty',       val: rollHtml(m.qty, 'n'),           delta: prev ? mkDelta(m.qty, prev.qty) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
     ];
     kpiHtml += `
       <div class="yoy-year-card" style="background:${c.bg};border-color:${c.border};--card-accent:${c.accent}">
@@ -1882,8 +2351,8 @@ function renderYoy() {
           }
         },
         scales: {
-          x: { grid: { color: css('--border') }, ticks: { color: css('--text-3'), font: { size: 13 } } },
-          y: { beginAtZero: true, grid: { color: css('--border') },
+          x: { grid: { display: false }, ticks: { color: css('--text-3'), font: { size: 13 } } },
+          y: { beginAtZero: true, grid: { display: false },
                ticks: { color: css('--text-3'), font: { size: 12 }, callback: v => fmtMetricVal(v, metric) } }
         }
       }
@@ -1919,8 +2388,8 @@ function renderYoy() {
             callbacks:{ label: ctx=>`${ctx.dataset.label}: ${fmtMetricVal(ctx.raw,metric)}` } }
         },
         scales: {
-          x: { grid:{color:css('--border')}, ticks:{color:css('--text-3'),font:{size:13}} },
-          y: { beginAtZero:true, grid:{color:css('--border')}, ticks:{color:css('--text-3'),font:{size:13}, callback:v=>fmtMetricVal(v,metric)} }
+          x: { grid:{display:false}, ticks:{color:css('--text-3'),font:{size:13}} },
+          y: { beginAtZero:true, grid:{display:false}, ticks:{color:css('--text-3'),font:{size:13}, callback:v=>fmtMetricVal(v,metric)} }
         }
       }
     });
@@ -1962,7 +2431,10 @@ function bindEvents() {
   document.addEventListener('touchstart', hideExtTooltip, { passive: true });
 
   document.getElementById('fileInput').addEventListener('change', onUpload);
-  // theme toggle removed — dark mode only
+
+  document.getElementById('themeBtn')?.addEventListener('click', () => {
+    setTheme(currentTheme() === 'light' ? 'dark' : 'light', true);
+  });
 
   const dz = document.getElementById('dropZone');
   if (dz) {
@@ -1975,7 +2447,14 @@ function bindEvents() {
   }
 }
 
+initTheme();
+initAutoHideTopbar();
 bindEvents();
 document.getElementById('syncBtn').addEventListener('click', loadFromGSheets);
 loadFromGSheets();
-window.addEventListener('resize', () => { if (S.raw.sales.length) syncCharts(); });
+window.addEventListener('resize', () => {
+  if (!S.raw.sales.length) return;
+  syncCharts();
+  syncFadeMasks();   // đổi bề rộng làm nội dung xuống dòng khác đi
+  snapPaceMarks();   // bề rộng đổi thì vị trí pixel nguyên cũng đổi
+});
