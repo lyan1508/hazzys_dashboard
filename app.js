@@ -1468,6 +1468,17 @@ function sweepRolls(root) {
   });
 }
 
+/* Quét lại số sau khi một khối tự dựng lại mà KHÔNG đi qua renderAll().
+   Các nút bấm riêng của thẻ (tab metric của YoY, tab Rev/Bills/ATV của Day of
+   Week) gọi thẳng hàm vẽ của mình. Lúc đó thẻ vẫn đang nằm trong khung nhìn
+   nên IntersectionObserver không bắn lại, và renderAll() cũng không chạy —
+   không còn ai kích số, số mới hiện ra đứng im. Thẻ nào đang ngoài khung nhìn
+   thì bỏ qua, để dành cho lúc cuộn tới. */
+function sweepIfVisible(el) {
+  const card = el && el.closest(REVEAL_SELECTOR);
+  if (card && card.classList.contains('in-view')) sweepRolls(card);
+}
+
 /** fmt = null (hoặc giá trị không phải số, ví dụ "—") thì đặt thẳng, không chạy. */
 function setKpi(id, value, fmt) {
   const el = document.getElementById(id);
@@ -1720,7 +1731,9 @@ window.switchDowMetric = function(metric, btn) {
   DOW_METRIC = metric;
   document.querySelectorAll('#dowMetricTabs .chart-tab').forEach((t) => t.classList.remove('active'));
   btn.classList.add('active');
-  if (S.raw.sales.length) renderDowHeatmap(aggregate());
+  if (!S.raw.sales.length) return;
+  renderDowHeatmap(aggregate());
+  sweepIfVisible(document.getElementById('dowStrip'));
 };
 
 function renderDowHeatmap(m) {
@@ -1768,6 +1781,10 @@ function switchRevChart(mode, btn) {
   if (!S.raw.sales.length) return;
   const m = aggregate();
   renderCharts(m);
+  // Cùng lý do như sweepIfVisible: thẻ không rời khung nhìn nên observer im,
+  // đổi Monthly/Cumulative mà cột hiện ra bụp một cái thì lạc nhịp với phần
+  // còn lại của trang.
+  requestAnimationFrame(() => playChartIntro(S.charts.rev));
 }
 window.switchRevChart = switchRevChart;
 
@@ -2294,7 +2311,9 @@ function renderYoy() {
         </div>
       </div>`;
   });
-  document.getElementById('yoyKpiRow').innerHTML = kpiHtml;
+  const yoyRow = document.getElementById('yoyKpiRow');
+  yoyRow.innerHTML = kpiHtml;
+  sweepIfVisible(yoyRow);   // đổi kỳ / đổi metric cũng cho số chạy lại
 
   // ── Filter badge: show active dimension filters ──
   const _fb = document.getElementById('yoyFilterBadge');
