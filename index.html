@@ -259,22 +259,27 @@
               <option value="custom">Custom Range</option>
             </select>
           </div>
-          <div class="yoy-range-group" id="yoyMonthRow">
-            <span class="yoy-label" style="font-weight:400;color:var(--text-3)">Month:</span>
-            <select class="yoy-select" id="yoyMonth"></select>
-          </div>
-          <div class="yoy-range-group" id="yoyQuarterRow" style="display:none">
-            <span class="yoy-label" style="font-weight:400;color:var(--text-3)">Quarter:</span>
-            <select class="yoy-select" id="yoyQuarter">
-              <option value="1">Q1</option><option value="2">Q2</option>
-              <option value="3">Q3</option><option value="4">Q4</option>
-            </select>
-          </div>
-          <div class="yoy-range-group" id="yoyCustomRow" style="display:none">
-            <span class="yoy-label" style="font-weight:400;color:var(--text-3)">From:</span>
-            <select class="yoy-select" id="yoyCustomFrom"></select>
-            <span class="yoy-label" style="font-weight:400;color:var(--text-3)">→ To:</span>
-            <select class="yoy-select" id="yoyCustomTo"></select>
+          <!-- Ba ô chọn kỳ nằm chồng lên nhau trong cùng một chỗ đứng: chỗ này
+               luôn rộng bằng ô rộng nhất nên đổi kỳ không làm thanh điều khiển
+               đổi số dòng, biểu đồ bên dưới đứng yên. -->
+          <div class="yoy-period-slot">
+            <div class="yoy-range-group" id="yoyMonthRow">
+              <span class="yoy-label" style="font-weight:400;color:var(--text-3)">Month:</span>
+              <select class="yoy-select" id="yoyMonth"></select>
+            </div>
+            <div class="yoy-range-group" id="yoyQuarterRow" style="visibility:hidden">
+              <span class="yoy-label" style="font-weight:400;color:var(--text-3)">Quarter:</span>
+              <select class="yoy-select" id="yoyQuarter">
+                <option value="1">Q1</option><option value="2">Q2</option>
+                <option value="3">Q3</option><option value="4">Q4</option>
+              </select>
+            </div>
+            <div class="yoy-range-group" id="yoyCustomRow" style="visibility:hidden">
+              <span class="yoy-label" style="font-weight:400;color:var(--text-3)">From:</span>
+              <select class="yoy-select" id="yoyCustomFrom"></select>
+              <span class="yoy-label" style="font-weight:400;color:var(--text-3)">→ To:</span>
+              <select class="yoy-select" id="yoyCustomTo"></select>
+            </div>
           </div>
           <div class="yoy-metric-tabs" id="yoyMetricTabs">
             <button class="yoy-metric-tab active" data-metric="revenue" onclick="setYoyMetric('revenue',this)">Revenue</button>

@@ -362,6 +362,12 @@ select{cursor:pointer}
 .yoy-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0;border-bottom:none}
 .yoy-label{font-size:13px;font-weight:700;color:var(--text-2);white-space:nowrap}
 .yoy-range-group{display:flex;align-items:center;gap:6px}
+/* Ba ô chọn kỳ xếp chồng vào cùng một ô lưới: bề rộng chỗ đứng bằng ô rộng nhất
+   (Custom Range) và không đổi khi chuyển kỳ — kể cả YTD lúc cả ba đều ẩn. Nhờ
+   vậy thanh điều khiển giữ nguyên số dòng, biểu đồ bên dưới không bị giật.
+   Đây là lý do ba ô ẩn bằng visibility chứ không phải display. */
+.yoy-period-slot{display:grid;align-items:center}
+.yoy-period-slot>.yoy-range-group{grid-area:1/1}
 .yoy-select{appearance:none;background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a94a6' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 8px center;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 22px 4px 8px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer;transition:border-color .15s}
 .yoy-select:focus{border-color:var(--brand-light);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 .yoy-metric-tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px;margin-left:auto}
@@ -1781,16 +1787,13 @@ html.theme-anim *::after{
 .pr-card:hover{background:var(--border);border-color:var(--brand-mid);transform:translateY(-1px)}
 .pr-card:focus-visible{outline:2px solid var(--brand-mid);outline-offset:2px}
 
-/* Ô ảnh và ô số thứ tự cùng một kích thước: mã chưa có ảnh vẫn giữ đúng chỗ
-   nên lưới không xô lệch trong lúc ảnh về dần. */
+/* Ô số thứ tự. Ảnh sản phẩm không nạp sẵn ở đây — bấm vào thẻ mới mở khung xem,
+   đỡ kéo về mười tấm ảnh cho một bảng mà phần lớn lượt xem không cần tới. */
 .pr-thumb{
   width:44px;height:44px;flex:0 0 auto;
   display:grid;place-items:center;
   border-radius:8px;background:var(--surface);border:1px solid var(--border);
-  background-size:cover;background-position:center top;
 }
-.pr-thumb.has-img{border-color:var(--border-2)}
-.pr-thumb.has-img .pr-rank{display:none}
 .pr-rank{font-size:13px;font-weight:800;color:var(--text-3);font-variant-numeric:tabular-nums}
 .pr-rank.medal{color:var(--accent)}
 
@@ -1807,13 +1810,12 @@ html.theme-anim *::after{
   font-variant-numeric:tabular-nums;white-space:nowrap;
 }
 .pr-view{
-  display:inline-flex;align-items:center;gap:4px;
+  display:inline-flex;align-items:center;
   padding:4px 9px;border-radius:999px;
   border:1px solid var(--border-2);background:var(--surface);
   font-size:var(--fs-xs);font-weight:700;color:var(--text-3);
   white-space:nowrap;transition:color .14s,border-color .14s,background .14s;
 }
-.pr-view svg{width:12px;height:12px}
 .pr-card:hover .pr-view{
   color:var(--brand-light);border-color:var(--brand-mid);
   background:rgba(var(--brand-rgb),.12);

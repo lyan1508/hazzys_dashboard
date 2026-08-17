@@ -1654,48 +1654,60 @@ function renderTargetProgressBar(m) {
 }
 
 /* ======== XEM ẢNH SẢN PHẨM NGAY TRONG BẢNG ========
-   Kho ảnh chính là thư mục PICTURE trên Drive (~13.400 tệp), tên tệp đúng bằng
-   "mã style + mã màu" (HUTS5B411 + BK → HUTS5B411BK.webp) — trùng khớp với mã
-   SKU 14 ký tự trong dữ liệu bán hàng, nên dựng được tên tệp mà không cần bảng
-   khai báo nào.
+   Ảnh lấy thẳng từ CDN của LF Mall (công ty mẹ Hazzys) — đường dẫn suy ra được
+   từ chính mã SKU nên không cần bảng tra nào cả:
 
-   Drive chỉ mở tệp theo ID chứ không theo tên, nên tools/build-picture-index.js
-   quét thư mục (đang để công khai) rồi ghi sẵn bảng tra tên → ID ra
-   picture-index.json đi kèm dashboard. Trang chỉ việc nạp tệp đó — cùng thư mục
-   nên không vướng CORS — rồi ghép ra đường dẫn ảnh. Không khoá API, không
-   Apps Script, người dùng không phải cài gì.
+     nimg.lfmall.co.kr/file/product/prd/{HU}/{2024}/{640}/{HUTS4B301E3}_00.jpg
+                                        hãng   năm    cỡ    style+màu
 
-   Chạy lại bộ sinh mỗi khi thêm ảnh mới vào thư mục.
+   Ba mảnh đầu đều nằm sẵn trong SKU 14 ký tự: 2 ký tự đầu là mã hãng, ký tự thứ
+   5 là năm (4 → 2024), 11 ký tự đầu là style+màu. Cỡ ảnh thì CDN tự resize theo
+   số mình đưa vào.
 
-   Thư mục PICTURE phải giữ chế độ "bất kỳ ai có liên kết → người xem": id có
-   đúng mà thư mục để riêng tư thì ảnh vẫn không hiện. */
-const PICTURE_INDEX_URL = 'picture-index.json';
-const DRIVE_IMG_BASE = 'https://drive.google.com/thumbnail?sz=w1000&id=';
-/** name(HOA) -> file id. null = chưa nạp, object rỗng = nạp rồi mà không có. */
-let PICTURE_INDEX = null;
-let pictureIndexPromise = null;
+   Trước đây chỗ này đọc thư mục PICTURE trên Drive qua một bảng tra tên → id.
+   Bỏ vì Drive không liệt kê nổi thư mục lớn: embeddedfolderview chốt cứng ở
+   5.500 mục trong khi thư mục có ~13.400 tệp, cắt theo alphabet nên mất sạch
+   nhóm HUTS, HUSW, HW, HZ — tức là gần hết hàng bán chạy. Đo trên dữ liệu thật:
+   Drive phủ 164/801 style (20,5%), LF Mall phủ 791/801 (98,8%, ~99% doanh thu).
 
-function loadPictureIndex() {
-  if (PICTURE_INDEX) return Promise.resolve(PICTURE_INDEX);
-  if (pictureIndexPromise) return pictureIndexPromise;
-  pictureIndexPromise = (async () => {
-    let map = {};
-    try {
-      const res = await fetch(PICTURE_INDEX_URL, { cache: 'no-cache' });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && typeof data === 'object') map = data;
-      }
-    } catch (_) { /* thiếu bảng tra thì khung xem báo rõ, không im lặng */ }
-    PICTURE_INDEX = map;
-    return map;
-  })();
-  return pictureIndexPromise;
+   CDN không chặn hotlink và thẻ <img> vốn không bị CORS chi phối, nên trang tĩnh
+   gọi thẳng được — không khoá API, không Apps Script, không phải cài gì. */
+const LF_CDN = 'https://nimg.lfmall.co.kr/file/product/prd';
+const LF_RES_THUMB = 300;   // ô ảnh nhỏ trong bảng (~66KB)
+const LF_RES_FULL  = 800;   // khung xem phóng to (~400KB)
+
+/** Năm trong đường dẫn suy từ ký tự thứ 5 của SKU. Gần như luôn đúng ngay lần
+ *  đầu (800/801 style), nhưng vẫn thử năm liền kề cho hàng chuyển mùa. */
+function lfYears(sku) {
+  const base = 2020 + Number(sku[4]);
+  return Number.isFinite(base) ? [base, base - 1, base + 1] : [];
 }
 
-function driveImgUrl(sku, color) {
-  const id = PICTURE_INDEX && PICTURE_INDEX[`${sku}${color}.WEBP`];
-  return id ? DRIVE_IMG_BASE + id : '';
+function lfUrl(ck, year, res) {
+  return `${LF_CDN}/${ck.slice(0, 2)}/${year}/${res}/${ck}_00.jpg`;
+}
+
+/** ck -> Promise<năm | null>. Dò một lần rồi nhớ, vì mọi cỡ ảnh của cùng một mã
+ *  đều dùng chung năm đó — khung xem phóng to khỏi phải dò lại. */
+const LF_YEAR = new Map();
+
+function lfYearFor(ck) {
+  if (LF_YEAR.has(ck)) return LF_YEAR.get(ck);
+  const p = (async () => {
+    for (const year of lfYears(ck)) {
+      if (await probeImage(lfUrl(ck, year, LF_RES_THUMB))) return year;
+    }
+    return null;
+  })();
+  LF_YEAR.set(ck, p);
+  return p;
+}
+
+/** '' = mã màu này không có ảnh trên CDN. */
+async function lfImgUrl(sku, color, res) {
+  const ck = `${sku}${color}`;
+  const year = await lfYearFor(ck);
+  return year ? lfUrl(ck, year, res) : '';
 }
 
 function renderTopProducts(m) {
@@ -1720,35 +1732,9 @@ function renderTopProducts(m) {
       <!-- Cả thẻ đã bấm được, nhưng không có gì báo cho người xem biết điều đó.
            Đây là <span> chứ không phải <button>: lồng nút trong nút là HTML sai,
            mà nó cũng không cần tự xử lý cú bấm — thẻ bao ngoài lo rồi. -->
-      <span class="pr-view">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8Z"/><circle cx="8" cy="8" r="2"/>
-        </svg>
-        View
-      </span>
+      <span class="pr-view">View</span>
     </button>
   `).join('');
-  hydrateProductThumbs(list);
-}
-
-/* Ảnh thật thay cho số thứ tự. Chạy sau khi đã vẽ xong chứ không chặn: bảng
-   tra ảnh nạp qua mạng, đợi nó thì cả thẻ đứng hình. Mã nào chưa có ảnh thì
-   giữ nguyên số thứ tự — hai ô cùng kích thước nên lưới không xô lệch. */
-async function hydrateProductThumbs(list) {
-  await loadPictureIndex();
-  list.forEach((p) => {
-    const url = (p.colors || []).map((c) => driveImgUrl(p.sku, c)).find(Boolean);
-    if (!url) return;
-    const img = new Image();
-    img.onload = () => {
-      // Thẻ có thể đã bị vẽ lại (đổi bộ lọc) trong lúc chờ ảnh về.
-      const slot = document.querySelector(`#topProductList .pr-card[data-sku="${p.sku}"] .pr-thumb`);
-      if (!slot) return;
-      slot.style.backgroundImage = `url("${url}")`;
-      slot.classList.add('has-img');
-    };
-    img.src = url;
-  });
 }
 
 /* ---- Khung xem ảnh ---------------------------------------------------- */
@@ -1788,9 +1774,8 @@ function productPreviewEl() {
   return el;
 }
 
-/** Ảnh nào tải được thì mới cho vào danh sách màu. Bảng tra Drive chỉ cho biết
- *  tệp CÓ tồn tại — thư mục để riêng tư thì ảnh vẫn tải hỏng, nên tra được id
- *  rồi vẫn phải thử tải thật mới tin. */
+/** Đường dẫn CDN là suy ra chứ không phải tra bảng, nên phải thử tải thật mới
+ *  biết mã màu đó có ảnh hay không. */
 function probeImage(url) {
   return new Promise((resolve) => {
     if (!url) { resolve(false); return; }
@@ -1801,18 +1786,12 @@ function probeImage(url) {
   });
 }
 
-/** Chỉ lấy ảnh từ Drive. '' = mã màu này chưa có ảnh trong thư mục. */
-async function resolveImgUrl(sku, color) {
-  const drive = driveImgUrl(sku, color);
-  return drive && await probeImage(drive) ? drive : '';
-}
-
 function showPreviewColor(i) {
   if (!PREVIEW_STATE) return;
   PREVIEW_STATE.index = i;
-  const { sku, colors, urls } = PREVIEW_STATE;
+  const { sku, shots } = PREVIEW_STATE;
   document.getElementById('pvStage').innerHTML =
-    `<img src="${esc(urls[i])}" alt="${esc(sku)} ${esc(colors[i])}">`;
+    `<img src="${esc(shots[i].url)}" alt="${esc(sku)} ${esc(shots[i].color)}">`;
   document.querySelectorAll('#pvSwatches .pv-swatch').forEach((b, j) => b.classList.toggle('active', j === i));
 }
 window.showPreviewColor = showPreviewColor;
@@ -1830,30 +1809,30 @@ async function openProductPreview(sku, colorsCsv) {
   el.classList.add('open');
   document.addEventListener('keydown', onPreviewKey);
 
-  await loadPictureIndex();
-  const colors = [];
-  const urls = [];
-  for (const c of colorsAll) {
-    const url = await resolveImgUrl(sku, c);
-    if (url) { colors.push(c); urls.push(url); }
-  }
+  // Dò các màu song song — mã bán nhiều màu mà dò lần lượt thì chờ rõ lâu.
+  const probed = await Promise.all(colorsAll.map(async (color) => ({
+    color,
+    url: await lfImgUrl(sku, color, LF_RES_FULL),
+    thumb: await lfImgUrl(sku, color, LF_RES_THUMB),
+  })));
+  const shots = probed.filter((s) => s.url);
   // Người dùng có thể đã đóng khung hoặc bấm sang mã khác trong lúc chờ.
   if (!el.classList.contains('open') || el.querySelector('#pvSku').textContent !== sku) return;
 
-  if (!colors.length) {
+  if (!shots.length) {
     PREVIEW_STATE = null;
     el.querySelector('#pvSub').textContent = 'no photo';
     stage.innerHTML = '<div class="pv-msg">No photo for this style</div>';
     return;
   }
 
-  PREVIEW_STATE = { sku, colors, urls, index: 0 };
+  PREVIEW_STATE = { sku, shots, index: 0 };
   el.querySelector('#pvSub').textContent =
-    `${colors.length} colour${colors.length > 1 ? 's' : ''}${colors.length < colorsAll.length ? ` of ${colorsAll.length} sold` : ''}`;
-  swatches.innerHTML = colors.map((c, i) => `
+    `${shots.length} colour${shots.length > 1 ? 's' : ''}${shots.length < colorsAll.length ? ` of ${colorsAll.length} sold` : ''}`;
+  swatches.innerHTML = shots.map((s, i) => `
     <button type="button" class="pv-swatch${i === 0 ? ' active' : ''}" onclick="showPreviewColor(${i})">
-      <img src="${esc(urls[i])}" alt="">
-      <span>${esc(COLOR_NAME[c] || c)}</span>
+      <img src="${esc(s.thumb)}" alt="">
+      <span>${esc(COLOR_NAME[s.color] || s.color)}</span>
     </button>`).join('');
   showPreviewColor(0);
 }
@@ -1870,8 +1849,8 @@ window.closeProductPreview = closeProductPreview;
 
 function onPreviewKey(e) {
   if (e.key === 'Escape') { closeProductPreview(); return; }
-  if (!PREVIEW_STATE || PREVIEW_STATE.colors.length < 2) return;
-  const n = PREVIEW_STATE.colors.length;
+  if (!PREVIEW_STATE || PREVIEW_STATE.shots.length < 2) return;
+  const n = PREVIEW_STATE.shots.length;
   if (e.key === 'ArrowRight') showPreviewColor((PREVIEW_STATE.index + 1) % n);
   if (e.key === 'ArrowLeft') showPreviewColor((PREVIEW_STATE.index - 1 + n) % n);
 }
@@ -2416,11 +2395,23 @@ window.setYoyMetric = function(metric, btn) {
   btn.classList.add('active');
   renderYoy();
 };
+/* Ẩn bằng visibility chứ không phải display: ba ô này nằm chồng nhau trong một
+   chỗ đứng cố định (.yoy-period-slot), display:none sẽ làm chỗ đứng co lại,
+   thanh điều khiển đổi số dòng và cả biểu đồ bên dưới nhảy theo. */
+function showYoyPeriodRow(id, on) {
+  const el = document.getElementById(id);
+  if (el) el.style.visibility = on ? '' : 'hidden';
+}
+
+function syncYoyPeriodRows() {
+  showYoyPeriodRow('yoyMonthRow',   YOY.rangeType === 'month');
+  showYoyPeriodRow('yoyQuarterRow', YOY.rangeType === 'quarter');
+  showYoyPeriodRow('yoyCustomRow',  YOY.rangeType === 'custom');
+}
+
 window.onYoyRangeChange = function() {
   YOY.rangeType = document.getElementById('yoyRangeType').value;
-  document.getElementById('yoyMonthRow').style.display   = YOY.rangeType === 'month'   ? '' : 'none';
-  document.getElementById('yoyQuarterRow').style.display = YOY.rangeType === 'quarter' ? '' : 'none';
-  document.getElementById('yoyCustomRow').style.display  = YOY.rangeType === 'custom'  ? '' : 'none';
+  syncYoyPeriodRows();
   renderYoy();
 };
 
@@ -2442,10 +2433,7 @@ function syncYoyFromFilters() {
   setVal('yoyRangeType', YOY.rangeType);
   setVal('yoyMonth', String(YOY.month));
   setVal('yoyQuarter', String(YOY.quarter));
-  const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
-  show('yoyMonthRow', YOY.rangeType === 'month');
-  show('yoyQuarterRow', YOY.rangeType === 'quarter');
-  show('yoyCustomRow', YOY.rangeType === 'custom');
+  syncYoyPeriodRows();
 }
 
 function initYoyFilters() {
@@ -2606,7 +2594,20 @@ function renderYoy() {
   });
   const yoyRow = document.getElementById('yoyKpiRow');
   yoyRow.innerHTML = kpiHtml;
-  sweepIfVisible(yoyRow);   // đổi kỳ / đổi metric cũng cho số chạy lại
+
+  /* Số trong Summary chỉ phụ thuộc KỲ so sánh, không phụ thuộc metric đang xem
+     — metric chỉ đổi biểu đồ. Trước đây lần vẽ nào cũng quét số, nên bấm tab
+     metric là 24 con số y hệt cũ lại chạy từ 0 mất 1,5 giây: nhìn như giật mà
+     chẳng có gì đổi. Giờ chỉ quét khi kỳ hoặc dữ liệu thực sự khác đi. */
+  const rollKey = [
+    YOY.rangeType, YOY.month, YOY.quarter, YOY.customFrom, YOY.customTo,
+    S.filters.year, S.filters.quarter, S.filters.month, S.filters.store,
+    S.raw.sales.length,
+  ].join('|');
+  if (rollKey !== renderYoy._rollKey) {
+    renderYoy._rollKey = rollKey;
+    sweepIfVisible(yoyRow);
+  }
 
   // ── Filter badge: show active dimension filters ──
   const _fb = document.getElementById('yoyFilterBadge');
