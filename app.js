@@ -2532,6 +2532,24 @@ function getYoyMonthlyData(year, months) {
   });
 }
 
+/* Dạng theo quý không đi qua getYoyRows: nó cố tình lấy CẢ năm rồi tự chia
+   quý, để bốn cột Q1..Q4 luôn có mặt bất kể kỳ đang chọn. */
+function getYoyQuarterlyData(year) {
+  const rows = applyDimFilters(S.raw.sales).filter(r => r.year === year);
+  const tgts = S.raw.targets.filter(t => t.year === year);
+  return [1,2,3,4].map(q => {
+    const mr = rows.filter(r => Math.ceil(r.monthIndex/3) === q);
+    const mt = tgts.filter(t => Math.ceil(t.monthIndex/3) === q);
+    const revenue = mr.reduce((s,r) => s + num(r.amount), 0);
+    const qty     = mr.reduce((s,r) => s + num(r.qty), 0);
+    const bills   = countBills(mr);
+    const traffic = mt.reduce((s,t) => s + num(t.traffic), 0);
+    const atv = bills > 0 ? revenue / bills : 0;
+    const cvr = traffic > 0 ? (bills / traffic) * 100 : 0;
+    return { revenue, qty, bills, atv, cvr };
+  });
+}
+
 function renderYoy() {
   const section = document.getElementById('yoySection');
   if (!S.raw.sales.length) { section.style.display = 'none'; return; }
@@ -2593,7 +2611,13 @@ function renderYoy() {
       </div>`;
   });
   const yoyRow = document.getElementById('yoyKpiRow');
-  yoyRow.innerHTML = kpiHtml;
+  /* Chỉ ghi lại DOM khi nội dung KHÁC đi. Bấm tab metric thì 24 ô này ra đúng
+     chuỗi HTML cũ, mà ghi innerHTML là 4 thẻ bị phá đi dựng lại: cả cột nhấp
+     một nhịp, và mọi ô mất luôn mốc _kpiFrom nên lần chạy số sau lại từ 0. */
+  if (kpiHtml !== renderYoy._kpiHtml) {
+    renderYoy._kpiHtml = kpiHtml;
+    yoyRow.innerHTML = kpiHtml;
+  }
 
   /* Số trong Summary chỉ phụ thuộc KỲ so sánh, không phụ thuộc metric đang xem
      — metric chỉ đổi biểu đồ. Trước đây lần vẽ nào cũng quét số, nên bấm tab
@@ -2627,86 +2651,71 @@ function renderYoy() {
   // ── Chart: bar/line per year ──
   const rt = YOY.rangeType;
   const needMonthly = (rt === 'ytd' || rt === 'custom' || rt === 'month');
-  destroyChart('yoy');
 
+  let labels, points;
   if (needMonthly) {
     let mLo = 1, mHi = 12;
     if (rt === 'month')   { mLo = mHi = YOY.month; }
     if (rt === 'custom')  { mLo = Math.min(YOY.customFrom, YOY.customTo); mHi = Math.max(YOY.customFrom, YOY.customTo); }
     const monthRange = [];
     for (let m = mLo; m <= mHi; m++) monthRange.push(m);
-    const labels = monthRange.map(m => MONTH_NAMES[m-1]);
+    labels = monthRange.map(m => MONTH_NAMES[m-1]);
+    points = years.map(y => getYoyMonthlyData(y, monthRange).map(d => getMetricVal(d, metric)));
+  } else {
+    labels = [1,2,3,4].map(q => `Q${q}`);
+    points = years.map(y => getYoyQuarterlyData(y).map(d => getMetricVal(d, metric)));
+  }
 
-    const COLORS = PALETTE.multi;
-    const datasets = years.map((y, i) => {
-      const data = getYoyMonthlyData(y, monthRange);
-      return {
+  /* Đổi metric thì CHỈ độ cao cột đổi: vẫn bấy nhiêu cột, bấy nhiêu năm, bấy
+     nhiêu màu. Trước đây vẫn destroy() rồi new Chart(): destroy() trả canvas
+     về 300×150 nên hình bị xoá trắng một nhịp rồi mới vẽ lại — đúng cái giật
+     người dùng thấy khi bấm tab. Giờ chỉ ghi lại số rồi update('none').
+     Dựng lại chỉ khi KHUNG đổi (số cột, số năm) hoặc đổi theme — Chart.js
+     nướng màu vào lúc khởi tạo nên theme mới bắt buộc phải vẽ lại. */
+  const shapeKey = [needMonthly ? 'm' : 'q', labels.join(','), years.join(','), currentTheme()].join('|');
+  const live = S.charts.yoy;
+  if (live && renderYoy._shapeKey === shapeKey && live.data.datasets.length === points.length) {
+    points.forEach((data, i) => { live.data.datasets[i].data = data; });
+    live.update('none');
+    return;
+  }
+
+  destroyChart('yoy');
+  renderYoy._shapeKey = shapeKey;
+  const COLORS = PALETTE.multi;
+  /* Nhãn trục Y đọc YOY.metric ngay lúc vẽ, không phải biến metric bắt được
+     lúc khởi tạo: biểu đồ giờ sống qua nhiều lần đổi metric. */
+  S.charts.yoy = new Chart(document.getElementById('chartYoy'), {
+    data: {
+      labels,
+      datasets: points.map((data, i) => ({
         type: 'bar',
-        label: y,
-        data: data.map(d => getMetricVal(d, metric)),
+        label: years[i],
+        data,
         backgroundColor: COLORS[i % COLORS.length] + 'cc',
         borderColor: COLORS[i % COLORS.length],
         borderWidth: 1,
         borderRadius: 4
-      };
-    });
-
-    S.charts.yoy = new Chart(document.getElementById('chartYoy'), {
-      data: { labels, datasets },
-      options: {
-        responsive: true, maintainAspectRatio: false, animation: false,
-        plugins: {
-          legend: { display: true, labels: { color: css('--text-2'), boxWidth: 12, padding: 14, font: { size: 13 } } },
-          tooltip: {
-            backgroundColor: css('--surface'), titleColor: css('--text'), bodyColor: css('--text-2'),
-            borderColor: css('--border'), borderWidth: 1, padding: 10,
-            callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtMetricVal(ctx.raw, metric)}` }
-          }
-        },
-        scales: {
-          x: { grid: { display: false }, ticks: { color: css('--text-3'), font: { size: 13 } } },
-          y: { beginAtZero: true, grid: { display: false },
-               ticks: { color: css('--text-3'), font: { size: 12 }, callback: v => fmtMetricVal(v, metric) } }
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: { display: true, labels: { color: css('--text-2'), boxWidth: 12, padding: 14, font: { size: 13 } } },
+        tooltip: {
+          backgroundColor: css('--surface'), titleColor: css('--text'), bodyColor: css('--text-2'),
+          borderColor: css('--border'), borderWidth: 1, padding: 10,
+          callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtMetricVal(ctx.raw, YOY.metric)}` }
         }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: css('--text-3'), font: { size: 13 } } },
+        y: { beginAtZero: true, grid: { display: false },
+             ticks: { color: css('--text-3'), font: { size: needMonthly ? 12 : 13 },
+                      callback: v => fmtMetricVal(v, YOY.metric) } }
       }
-    });
-
-
-  } else {
-    // Quarter view: bar per quarter per year
-    const quarters = [1,2,3,4];
-    const labels = quarters.map(q => `Q${q}`);
-    const COLORS = PALETTE.multi;
-    const datasets = years.map((y, i) => {
-      const data = quarters.map(q => {
-        const mr = applyDimFilters(S.raw.sales).filter(r => r.year===y && Math.ceil(r.monthIndex/3)===q);
-        const mt = S.raw.targets.filter(t => t.year===y && Math.ceil(t.monthIndex/3)===q);
-        const revenue = mr.reduce((s,r)=>s+num(r.amount),0);
-        const qty     = mr.reduce((s,r)=>s+num(r.qty),0);
-        const bills   = countBills(mr);
-        const traffic = mt.reduce((s,t)=>s+num(t.traffic),0);
-        const atv = bills>0?revenue/bills:0;
-        const cvr = traffic>0?(bills/traffic)*100:0;
-        return getMetricVal({revenue,qty,bills,atv,cvr},metric);
-      });
-      return { type:'bar', label:y, data, backgroundColor:COLORS[i%COLORS.length]+'cc', borderColor:COLORS[i%COLORS.length], borderWidth:1, borderRadius:4 };
-    });
-    S.charts.yoy = new Chart(document.getElementById('chartYoy'), {
-      data: { labels, datasets },
-      options: {
-        responsive: true, maintainAspectRatio: false, animation: false,
-        plugins: {
-          legend: { display:true, labels:{ color:css('--text-2'), boxWidth:12, padding:14, font:{size:13} } },
-          tooltip: { backgroundColor:css('--surface'), titleColor:css('--text'), bodyColor:css('--text-2'), borderColor:css('--border'), borderWidth:1, padding:10,
-            callbacks:{ label: ctx=>`${ctx.dataset.label}: ${fmtMetricVal(ctx.raw,metric)}` } }
-        },
-        scales: {
-          x: { grid:{display:false}, ticks:{color:css('--text-3'),font:{size:13}} },
-          y: { beginAtZero:true, grid:{display:false}, ticks:{color:css('--text-3'),font:{size:13}, callback:v=>fmtMetricVal(v,metric)} }
-        }
-      }
-    });
-  }
+    }
+  });
 }
 window.renderYoy = renderYoy;
 

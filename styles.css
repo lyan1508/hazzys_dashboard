@@ -371,7 +371,13 @@ select{cursor:pointer}
 .yoy-select{appearance:none;background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a94a6' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 8px center;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 22px 4px 8px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer;transition:border-color .15s}
 .yoy-select:focus{border-color:var(--brand-light);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 .yoy-metric-tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px;margin-left:auto}
-.yoy-metric-tab{padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600;color:var(--text-3);cursor:pointer;border:none;background:transparent;transition:all .15s;white-space:nowrap}
+/* Border TRONG SUỐT, cùng 1px với tab .active — không phải border:none.
+   border:none vẫn để border-width là `medium` (3px), chỉ không vẽ vì style là
+   none. Nên lúc .active bật lên, style snap sang solid còn transition:all nội
+   suy độ dày 3px → 1px: tab phình 3px rồi xẹp trong 150ms, đẩy cả thẻ YoY bên
+   dưới nhấp một nhịp. Giữ hình học cố định ở cả hai trạng thái, và chỉ chuyển
+   động những thuộc tính không đổi layout. */
+.yoy-metric-tab{padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600;color:var(--text-3);cursor:pointer;border:1px solid transparent;background:transparent;transition:background .15s,color .15s,border-color .15s,box-shadow .15s;white-space:nowrap}
 .yoy-metric-tab.active{background:var(--brand);color:#fff;box-shadow:var(--shadow-sm)}
 .yoy-card{background:var(--surface);border:1px solid var(--border);border-radius:0 0 var(--radius) var(--radius);box-shadow:var(--shadow-sm)}
 .yoy-split-body{display:grid;grid-template-columns:1.4fr 2.2fr;gap:0;min-height:360px}
