@@ -46,7 +46,22 @@ const GSHEET_URLS = {
   'target':     [stableSheetUrl('target'), LEGACY_GSHEET_BASE + '227957717'],
 };
 
-function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+/* Đọc biến CSS có nhớ lại kết quả.
+   getComputedStyle bắt trình duyệt tính lại kiểu dáng, mà hàm này bị gọi từ
+   trong các tuỳ chọn động của Chart.js — tức là mỗi khung hình một lần cho MỖI
+   cột. Một lượt diễn hình 1,5 giây với 28 cột là hơn 2.000 lượt đọc cho vài giá
+   trị màu không hề đổi. Nhớ lại thì chỉ còn một lượt đọc thật cho mỗi biến.
+   Bộ nhớ này phải xoá khi đổi theme, xem cssCacheClear(). */
+const cssCache = new Map();
+function css(v) {
+  let hit = cssCache.get(v);
+  if (hit === undefined) {
+    hit = getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    cssCache.set(v, hit);
+  }
+  return hit;
+}
+function cssCacheClear() { cssCache.clear(); }
 
 /* ======== THEME ========
    Chart.js nướng màu vào canvas lúc khởi tạo, không đọc lại CSS var, nên đổi
@@ -73,8 +88,10 @@ function setTheme(theme, animate) {
   try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* chế độ riêng tư */ }
 
   // Chờ một khung hình để trình duyệt áp xong biến CSS mới, rồi mới vẽ lại —
-  // vẽ ngay sẽ đọc trúng giá trị của theme cũ.
-  if (S.raw.sales.length) requestAnimationFrame(() => renderAll());
+  // vẽ ngay sẽ đọc trúng giá trị của theme cũ. Bộ nhớ đệm màu cũng phải xoá ở
+  // đây, nếu không biểu đồ sẽ vẽ lại bằng đúng bảng màu của theme vừa rời bỏ.
+  if (S.raw.sales.length) requestAnimationFrame(() => { cssCacheClear(); renderAll(); });
+  else cssCacheClear();
 }
 
 /* ======== THANH TRÊN CÙNG TỰ ẨN ========
@@ -292,22 +309,27 @@ const SEASON_GROUP = {
 const SEASON_GROUP_ORDER = ['SS', 'FW'];
 
 /** Collection code the way the trade writes it: SS25, FW24 — never mistakable
- *  for the sales year, which is what the topbar filter controls. */
+ *  for the sales year, which is what the topbar filter controls.
+ *  Hàng có chữ mùa đọc được nhưng số năm nằm ngoài bảng mã (hàng tồn đời cũ)
+ *  gom vào "SS Other" / "FW Other" — dấu "?" trên bảng trông như lỗi hiển thị. */
 function collectionLabel(group, year) {
-  if (!group) return '—';
-  return year ? `${group}${String(year).slice(-2)}` : `${group} ?`;
+  if (!group) return 'Other';
+  return year ? `${group}${String(year).slice(-2)}` : `${group} Other`;
 }
 // Only 3–6 are defined in the Hazzys code book. Digits outside that range show up
 // on ~0,8% of rows (legacy stock) and are left unmapped rather than guessed.
 const PRODUCT_YEAR = { '3': '2023', '4': '2024', '5': '2025', '6': '2026' };
 
-// Category = style code chars 3-4. Codes missing from the Hazzys book (e.g. SH)
-// are shown as the bare code rather than guessed at.
+// Category = style code chars 3-4. Codes still missing from the Hazzys book are
+// shown as the bare code rather than guessed at.
+// HO đã gỡ khỏi bảng: trước đây ghi "Áo hoodie" là sai. Cả tập dữ liệu chỉ có
+// đúng một dòng mã HO (HIHO4F351I2XXX) và PRODUCT NAME của nó ghi "Ví Nữ" —
+// một dòng thì chưa đủ để đặt tên chắc chắn, nên để trống cho hiện mã trần.
 const CATEGORY_NAME = {
   BA: 'Túi',        BE: 'Thắt lưng',   CO: 'Áo khoác dài', DR: 'Đầm',
-  GF: 'Túi golf',   GV: 'Găng tay',    HE: 'Nón',          HO: 'Áo hoodie',
-  JA: 'Áo khoác',   JU: 'Áo khoác nhẹ', LG: 'Móc khóa',    MU: 'Phụ kiện khác',
-  PA: 'Quần',       SC: 'Khăn',        SK: 'Váy',          SO: 'Giày',
+  GF: 'Túi golf',   GV: 'Găng tay',    HE: 'Nón',          JA: 'Áo khoác',
+  JU: 'Áo khoác nhẹ', LG: 'Móc khóa',  MU: 'Phụ kiện khác', PA: 'Quần',
+  SC: 'Khăn',       SH: 'Áo sơ mi',    SK: 'Váy',          SO: 'Giày',
   SS: 'Vớ',         SW: 'Áo len',      TS: 'Áo phông',     WA: 'Ví',
 };
 
@@ -706,12 +728,20 @@ function aggregate() {
       const raw = String(r.sku || r.upc || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (raw.length !== 14) return;
       const key = raw.slice(0, 9);
-      const p = map.get(key) || { sku: key, type: r.type, gender: r.gender, value: 0, qty: 0 };
+      const p = map.get(key) || { sku: key, type: r.type, gender: r.gender, value: 0, qty: 0, colorAmt: new Map() };
       p.value += num(r.amount);
       p.qty += num(r.qty);
+      // Ký tự 10-11 của SKU là mã màu, và tên tệp ảnh bên web bán hàng đúng
+      // bằng "mã style + mã màu". Xếp theo doanh thu để màu bán chạy nhất là
+      // màu mở ra đầu tiên khi xem ảnh.
+      const color = raw.slice(9, 11);
+      if (color) p.colorAmt.set(color, num(p.colorAmt.get(color)) + num(r.amount));
       map.set(key, p);
     });
-    return [...map.values()].sort((a, b) => b.value - a.value).slice(0, 10);
+    return [...map.values()].sort((a, b) => b.value - a.value).slice(0, 10).map((p) => ({
+      sku: p.sku, type: p.type, gender: p.gender, value: p.value, qty: p.qty,
+      colors: [...p.colorAmt.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c),
+    }));
   })();
   const promotionStats = (() => {
     const map = new Map();
@@ -987,11 +1017,33 @@ function previousPeriodMetrics() {
   const saved = { ...f };
   try {
     Object.assign(S.filters, prev);
-    const m = aggregate();
+    const m = metrics();
     return m.rows.length ? m : null;   // kỳ trước không có dữ liệu thì thôi
   } finally {
     S.filters = saved;
   }
+}
+
+/* ======== NHỚ LẠI KẾT QUẢ TỔNG HỢP ========
+   aggregate() quét lại toàn bộ dòng bán hàng và dựng lại mọi bảng con — khoảng
+   36ms với 4.400 dòng, và sẽ tăng theo từng tháng dữ liệu mới. Nhiều thao tác
+   không hề đổi bộ lọc mà vẫn gọi nó: bấm tab Rev/Bills/ATV của Day of Week,
+   đổi Monthly/Cumulative, đổi theme, và mỗi lần vẽ lại còn tính thêm một lượt
+   cho kỳ trước. Khoá theo bộ lọc nên đổi bộ lọc vẫn tính lại đúng như trước. */
+let aggCache = new Map();
+let aggVersion = 0;
+function invalidateAggregate() { aggVersion++; aggCache.clear(); }
+function metrics() {
+  const key = aggVersion + '|' + JSON.stringify(S.filters);
+  let hit = aggCache.get(key);
+  if (!hit) {
+    // Số tổ hợp bộ lọc hữu hạn, nhưng cứ chặn lại cho chắc — giữ vài chục bảng
+    // tổng hợp trong bộ nhớ không đem lại lợi ích gì thêm.
+    if (aggCache.size > 12) aggCache.clear();
+    hit = aggregate();
+    aggCache.set(key, hit);
+  }
+  return hit;
 }
 
 function destroyChart(key) {
@@ -1151,19 +1203,21 @@ function renderPromotionInfo(m) {
     el.innerHTML = '<div style="padding:14px 16px;color:var(--text-3);font-size:12px;text-align:center">No Data</div>';
     return;
   }
-  const maxVal = num(list[0].amount) || 1;
   const totalVal = list.reduce((s, x) => s + num(x.amount), 0);
-  el.innerHTML = `<div class="product-list promotion-list">${list.map((x, i) => `
-    <div class="product-item">
-      <div class="p-rank ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}">${i + 1}</div>
-      <div class="p-info">
-        <div class="p-name" title="${esc(x.label)}">${esc(x.label)}</div>
-        <div class="p-meta">${rollHtml(x.qty, 'n')} units · ${rollHtml(x.bills, 'n')} bills</div>
-        <div class="p-bar-wrap"><div class="p-bar" style="width:${Math.max(6, (num(x.amount) / maxVal) * 100)}%"></div></div>
+  // Không dùng thanh ở thẻ này. Ba khối Promotion / Top Products / By Category
+  // nằm gần nhau, mà thanh ngang là hình đã dùng cho hai khối kia — ở đây con
+  // số mới là thứ đáng đọc, nên bày thành chip: doanh thu lớn, tỉ trọng bám
+  // ngay bên cạnh, số món và số hoá đơn thành hai chip phụ.
+  el.innerHTML = `<div class="pm-list">${list.map((x) => `
+    <div class="pm-item">
+      <div class="pm-name" title="${esc(x.label)}">${esc(x.label)}</div>
+      <div class="pm-nums">
+        <span class="pm-amt">${rollHtml(x.amount, 'short')}</span>
+        <span class="pm-share">${rollHtml(totalVal > 0 ? (num(x.amount) / totalVal) * 100 : 0, 'pct')}</span>
       </div>
-      <div class="p-value">
-        <div class="p-amount">${rollHtml(x.amount, 'short')}</div>
-        <div class="p-qty">${rollHtml(totalVal > 0 ? (num(x.amount) / totalVal) * 100 : 0, 'pct')}</div>
+      <div class="pm-chips">
+        <span class="pm-chip">${rollHtml(x.qty, 'n')} units</span>
+        <span class="pm-chip">${rollHtml(x.bills, 'n')} bills</span>
       </div>
     </div>
   `).join('')}</div>`;
@@ -1199,8 +1253,6 @@ function renderStaffTargets(m) {
     const targetPct = Math.min((target / scale) * 100, 100);
     const pacePct = Math.min((pace / scale) * 100, 100);
     const pct = target > 0 ? (amount / target) * 100 : 0;
-    // Short bars cannot hold the number, so the label steps outside instead.
-    const inside = fillPct >= 22;
     const tip = target > 0
       ? `${esc(s.label)} — Revenue ${fmtVND(amount)} / Timeline ${fmtVND(pace)} / Target ${fmtVND(target)}`
       : `${esc(s.label)} — Revenue ${fmtVND(amount)} (no target for this period)`;
@@ -1211,7 +1263,6 @@ function renderStaffTargets(m) {
           ${target > 0 ? `<div class="st-target" style="width:${targetPct}%"></div>` : ''}
           <div class="st-fill" style="width:${fillPct}%"></div>
           ${pace > 0 ? `<div class="st-pace" data-pct="${pacePct}" style="left:${pacePct}%"></div>` : ''}
-          <span class="st-val${inside ? ' in' : ''}" style="${inside ? '' : `left:calc(${fillPct}% + 6px)`}">${rollHtml(amount, 'short')}</span>
         </div>
         <div class="st-pct">${target > 0 ? rollHtml(pct, 'pct') : '—'}</div>
       </div>
@@ -1223,18 +1274,19 @@ function renderStaffTargets(m) {
   footEl.innerHTML = `
     <div class="st-foot-main">
       <span>TOTAL</span>
-      <span>${rollHtml(sm.totalAmount, 'short')}${hasTarget ? ` / ${rollHtml(sm.totalTarget, 'short')}` : ''}</span>
+      <span class="st-foot-target">${hasTarget ? `Target ${rollHtml(sm.totalTarget, 'short')}` : ''}</span>
       <span class="st-foot-pct">${hasTarget ? rollHtml(totalPct, 'pct') : '—'}</span>
     </div>
   `;
 }
 
-function renderCharts(m) {
+/* Biểu đồ Revenue tách riêng khỏi renderCharts: nút Monthly/Cumulative chỉ đổi
+   mỗi biểu đồ này, mà dựng lại cả cụm thì kéo theo Traffic, hai doughnut, danh
+   sách danh mục, khuyến mãi, nhân viên và biểu đồ mùa — toàn thứ không đổi. */
+function renderRevenueChart(m) {
   const labels = safeLabels(m.months.map((x) => x.monthLabelYY));
   const actual = safeDataset(m.months.map((x) => x.actual), labels.length);
   const target = safeDataset(m.months.map((x) => x.target), labels.length);
-  const bills = safeDataset(m.months.map((x) => x.billCount), labels.length);
-  const traffic = safeDataset(m.months.map((x) => x.traffic), labels.length);
 
   destroyChart('rev');
   const revData = S.revMode === 'cumulative' ? actual.reduce((acc, x, i) => [...acc, x + (acc[i - 1] || 0)], []) : actual;
@@ -1257,13 +1309,14 @@ function renderCharts(m) {
           type: 'bar',
           label: 'Actual',
           data: revData,
-          // Cột đạt target xanh lá, còn lại xanh dương; cả hai đổ gradient nhạt
-          // dần xuống đáy để cột không còn là một khối màu phẳng.
-          backgroundColor: (ctx) => {
-            const i = ctx.dataIndex;
-            const base = revData[i] >= num(tgtData[i]) && num(tgtData[i]) > 0 ? css('--green') : css('--brand-mid');
-            return vGradient(ctx.chart, base, 1, 0.3);
-          },
+          // Cột đạt target xanh lá, còn lại xanh dương — một màu đặc, không đổ
+          // nhạt dần: chân cột nhạt làm cột thấp trông càng thấp hơn thực tế.
+          //
+          // Mảng màu dựng sẵn, không dùng hàm: tuỳ chọn dạng hàm bị Chart.js gọi
+          // lại cho từng cột ở từng khung hình của lượt diễn hình.
+          backgroundColor: revData.map((v, i) => (
+            v >= num(tgtData[i]) && num(tgtData[i]) > 0 ? css('--green') : css('--brand-mid')
+          )),
           borderRadius: 6,
           maxBarThickness: 44,
           categoryPercentage: 0.72,
@@ -1286,23 +1339,34 @@ function renderCharts(m) {
     },
     options: revOptions
   });
+}
+
+function renderCharts(m) {
+  const labels = safeLabels(m.months.map((x) => x.monthLabelYY));
+  const bills = safeDataset(m.months.map((x) => x.billCount), labels.length);
+  const traffic = safeDataset(m.months.map((x) => x.traffic), labels.length);
+
+  renderRevenueChart(m);
 
   destroyChart('traffic');
+  const green = css('--green');
   S.charts.traffic = new Chart(document.getElementById('chartTraffic'), {
     data: {
       labels,
       datasets: [
         {
           type: 'bar', label: 'Bills', data: bills, borderRadius: 4,
-          backgroundColor: (ctx) => vGradient(ctx.chart, css('--brand-mid'), 1, 0.3)
+          backgroundColor: css('--brand-mid')
         },
         {
           type: 'line', label: 'Traffic', data: traffic,
-          borderColor: css('--green'), borderWidth: 2, pointRadius: 3, tension: 0.2,
+          borderColor: green, borderWidth: 2, pointRadius: 3, tension: 0.2,
           // Vùng nền mờ dưới đường Traffic — đọc ra "khối lượng khách", không
-          // chỉ là một sợi chỉ vắt ngang.
+          // chỉ là một sợi chỉ vắt ngang. Chỗ này buộc phải là hàm vì gradient
+          // cần khung vẽ, mà khung vẽ chưa có ở lượt dựng đầu tiên — nhưng màu
+          // thì đã chốt sẵn ở ngoài, không đọc lại biến CSS mỗi khung hình.
           fill: true,
-          backgroundColor: (ctx) => vGradient(ctx.chart, css('--green'), 0.20, 0)
+          backgroundColor: (ctx) => vGradient(ctx.chart, green, 0.20, 0)
         }
       ]
     },
@@ -1321,6 +1385,8 @@ function renderCharts(m) {
 // 19 categories is far past what a doughnut can hold: the palette only has 8
 // colours so hues repeat, and the bottom 14 groups share 8% of revenue. A ranked
 // list encodes value as bar length instead, so one accent colour is enough.
+// Chỉ hiện 10 nhóm đầu — phần đuôi mỗi nhóm chưa tới 1% doanh thu, cuộn xuống
+// đọc cũng không rút ra được gì.
 function renderCategoryList(m) {
   const el = document.getElementById('categoryList');
   const list = (m.byCategory || []).filter((x) => num(x.value) > 0);
@@ -1329,21 +1395,21 @@ function renderCategoryList(m) {
     return;
   }
   const maxVal = num(list[0].value) || 1;
+  // Tổng lấy trên TOÀN BỘ nhóm chứ không phải 10 nhóm hiện ra: cắt bớt danh
+  // sách là chuyện hiển thị, nếu tính % trên phần còn lại thì cột % sẽ cộng
+  // thành 100% và nói sai rằng đây là tất cả doanh thu.
   const total = list.reduce((s, x) => s + num(x.value), 0);
-  el.innerHTML = list.map((x, i) => {
+  el.innerHTML = list.slice(0, 10).map((x) => {
     const code = String(x.label || '').toUpperCase();
     const name = CATEGORY_NAME[code];
+    const share = total > 0 ? (num(x.value) / total) * 100 : 0;
     return `
-    <div class="product-item">
-      <div class="p-rank ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}">${i + 1}</div>
-      <div class="p-info">
-        <div class="p-name" title="${esc(code)}${name ? ' · ' + esc(name) : ''}">${esc(code)}${name ? ` <span class="p-name-sub">${esc(name)}</span>` : ''}</div>
-        <div class="p-bar-wrap"><div class="p-bar" style="width:${Math.max(2, (num(x.value) / maxVal) * 100)}%"></div></div>
-      </div>
-      <div class="p-value">
-        <div class="p-amount">${rollHtml(x.value, 'short')}</div>
-        <div class="p-qty">${rollHtml(total > 0 ? (num(x.value) / total) * 100 : 0, 'pct')}</div>
-      </div>
+    <div class="cat-row" title="${esc(code)}${name ? ' · ' + esc(name) : ''}">
+      <div class="cat-fill" style="width:${Math.max(2, (num(x.value) / maxVal) * 100)}%"></div>
+      <div class="cat-code">${esc(code)}</div>
+      <div class="cat-name">${name ? esc(name) : ''}</div>
+      <div class="cat-amt">${rollHtml(x.value, 'short')}</div>
+      <div class="cat-pct">${rollHtml(share, 'pct')}</div>
     </div>`;
   }).join('');
 }
@@ -1392,7 +1458,7 @@ function renderSeasonMatrix(m) {
     const color = (SEASON_GROUP[s.group] || {}).color || 'var(--text-3)';
     return `
     <tr${newYear ? ' class="year-start"' : ''}>
-      <td class="coll-cell" title="Bộ sưu tập ${esc(s.name)} ${esc(s.year || '?')}">
+      <td class="coll-cell" title="Bộ sưu tập ${esc(s.name)}${s.year ? ' ' + esc(s.year) : ' — không rõ năm sản xuất'}">
         <span class="season-dot" style="background:${color}"></span>${esc(s.collection)}
       </td>
       <td>${rollHtml(s.amount, 'short')}</td>
@@ -1403,7 +1469,7 @@ function renderSeasonMatrix(m) {
     </tr>`;
   }).join('');
   const t = m.seasonTotals || {};
-  foot.innerHTML = `<tr title="Số hóa đơn đã loại trùng: một hóa đơn thường gồm hàng của nhiều bộ sưu tập nên ATV/UPT tổng cao hơn từng dòng.">
+  foot.innerHTML = `<tr>
     <td>TOTAL / AVG</td>
     <td>${rollHtml(t.amount, 'short')}</td>
     <td>100%</td>
@@ -1587,6 +1653,51 @@ function renderTargetProgressBar(m) {
   fill.style.background = color;
 }
 
+/* ======== XEM ẢNH SẢN PHẨM NGAY TRONG BẢNG ========
+   Kho ảnh chính là thư mục PICTURE trên Drive (~13.400 tệp), tên tệp đúng bằng
+   "mã style + mã màu" (HUTS5B411 + BK → HUTS5B411BK.webp) — trùng khớp với mã
+   SKU 14 ký tự trong dữ liệu bán hàng, nên dựng được tên tệp mà không cần bảng
+   khai báo nào.
+
+   Drive chỉ mở tệp theo ID chứ không theo tên, nên tools/build-picture-index.js
+   quét thư mục (đang để công khai) rồi ghi sẵn bảng tra tên → ID ra
+   picture-index.json đi kèm dashboard. Trang chỉ việc nạp tệp đó — cùng thư mục
+   nên không vướng CORS — rồi ghép ra đường dẫn ảnh. Không khoá API, không
+   Apps Script, người dùng không phải cài gì.
+
+   Chạy lại bộ sinh mỗi khi thêm ảnh mới vào thư mục.
+
+   Thư mục PICTURE phải giữ chế độ "bất kỳ ai có liên kết → người xem": id có
+   đúng mà thư mục để riêng tư thì ảnh vẫn không hiện. */
+const PICTURE_INDEX_URL = 'picture-index.json';
+const DRIVE_IMG_BASE = 'https://drive.google.com/thumbnail?sz=w1000&id=';
+/** name(HOA) -> file id. null = chưa nạp, object rỗng = nạp rồi mà không có. */
+let PICTURE_INDEX = null;
+let pictureIndexPromise = null;
+
+function loadPictureIndex() {
+  if (PICTURE_INDEX) return Promise.resolve(PICTURE_INDEX);
+  if (pictureIndexPromise) return pictureIndexPromise;
+  pictureIndexPromise = (async () => {
+    let map = {};
+    try {
+      const res = await fetch(PICTURE_INDEX_URL, { cache: 'no-cache' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === 'object') map = data;
+      }
+    } catch (_) { /* thiếu bảng tra thì khung xem báo rõ, không im lặng */ }
+    PICTURE_INDEX = map;
+    return map;
+  })();
+  return pictureIndexPromise;
+}
+
+function driveImgUrl(sku, color) {
+  const id = PICTURE_INDEX && PICTURE_INDEX[`${sku}${color}.WEBP`];
+  return id ? DRIVE_IMG_BASE + id : '';
+}
+
 function renderTopProducts(m) {
   const el = document.getElementById('topProductList');
   if (!m.topProducts.length) {
@@ -1596,19 +1707,173 @@ function renderTopProducts(m) {
   const list = m.topProducts.slice(0, 10);
   const maxVal = num(list[0].value) || 1;
   el.innerHTML = list.map((p, i) => `
-    <div class="product-item">
-      <div class="p-rank ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}">${i + 1}</div>
-      <div class="p-info">
-        <div class="p-name" title="${esc(p.sku)}">${esc(p.sku)}</div>
-        <div class="p-meta">${esc(p.type)} · ${esc(p.gender)}</div>
-        <div class="p-bar-wrap"><div class="p-bar" style="width:${Math.max(6, (num(p.value) / maxVal) * 100)}%"></div></div>
-      </div>
-      <div class="p-value">
-        <div class="p-amount">${rollHtml(p.value, 'short')}</div>
-        <div class="p-qty">${rollHtml(p.qty, 'n')} pcs</div>
-      </div>
-    </div>
+    <button type="button" class="pr-card" data-sku="${esc(p.sku)}"
+            onclick="openProductPreview('${esc(p.sku)}','${esc((p.colors || []).join(','))}')"
+            title="View photos of ${esc(p.sku)}">
+      <span class="pr-thumb"><span class="pr-rank${i < 3 ? ' medal' : ''}">${i + 1}</span></span>
+      <span class="pr-body">
+        <span class="pr-name">${esc(p.sku)}</span>
+        <span class="pr-meta">${esc(p.type)} · ${esc(p.gender)} · ${rollHtml(p.qty, 'n')} pcs</span>
+        <span class="pr-meter"><i style="width:${Math.max(6, (num(p.value) / maxVal) * 100)}%"></i></span>
+      </span>
+      <span class="pr-amt">${rollHtml(p.value, 'short')}</span>
+      <!-- Cả thẻ đã bấm được, nhưng không có gì báo cho người xem biết điều đó.
+           Đây là <span> chứ không phải <button>: lồng nút trong nút là HTML sai,
+           mà nó cũng không cần tự xử lý cú bấm — thẻ bao ngoài lo rồi. -->
+      <span class="pr-view">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8Z"/><circle cx="8" cy="8" r="2"/>
+        </svg>
+        View
+      </span>
+    </button>
   `).join('');
+  hydrateProductThumbs(list);
+}
+
+/* Ảnh thật thay cho số thứ tự. Chạy sau khi đã vẽ xong chứ không chặn: bảng
+   tra ảnh nạp qua mạng, đợi nó thì cả thẻ đứng hình. Mã nào chưa có ảnh thì
+   giữ nguyên số thứ tự — hai ô cùng kích thước nên lưới không xô lệch. */
+async function hydrateProductThumbs(list) {
+  await loadPictureIndex();
+  list.forEach((p) => {
+    const url = (p.colors || []).map((c) => driveImgUrl(p.sku, c)).find(Boolean);
+    if (!url) return;
+    const img = new Image();
+    img.onload = () => {
+      // Thẻ có thể đã bị vẽ lại (đổi bộ lọc) trong lúc chờ ảnh về.
+      const slot = document.querySelector(`#topProductList .pr-card[data-sku="${p.sku}"] .pr-thumb`);
+      if (!slot) return;
+      slot.style.backgroundImage = `url("${url}")`;
+      slot.classList.add('has-img');
+    };
+    img.src = url;
+  });
+}
+
+/* ---- Khung xem ảnh ---------------------------------------------------- */
+/** Mã màu Hazzys chỉ là hai ký tự (BK, OW, N3…) nên hiện thêm tên cho dễ chọn.
+ *  Mã lạ thì để nguyên hai ký tự chứ không đoán bừa. */
+const COLOR_NAME = {
+  BK: 'Đen',      OW: 'Trắng ngà', WH: 'Trắng',
+  N1: 'Xanh navy', N3: 'Xanh navy', N5: 'Xanh navy',
+  B1: 'Xanh dương', B5: 'Xanh dương', G1: 'Xám', G2: 'Xám',
+  E1: 'Be',       E3: 'Be',        I1: 'Xanh rêu', I2: 'Xanh rêu', I3: 'Xanh rêu',
+  P2: 'Hồng',     R1: 'Đỏ',        Y1: 'Vàng',
+};
+
+let PREVIEW_STATE = null;
+
+function productPreviewEl() {
+  let el = document.getElementById('productPreview');
+  if (el) return el;
+  el = document.createElement('div');
+  el.id = 'productPreview';
+  el.className = 'pv-backdrop';
+  el.innerHTML = `
+    <div class="pv-box" role="dialog" aria-modal="true" aria-labelledby="pvSku">
+      <div class="pv-hd">
+        <div>
+          <div class="pv-sku" id="pvSku"></div>
+          <div class="pv-sub" id="pvSub"></div>
+        </div>
+        <button type="button" class="pv-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="pv-stage" id="pvStage"></div>
+      <div class="pv-swatches" id="pvSwatches"></div>
+    </div>`;
+  el.addEventListener('click', (e) => { if (e.target === el) closeProductPreview(); });
+  el.querySelector('.pv-close').addEventListener('click', closeProductPreview);
+  document.body.appendChild(el);
+  return el;
+}
+
+/** Ảnh nào tải được thì mới cho vào danh sách màu. Bảng tra Drive chỉ cho biết
+ *  tệp CÓ tồn tại — thư mục để riêng tư thì ảnh vẫn tải hỏng, nên tra được id
+ *  rồi vẫn phải thử tải thật mới tin. */
+function probeImage(url) {
+  return new Promise((resolve) => {
+    if (!url) { resolve(false); return; }
+    const img = new Image();
+    img.onload = () => resolve(img.naturalWidth > 0);
+    img.onerror = () => resolve(false);
+    img.src = url;
+  });
+}
+
+/** Chỉ lấy ảnh từ Drive. '' = mã màu này chưa có ảnh trong thư mục. */
+async function resolveImgUrl(sku, color) {
+  const drive = driveImgUrl(sku, color);
+  return drive && await probeImage(drive) ? drive : '';
+}
+
+function showPreviewColor(i) {
+  if (!PREVIEW_STATE) return;
+  PREVIEW_STATE.index = i;
+  const { sku, colors, urls } = PREVIEW_STATE;
+  document.getElementById('pvStage').innerHTML =
+    `<img src="${esc(urls[i])}" alt="${esc(sku)} ${esc(colors[i])}">`;
+  document.querySelectorAll('#pvSwatches .pv-swatch').forEach((b, j) => b.classList.toggle('active', j === i));
+}
+window.showPreviewColor = showPreviewColor;
+
+async function openProductPreview(sku, colorsCsv) {
+  const colorsAll = String(colorsCsv || '').split(',').map((c) => c.trim()).filter(Boolean);
+  const el = productPreviewEl();
+  const stage = el.querySelector('#pvStage');
+  const swatches = el.querySelector('#pvSwatches');
+
+  el.querySelector('#pvSku').textContent = sku;
+  el.querySelector('#pvSub').textContent = 'Loading photos…';
+  swatches.innerHTML = '';
+  stage.innerHTML = '<div class="pv-msg">Loading photos…</div>';
+  el.classList.add('open');
+  document.addEventListener('keydown', onPreviewKey);
+
+  await loadPictureIndex();
+  const colors = [];
+  const urls = [];
+  for (const c of colorsAll) {
+    const url = await resolveImgUrl(sku, c);
+    if (url) { colors.push(c); urls.push(url); }
+  }
+  // Người dùng có thể đã đóng khung hoặc bấm sang mã khác trong lúc chờ.
+  if (!el.classList.contains('open') || el.querySelector('#pvSku').textContent !== sku) return;
+
+  if (!colors.length) {
+    PREVIEW_STATE = null;
+    el.querySelector('#pvSub').textContent = 'no photo';
+    stage.innerHTML = '<div class="pv-msg">No photo for this style</div>';
+    return;
+  }
+
+  PREVIEW_STATE = { sku, colors, urls, index: 0 };
+  el.querySelector('#pvSub').textContent =
+    `${colors.length} colour${colors.length > 1 ? 's' : ''}${colors.length < colorsAll.length ? ` of ${colorsAll.length} sold` : ''}`;
+  swatches.innerHTML = colors.map((c, i) => `
+    <button type="button" class="pv-swatch${i === 0 ? ' active' : ''}" onclick="showPreviewColor(${i})">
+      <img src="${esc(urls[i])}" alt="">
+      <span>${esc(COLOR_NAME[c] || c)}</span>
+    </button>`).join('');
+  showPreviewColor(0);
+}
+window.openProductPreview = openProductPreview;
+
+function closeProductPreview() {
+  const el = document.getElementById('productPreview');
+  if (!el) return;
+  el.classList.remove('open');
+  PREVIEW_STATE = null;
+  document.removeEventListener('keydown', onPreviewKey);
+}
+window.closeProductPreview = closeProductPreview;
+
+function onPreviewKey(e) {
+  if (e.key === 'Escape') { closeProductPreview(); return; }
+  if (!PREVIEW_STATE || PREVIEW_STATE.colors.length < 2) return;
+  const n = PREVIEW_STATE.colors.length;
+  if (e.key === 'ArrowRight') showPreviewColor((PREVIEW_STATE.index + 1) % n);
+  if (e.key === 'ArrowLeft') showPreviewColor((PREVIEW_STATE.index - 1 + n) % n);
 }
 
 function initFilters() {
@@ -1672,7 +1937,7 @@ function syncCharts() {
 
 function renderAll() {
   if (!S.raw.sales.length) return;
-  const m = aggregate();
+  const m = metrics();
   renderKPIs(m);
   renderCharts(m);
   renderTopProducts(m);
@@ -1701,7 +1966,7 @@ function renderCashierMatrix(m) {
   const foot = document.getElementById('cashierMatrixFoot');
   const data = m.cashierMatrix || [];
   if (!data.length) {
-    body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:14px">No cashier data</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:14px">No cashier data</td></tr>';
     foot.innerHTML = '';
     return;
   }
@@ -1710,6 +1975,7 @@ function renderCashierMatrix(m) {
     <tr>
       <td title="${esc(c.label)}">${esc(c.label)}</td>
       <td>${rollHtml(c.amount, 'short')}</td>
+      <td>${rollHtml(c.qty, 'n')}</td>
       <td>${rollHtml(c.atv, 'short')}</td>
       <td>${rollHtml(c.upt, 'fixed2')}</td>
     </tr>
@@ -1720,6 +1986,7 @@ function renderCashierMatrix(m) {
   foot.innerHTML = `<tr title="Số hóa đơn đã loại trùng: 28% hóa đơn có nhiều thu ngân cùng bán nên ATV/UPT tổng cao hơn từng dòng.">
     <td>TOTAL / AVG</td>
     <td>${rollHtml(t.amount, 'short')}</td>
+    <td>${rollHtml(t.qty, 'n')}</td>
     <td>${rollHtml(t.atv, 'short')}</td>
     <td>${rollHtml(t.upt, 'fixed2')}</td>
   </tr>`;
@@ -1732,7 +1999,7 @@ window.switchDowMetric = function(metric, btn) {
   document.querySelectorAll('#dowMetricTabs .chart-tab').forEach((t) => t.classList.remove('active'));
   btn.classList.add('active');
   if (!S.raw.sales.length) return;
-  renderDowHeatmap(aggregate());
+  renderDowHeatmap(metrics());
   sweepIfVisible(document.getElementById('dowStrip'));
 };
 
@@ -1760,13 +2027,19 @@ function renderDowHeatmap(m) {
     const cls = i === peakIdx && d.dayCount > 0 ? 'peak' : (i === lowIdx && d.dayCount > 0 && v > 0 ? 'low' : '');
     const pctRev = totalRev > 0 ? (d.revenue / totalRev) * 100 : 0;
     // Viền màu một mình quá dễ bỏ sót, nên ngày cao nhất / thấp nhất có thêm
-    // nhãn chữ, đặt ở chân ô — ngay gốc của cột màu dâng lên từ đáy.
-    const badge = cls ? `<span class="dow-badge ${cls}">${cls === 'peak' ? 'Highest' : 'Lowest'}</span>` : '';
+    // nhãn chữ, đặt ở chân ô — ngay gốc của cột màu dâng lên từ đáy. Mũi tên đi
+    // kèm để người không phân biệt được xanh/đỏ vẫn đọc ra hướng.
+    const badge = cls
+      ? `<span class="dow-badge ${cls}">${cls === 'peak' ? '▲ Highest' : '▼ Lowest'}</span>`
+      : '';
+    // Mức lấp đầy đi ra dưới dạng biến CSS chứ không phải height cố định: bản
+    // desktop dùng nó làm chiều cao cột dâng từ đáy ô, bản điện thoại dùng đúng
+    // con số đó làm bề rộng thanh ngang. Một giá trị, hai cách bày.
     return `<div class="dow-cell ${cls}">
-      <div class="dow-cell-fill" style="height:${Math.max(6, intensity * 100)}%;opacity:${0.35 + intensity * 0.5}"></div>
+      <div class="dow-cell-fill" style="--fill:${Math.max(6, intensity * 100)}%;opacity:${0.35 + intensity * 0.5}"></div>
       <div class="dow-cell-day">${d.label}</div>
       <div class="dow-cell-rev">${d.dayCount > 0 ? rollHtml(v, DOW_METRIC === 'bills' ? 'n' : 'vndShort') : '—'}</div>
-      <div class="dow-cell-meta">${rollHtml(d.dayCount, 'n')} days<br>${rollHtml(pctRev, 'pct')} of total</div>
+      <div class="dow-cell-meta"><span class="dow-days">${rollHtml(d.dayCount, 'n')} days</span><span class="dow-share">${rollHtml(pctRev, 'pct')} of total</span></div>
       ${badge}
     </div>`;
   }).join('');
@@ -1779,8 +2052,7 @@ function switchRevChart(mode, btn) {
   (btn.closest('.chart-tabs') || document).querySelectorAll('.chart-tab').forEach((t) => t.classList.remove('active'));
   btn.classList.add('active');
   if (!S.raw.sales.length) return;
-  const m = aggregate();
-  renderCharts(m);
+  renderRevenueChart(metrics());   // chỉ thẻ này đổi, không đụng các thẻ khác
   // Cùng lý do như sweepIfVisible: thẻ không rời khung nhìn nên observer im,
   // đổi Monthly/Cumulative mà cột hiện ra bụp một cái thì lạc nhịp với phần
   // còn lại của trang.
@@ -1805,24 +2077,44 @@ function initFadeMasks() {
   document.querySelectorAll(FADE_SELECTORS.join(',')).forEach((el) => {
     if (el.dataset.fadeBound) return;
     el.dataset.fadeBound = '1';
-    el.addEventListener('scroll', () => refreshFade(el), { passive: true });
+    // refreshFade đọc scrollHeight rồi đổi class ngay sau đó — đọc-ghi xen kẽ
+    // kiểu này bắt trình duyệt tính lại bố cục giữa chừng, mà cuộn thì bắn sự
+    // kiện dày đặc. Dồn về một lượt mỗi khung hình.
+    let raf = null;
+    el.addEventListener('scroll', () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => { raf = null; refreshFade(el); });
+    }, { passive: true });
   });
   syncFadeMasks();
 }
 
-/* ======== VẠCH TIMELINE: ÉP VỀ PIXEL CHẴN ========
-   Vạch rộng đúng 2px ở mọi dòng, nhưng đặt bằng phần trăm nên mép trái rơi
-   vào toạ độ lẻ (620.338px, 543.450px…). Trình duyệt phải tán một vạch 2px ra
-   2–3 điểm ảnh với độ phủ khác nhau, thành ra dòng thì vạch đậm và dày, dòng
-   thì mảnh và nhạt. Tính lại ra pixel nguyên sau khi đã có bề rộng thật. */
+/* ======== VẠCH TIMELINE: ÉP VỀ ĐIỂM ẢNH THẬT CỦA MÀN HÌNH ========
+   Vạch khai báo 2px ở mọi dòng, nhưng đặt bằng phần trăm nên mép trái rơi vào
+   toạ độ lẻ (620.338px, 543.450px…). Trình duyệt phải tán vạch ra 2–3 điểm ảnh
+   với độ phủ khác nhau, thành ra dòng thì vạch đậm và dày, dòng thì mảnh và nhạt.
+
+   Làm tròn về px CSS nguyên vẫn chưa đủ: Windows thường chạy ở mức phóng 125%
+   (devicePixelRatio 1.25) nên 2px CSS = 2,5 điểm ảnh thật — nửa điểm ảnh thừa
+   lại bị tán ra, và tán về bên nào thì tuỳ vị trí lẻ hay chẵn. Phải làm tròn cả
+   bề rộng lẫn vị trí theo lưới điểm ảnh THẬT thì mọi dòng mới ra một vạch giống
+   hệt nhau. Vạch cũng bị kẹp lại trong lòng đường ray để không có dòng nào vạch
+   lửng lơ ngoài mép. */
 function snapPaceMarks() {
+  const dpr = window.devicePixelRatio || 1;
+  const snap = (v) => Math.round(v * dpr) / dpr;
+  const width = Math.max(2, Math.round(2 * dpr)) / dpr;   // ≥2 điểm ảnh thật
   document.querySelectorAll('#staffTargetList .st-row').forEach((row) => {
     const track = row.querySelector('.st-track');
     const pace = row.querySelector('.st-pace');
     if (!track || !pace) return;
     const pct = parseFloat(pace.dataset.pct);
     if (!Number.isFinite(pct)) return;
-    pace.style.left = Math.round((track.clientWidth * pct) / 100) + 'px';
+    const trackW = track.clientWidth;
+    const center = (trackW * pct) / 100;
+    const left = Math.min(Math.max(center - width / 2, 0), Math.max(trackW - width, 0));
+    pace.style.width = width + 'px';
+    pace.style.left = snap(left) + 'px';
   });
 }
 
@@ -1941,6 +2233,7 @@ function setStatus(text, isIdle = false) {
 // ---- Shared helper: ingest workbook + reset UI state ----
 function applyWorkbook(wb, successMsg) {
   S.raw = ingestWorkbook(wb);
+  invalidateAggregate();   // dữ liệu mới: mọi bảng tổng hợp đã nhớ đều hết giá trị
   // Every filter starts at "All" — the dashboard opens on the full data set and
   // the user narrows it down themselves.
   S.filters ={ year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all', store: 'all' };
@@ -2471,9 +2764,17 @@ initAutoHideTopbar();
 bindEvents();
 document.getElementById('syncBtn').addEventListener('click', loadFromGSheets);
 loadFromGSheets();
+/* Kéo cạnh cửa sổ bắn sự kiện resize liên tục hàng chục lần một giây, mà ba
+   việc dưới đây đều buộc trình duyệt tính lại bố cục — chạy mỗi lần thì kéo
+   cửa sổ giật hình. Dồn về mỗi khung hình đúng một lượt: mắt không phân biệt
+   được nhanh hơn thế, còn khối lượng tính toán giảm đi mấy lần. */
+let resizeRaf = null;
 window.addEventListener('resize', () => {
-  if (!S.raw.sales.length) return;
-  syncCharts();
-  syncFadeMasks();   // đổi bề rộng làm nội dung xuống dòng khác đi
-  snapPaceMarks();   // bề rộng đổi thì vị trí pixel nguyên cũng đổi
+  if (!S.raw.sales.length || resizeRaf) return;
+  resizeRaf = requestAnimationFrame(() => {
+    resizeRaf = null;
+    syncCharts();
+    syncFadeMasks();   // đổi bề rộng làm nội dung xuống dòng khác đi
+    snapPaceMarks();   // bề rộng đổi thì vị trí pixel nguyên cũng đổi
+  });
 });

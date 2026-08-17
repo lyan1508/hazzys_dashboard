@@ -4,6 +4,10 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Sales Intelligence Dashboard</title>
+<!-- Favicon nội tuyến: không khai báo thì trình duyệt vẫn tự đòi /favicon.ico
+     và ăn một lỗi 404 ở mỗi lượt tải trang. Để thẳng SVG vào đây nên cũng
+     không phát sinh thêm lượt tải nào. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%235b8def'/%3E%3Ctext x='16' y='23' font-family='Arial,sans-serif' font-size='19' font-weight='bold' fill='%23fff' text-anchor='middle'%3EH%3C/text%3E%3C/svg%3E"/>
 <script>
 /* Áp theme đã lưu TRƯỚC khi trình duyệt vẽ khung đầu tiên. Nếu để việc này cho
    app.js (defer, chạy sau khi parse xong) thì người dùng chế độ sáng sẽ thấy
@@ -408,6 +412,7 @@
                 <tr>
                   <th>Cashier</th>
                   <th>Revenue</th>
+                  <th>Qty</th>
                   <th>ATV</th>
                   <th>UPT</th>
                 </tr>
