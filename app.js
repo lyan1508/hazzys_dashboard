@@ -728,7 +728,12 @@ function aggregate() {
       const raw = String(r.sku || r.upc || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (raw.length !== 14) return;
       const key = raw.slice(0, 9);
-      const p = map.get(key) || { sku: key, type: r.type, gender: r.gender, value: 0, qty: 0, colorAmt: new Map() };
+      const p = map.get(key) || { sku: key, type: '', gender: '', value: 0, qty: 0, colorAmt: new Map() };
+      // Lấy giá trị thật đầu tiên gặp được chứ không lấy của dòng đầu tiên:
+      // cùng một mã style mà dòng đầu bỏ trống TYPE/GENDER thì cả thẻ hiện
+      // UNKNOWN, và bộ lọc nam/nữ của thẻ sẽ bỏ sót nó.
+      if (!p.type || p.type === 'UNKNOWN') p.type = r.type;
+      if (!p.gender || p.gender === 'UNKNOWN') p.gender = r.gender;
       p.value += num(r.amount);
       p.qty += num(r.qty);
       // Ký tự 10-11 của SKU là mã màu, và tên tệp ảnh bên web bán hàng đúng
@@ -738,8 +743,15 @@ function aggregate() {
       if (color) p.colorAmt.set(color, num(p.colorAmt.get(color)) + num(r.amount));
       map.set(key, p);
     });
-    return [...map.values()].sort((a, b) => b.value - a.value).slice(0, 10).map((p) => ({
-      sku: p.sku, type: p.type, gender: p.gender, value: p.value, qty: p.qty,
+    // Trả về TOÀN BỘ danh sách đã xếp hạng, không cắt còn 10 ở đây: thẻ Top
+    // Products có bộ lọc nam/nữ + nhóm hàng riêng, cắt sớm thì lọc "áo phông
+    // nữ" chỉ còn lại vài mã lọt vào top 10 chung.
+    return [...map.values()].sort((a, b) => b.value - a.value).map((p) => ({
+      sku: p.sku,
+      // Ký tự 3-4 của mã style là mã nhóm hàng (SW, PA, TS…) — cùng nguồn với
+      // deriveCategory nên bộ lọc ở đây khớp đúng với thẻ By Category.
+      category: p.sku.slice(2, 4),
+      type: p.type, gender: p.gender, value: p.value, qty: p.qty,
       colors: [...p.colorAmt.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c),
     }));
   })();
@@ -1710,13 +1722,74 @@ async function lfImgUrl(sku, color, res) {
   return year ? lfUrl(ck, year, res) : '';
 }
 
+/* Bộ lọc riêng của thẻ Top Products — cố ý KHÔNG dùng bộ lọc chung ở đầu
+   trang: câu hỏi ở đây là "áo phông nữ nào bán chạy nhất", hỏi xong vẫn muốn
+   mọi con số khác của trang giữ nguyên phạm vi cũ để còn so. Để trống cả hai
+   thì bảng xếp hạng chạy trên toàn bộ dữ liệu, mã cao nhất đứng đầu. */
+const TP_FILTER = { gender: 'all', category: 'all' };
+
+window.switchTopGender = function (gender, btn) {
+  TP_FILTER.gender = gender;
+  document.querySelectorAll('#tpGenderTabs .chart-tab').forEach((t) => t.classList.remove('active'));
+  btn.classList.add('active');
+  if (!S.raw.sales.length) return;
+  renderTopProducts(metrics());
+  sweepIfVisible(document.getElementById('topProductList'));
+};
+
+function resetTopFilter() {
+  TP_FILTER.gender = 'all';
+  TP_FILTER.category = 'all';
+  document.querySelectorAll('#tpGenderTabs .chart-tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.tpGender === 'all');
+  });
+}
+
+window.switchTopCategory = function (code) {
+  TP_FILTER.category = code;
+  if (!S.raw.sales.length) return;
+  renderTopProducts(metrics());
+  sweepIfVisible(document.getElementById('topProductList'));
+};
+
+/** Danh sách nhóm hàng dựng theo dữ liệu đang xem, xếp theo doanh thu giảm dần
+ *  để nhóm lớn nằm ngay dưới "All". Nhóm đang chọn mà biến mất khỏi phạm vi
+ *  mới (đổi bộ lọc năm, hoặc đổi nam/nữ) thì rơi về "All" chứ không lọc ra một
+ *  danh sách rỗng mà người xem không hiểu vì sao. */
+function syncTopCategoryOptions(products) {
+  const sel = document.getElementById('tpCategory');
+  if (!sel) return;
+  const rev = new Map();
+  products.forEach((p) => {
+    if (!p.category) return;
+    rev.set(p.category, num(rev.get(p.category)) + num(p.value));
+  });
+  const codes = [...rev.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c);
+  if (TP_FILTER.category !== 'all' && !codes.includes(TP_FILTER.category)) TP_FILTER.category = 'all';
+  const sig = codes.join(',');
+  if (sel.dataset.sig !== sig) {
+    sel.innerHTML = '<option value="all">All categories</option>' +
+      codes.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    sel.dataset.sig = sig;
+  }
+  sel.value = TP_FILTER.category;
+}
+
 function renderTopProducts(m) {
   const el = document.getElementById('topProductList');
-  if (!m.topProducts.length) {
+  // Lọc giới tính trước rồi mới dựng danh sách nhóm hàng: chọn "Women" xong mà
+  // ô nhóm hàng vẫn còn những nhóm chỉ có hàng nam thì chọn vào là rỗng.
+  const byGender = (m.topProducts || []).filter(
+    (p) => TP_FILTER.gender === 'all' || p.gender === TP_FILTER.gender
+  );
+  syncTopCategoryOptions(byGender);
+  const list = byGender
+    .filter((p) => TP_FILTER.category === 'all' || p.category === TP_FILTER.category)
+    .slice(0, 10);
+  if (!list.length) {
     el.innerHTML = '<div style="padding:14px 16px;color:var(--text-3);font-size:12px;text-align:center">No Data</div>';
     return;
   }
-  const list = m.topProducts.slice(0, 10);
   const maxVal = num(list[0].value) || 1;
   el.innerHTML = list.map((p, i) => `
     <button type="button" class="pr-card" data-sku="${esc(p.sku)}"
@@ -1725,14 +1798,25 @@ function renderTopProducts(m) {
       <span class="pr-thumb"><span class="pr-rank${i < 3 ? ' medal' : ''}">${i + 1}</span></span>
       <span class="pr-body">
         <span class="pr-name">${esc(p.sku)}</span>
-        <span class="pr-meta">${esc(p.type)} · ${esc(p.gender)} · ${rollHtml(p.qty, 'n')} pcs</span>
+        <span class="pr-meta">${esc(p.type)} · ${esc(p.gender)}</span>
         <span class="pr-meter"><i style="width:${Math.max(6, (num(p.value) / maxVal) * 100)}%"></i></span>
       </span>
-      <span class="pr-amt">${rollHtml(p.value, 'short')}</span>
+      <!-- Số lượng tách ra khỏi dòng meta và có cột riêng: nhồi chung một dòng
+           thì ở lưới 5 cột dòng đó bị cắt cụt, và "… pcs" — phần duy nhất nói
+           bán được bao nhiêu cái — luôn là phần bị cắt trước tiên. -->
+      <span class="pr-val">
+        <span class="pr-amt">${rollHtml(p.value, 'short')}</span>
+        <span class="pr-qty">${rollHtml(p.qty, 'n')} pcs</span>
+      </span>
       <!-- Cả thẻ đã bấm được, nhưng không có gì báo cho người xem biết điều đó.
            Đây là <span> chứ không phải <button>: lồng nút trong nút là HTML sai,
-           mà nó cũng không cần tự xử lý cú bấm — thẻ bao ngoài lo rồi. -->
-      <span class="pr-view">View</span>
+           mà nó cũng không cần tự xử lý cú bấm — thẻ bao ngoài lo rồi. Chữ
+           "View" đổi thành hình con mắt để trả chỗ lại cho cột số lượng. -->
+      <span class="pr-view" aria-hidden="true">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+          <path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="1.9"/>
+        </svg>
+      </span>
     </button>
   `).join('');
 }
@@ -2737,6 +2821,10 @@ function bindEvents() {
   document.getElementById('resetBtn').addEventListener('click', () => {
     S.filters = { year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all', store: 'all' };
     S.revMode = 'monthly';
+    // Bộ lọc của thẻ Top Products cũng là lọc dữ liệu, không phải kiểu hiển
+    // thị, nên Reset phải gỡ nó — bằng không bảng vẫn đứng ở "Women · Váy"
+    // trong khi thanh lọc trên đầu đã báo là đang xem tất cả.
+    resetTopFilter();
     document.getElementById('filterBar').classList.remove('filter-open');
     syncFilters();
     renderAll();

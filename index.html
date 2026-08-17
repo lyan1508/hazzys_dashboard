@@ -318,6 +318,18 @@
       <div class="chart-card" id="topProductCard">
         <div class="chart-card-hd">
           <div class="chart-card-title">Top Products by Style</div>
+          <!-- Lọc riêng của thẻ này, không đụng tới bộ lọc chung ở đầu trang.
+               Không chọn gì thì xếp theo doanh thu trên toàn bộ dữ liệu. -->
+          <div class="tp-controls">
+            <div class="chart-tabs" id="tpGenderTabs">
+              <button class="chart-tab active" data-tp-gender="all" onclick="switchTopGender('all',this)">All</button>
+              <button class="chart-tab" data-tp-gender="MEN" onclick="switchTopGender('MEN',this)">Men</button>
+              <button class="chart-tab" data-tp-gender="WOMEN" onclick="switchTopGender('WOMEN',this)">Women</button>
+            </div>
+            <select class="yoy-select" id="tpCategory" aria-label="Filter by category" onchange="switchTopCategory(this.value)">
+              <option value="all">All categories</option>
+            </select>
+          </div>
         </div>
         <div class="product-list" id="topProductList"></div>
       </div>

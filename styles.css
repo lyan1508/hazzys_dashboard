@@ -1781,10 +1781,21 @@ html.theme-anim *::after{
      · Promotion    — không thanh nào cả, chỉ số và chip.
    ========================================= */
 
+/* ---------- Top Products: thanh lọc của thẻ ---------- */
+.tp-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* Màn hình hẹp: tiêu đề giữ một dòng, hai ô lọc xuống dòng dưới — xếp chung
+   hàng với tiêu đề thì cả ba chen nhau trong hơn 300px. */
+@media(max-width:640px){
+  #topProductCard .chart-card-hd{flex-wrap:wrap}
+  .tp-controls{width:100%}
+  .tp-controls .chart-tabs{flex:1}
+  .tp-controls .chart-tab{flex:1;text-align:center}
+}
+
 /* ---------- Top Products: thẻ ảnh ---------- */
 .pr-card{
   display:grid;grid-template-columns:44px minmax(0,1fr) auto auto;
-  align-items:center;gap:10px;
+  align-items:center;gap:8px;
   width:100%;padding:8px 10px;text-align:left;
   background:var(--surface-2);border:1px solid transparent;border-radius:10px;
   cursor:pointer;font-family:var(--font);
@@ -1811,17 +1822,25 @@ html.theme-anim *::after{
 .pr-meta{font-size:var(--fs-xs);color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pr-meter{display:block;height:3px;border-radius:999px;background:var(--border);overflow:hidden;margin-top:2px}
 .pr-meter i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--brand-mid),var(--brand-light))}
+/* Doanh thu và số lượng xếp chồng trong một cột auto: cột tự rộng bằng dòng
+   dài nhất nên "106 pcs" không bao giờ bị cắt, kể cả ở lưới 5 cột. */
+.pr-val{display:flex;flex-direction:column;align-items:flex-end;gap:1px;white-space:nowrap}
 .pr-amt{
   font-size:var(--fs-md);font-weight:800;color:var(--text);
   font-variant-numeric:tabular-nums;white-space:nowrap;
 }
-.pr-view{
-  display:inline-flex;align-items:center;
-  padding:4px 9px;border-radius:999px;
-  border:1px solid var(--border-2);background:var(--surface);
-  font-size:var(--fs-xs);font-weight:700;color:var(--text-3);
-  white-space:nowrap;transition:color .14s,border-color .14s,background .14s;
+.pr-qty{
+  font-size:var(--fs-xs);color:var(--text-3);
+  font-variant-numeric:tabular-nums;white-space:nowrap;
 }
+.pr-view{
+  display:grid;place-items:center;
+  width:26px;height:26px;border-radius:999px;
+  border:1px solid var(--border-2);background:var(--surface);
+  color:var(--text-3);
+  transition:color .14s,border-color .14s,background .14s;
+}
+.pr-view svg{display:block}
 .pr-card:hover .pr-view{
   color:var(--brand-light);border-color:var(--brand-mid);
   background:rgba(var(--brand-rgb),.12);
