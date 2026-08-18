@@ -1852,6 +1852,10 @@ html.theme-anim *::after{
   position:relative;display:grid;
   grid-template-columns:30px minmax(0,1fr) auto 44px;
   align-items:center;gap:9px;
+  /* Khoa chieu cao that: container la flex column co height co dinh, neu de
+     flex-shrink mac dinh thi 10 dong bi bop tu 34px xuong 23.7px, chu tran
+     khoi o va bi overflow:hidden xen day thay vi cho cuon. */
+  flex:0 0 auto;
   padding:8px 10px;border-radius:8px;overflow:hidden;
   background:var(--surface-2);
 }
