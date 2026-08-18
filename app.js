@@ -326,11 +326,11 @@ const PRODUCT_YEAR = { '3': '2023', '4': '2024', '5': '2025', '6': '2026' };
 // đúng một dòng mã HO (HIHO4F351I2XXX) và PRODUCT NAME của nó ghi "Ví Nữ" —
 // một dòng thì chưa đủ để đặt tên chắc chắn, nên để trống cho hiện mã trần.
 const CATEGORY_NAME = {
-  BA: 'Túi',        BE: 'Thắt lưng',   CO: 'Áo khoác dài', DR: 'Đầm',
-  GF: 'Túi golf',   GV: 'Găng tay',    HE: 'Nón',          JA: 'Áo khoác',
-  JU: 'Áo khoác nhẹ', LG: 'Móc khóa',  MU: 'Phụ kiện khác', PA: 'Quần',
-  SC: 'Khăn',       SH: 'Áo sơ mi',    SK: 'Váy',          SO: 'Giày',
-  SS: 'Vớ',         SW: 'Áo len',      TS: 'Áo phông',     WA: 'Ví',
+  BA: 'Bag',          BE: 'Belt',        CO: 'Coat',            DR: 'Dress',
+  GF: 'Golf Bag',     GV: 'Gloves',      HE: 'Headwear',        JA: 'Jacket',
+  JU: 'Light Jacket', LG: 'Keyring',     MU: 'Other Accessory', PA: 'Pants',
+  SC: 'Scarf',        SH: 'Shirt',       SK: 'Skirt',           SO: 'Shoes',
+  SS: 'Socks',        SW: 'Sweater',     TS: 'T-Shirt',         WA: 'Wallet',
 };
 
 /** Decode product year (char 5) + season (char 6) from a style code. */
