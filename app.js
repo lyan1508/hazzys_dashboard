@@ -327,8 +327,8 @@ const PRODUCT_YEAR = { '3': '2023', '4': '2024', '5': '2025', '6': '2026' };
 // một dòng thì chưa đủ để đặt tên chắc chắn, nên để trống cho hiện mã trần.
 const CATEGORY_NAME = {
   BA: 'Bag',          BE: 'Belt',        CO: 'Coat',            DR: 'Dress',
-  GF: 'Golf Bag',     GV: 'Gloves',      HE: 'Headwear',        JA: 'Jacket',
-  JU: 'Light Jacket', LG: 'Keyring',     MU: 'Other Accessory', PA: 'Pants',
+  GF: 'Golf Bag',     GV: 'Gloves',      HE: 'Hat',             JA: 'Jacket',
+  JU: 'Jacket',       LG: 'Keyring',     MU: 'Other Accessory', PA: 'Pants',
   SC: 'Scarf',        SH: 'Shirt',       SK: 'Skirt',           SO: 'Shoes',
   SS: 'Socks',        SW: 'Sweater',     TS: 'T-Shirt',         WA: 'Wallet',
 };
