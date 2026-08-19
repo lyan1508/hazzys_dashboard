@@ -330,7 +330,7 @@ function isAccessory(row) {
 
 /* ======== Ô GOM KHÁCH LẺ ========
    Cửa hàng gõ một số điện thoại giả cho mọi khách không để lại thông tin —
-   trong dữ liệu hiện tại là 123456789 / "KHACH LE", gom 477 hoá đơn và 17,3%
+   trong dữ liệu hiện tại là 123456789 / "KHACH LE", gom 479 hoá đơn và 17,4%
    doanh thu vào một chỗ. Đếm nó như một người thì nó lập tức thành "khách
    trung thành nhất cửa hàng" và kéo lệch mọi tỉ lệ quay lại.
 
@@ -1197,7 +1197,15 @@ function aggregate() {
       if (r.category) b.cats.add(r.category);
       if (isAccessory(r)) b.acc += 1;
     }
-    if (!b.phone && r.phone) { b.phone = r.phone; b.customer = r.customer; }
+    // Hoá đơn thuộc về khách nào: ưu tiên số THẬT ở bất kỳ dòng nào, thay vì
+    // lấy dòng đầu tiên có số. Một phiếu có thể vừa có dòng ghi số thật vừa có
+    // dòng mang số gom khách lẻ (hiện có một phiếu như vậy), và lấy dòng đầu
+    // thì việc nó được tính là khách quen hay khách lẻ lại phụ thuộc vào thứ
+    // tự dòng trong tệp — đổi thứ tự sắp xếp là con số đổi theo.
+    if (r.phone && (!b.phone || (isWalkIn(b.phone, b.customer) && !isWalkIn(r.phone, r.customer)))) {
+      b.phone = r.phone;
+      b.customer = r.customer;
+    }
   });
   const billList = [...billMap.values()];
 
