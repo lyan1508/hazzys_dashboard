@@ -879,7 +879,6 @@ function aggregate() {
     return [...map.values()]
       .map((p) => ({
         label: p.label, amount: p.amount, qty: p.qty, bills: billTotal(p.billAcc),
-        given: p.list - p.netList,
         discPct: p.list > 0 ? (1 - p.netList / p.list) * 100 : 0,
       }))
       .sort((a, b) => b.amount - a.amount);
@@ -1522,25 +1521,23 @@ function renderDoughnut(chartKey, canvasId, centerId, legendId, data, colors) {
 }
 
 /* Promotion: một bảng duy nhất cho cả doanh thu lẫn mức chiết khấu của từng
-   chương trình. Chuyển từ danh sách chip sang bảng vì giờ có bảy cột — mắt
-   quét theo cột dễ hơn nhiều so với bảy con số nhồi trong một ô.
+   chương trình. Chuyển từ danh sách chip sang bảng vì giờ có sáu cột — mắt
+   quét theo cột dễ hơn nhiều so với sáu con số nhồi trong một ô.
 
-   "Given away" là tiền đã nhượng, "Discount" là mức nhượng tính theo phần
-   trăm. Hai cột chứ không phải một: một chương trình giảm sâu trên doanh số
-   nhỏ tốn ít tiền hơn một chương trình giảm nhẹ trên doanh số lớn. */
+   Tiền đã nhượng theo số tuyệt đối nằm ở thẻ Discount; ở đây chỉ giữ
+   "Discount" theo phần trăm để so mức nhượng giữa các chương trình. */
 function renderPromotionInfo(m) {
   const el = document.getElementById('promotionInfo');
   if (!el) return;
   const list = (m.promotionStats || []).filter((x) => num(x.amount) > 0);
   const note = document.getElementById('promoNote');
   if (!list.length) {
-    el.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:14px">No Data</td></tr>';
+    el.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:14px">No Data</td></tr>';
     if (note) note.textContent = '';
     return;
   }
   const totalVal = list.reduce((s, x) => s + num(x.amount), 0);
-  const totalGiven = list.reduce((s, x) => s + num(x.given), 0);
-  if (note) note.textContent = `${fmtN(list.length)} programmes · ${fmtVNDShort(totalGiven)} given away`;
+  if (note) note.textContent = `${fmtN(list.length)} promotions`;
 
   el.innerHTML = list.map((x) => {
     const share = totalVal > 0 ? (num(x.amount) / totalVal) * 100 : 0;
@@ -1551,7 +1548,6 @@ function renderPromotionInfo(m) {
       <td>${rollHtml(share, 'pct')}</td>
       <td>${rollHtml(x.qty, 'n')}</td>
       <td>${rollHtml(x.bills, 'n')}</td>
-      <td>${rollHtml(x.given, 'short')}</td>
       <td>${rollHtml(x.discPct, 'pct')}</td>
     </tr>`;
   }).join('');

@@ -445,7 +445,7 @@ select{cursor:pointer}
 .dow-cell-fill{position:absolute;left:0;right:0;bottom:0;height:var(--fill);background:linear-gradient(180deg,rgba(53,88,168,.18),rgba(53,88,168,.08));pointer-events:none;border-radius:0 0 var(--radius-sm) var(--radius-sm)}
 .dow-cell-meta .dow-days,
 .dow-cell-meta .dow-share{display:block}
-.dow-cell-day{font-size:11px;font-weight:800;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;position:relative;z-index:1}
+.dow-cell-day{font-size:11px;font-weight:800;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;position:relative;z-index:1;white-space:nowrap}
 .dow-cell-rev{font-size:14px;font-weight:800;color:var(--text);margin-top:4px;font-variant-numeric:tabular-nums;position:relative;z-index:1}
 .dow-cell-meta{font-size:10px;color:var(--text-3);margin-top:2px;line-height:1.3;position:relative;z-index:1}
 .dow-cell.peak{border-color:var(--green);box-shadow:0 0 0 1px var(--green)}
@@ -1385,6 +1385,13 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
      5×2 nên vừa khung, không cần trần này. */
   #topProductList{max-height:350px;overflow-y:auto}
 
+  /* Promotion: 32 chương trình là bảng dài 947px, gần ba màn hình điện thoại
+     cho một thẻ. Trần 460px chung cho mọi bảng vẫn còn 15 dòng — cắt còn 10
+     dòng (25px đầu bảng + 10×29px) rồi cuộn trong thẻ, vệt mờ ở đáy tự bật
+     làm dấu "còn nữa". Mười dòng đầu đã gánh khoảng ba phần tư doanh thu,
+     phần đuôi vẫn cuộn tới được. */
+  #promoCard .matrix-wrap{max-height:315px}
+
   /* --- Vùng chạm ---
      Tab và ô chọn cao 25–26px là cỡ dành cho con trỏ chuột: nhỏ hơn đầu ngón
      tay, bấm "Bills" hay trúng "Qty" bên cạnh. Nới chiều cao ô và khoảng cách
@@ -1795,6 +1802,10 @@ html.theme-anim *::after{
   }
 
   .dow-cell-day{grid-area:day;font-size:11px!important;text-align:left;letter-spacing:.4px}
+  /* Nhãn giỏ hàng dài hơn tên ngày: cột 38px vừa cho "MON" nhưng "2 ITEMS"
+     gãy làm hai dòng trong khi "1 ITEM" vẫn nằm gọn — năm hàng cao thấp so le.
+     Nới riêng cột nhãn của Basket cho vừa "5+ ITEMS" (53px). */
+  .basket-strip .dow-cell{grid-template-columns:56px minmax(0,1fr) auto}
   .dow-cell-rev{grid-area:rev;font-size:14px!important;margin-top:0!important;text-align:left;white-space:nowrap}
   .dow-cell-meta{grid-area:meta;font-size:10px!important;margin-top:1px;line-height:1.35;text-align:left}
   /* Hai vế chú thích về chung một dòng, ngăn bằng dấu chấm giữa — xếp chồng
