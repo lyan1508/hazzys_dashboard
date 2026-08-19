@@ -1376,6 +1376,7 @@ function renderCharts(m) {
       datasets: [
         {
           type: 'bar', label: 'Bills', data: bills, borderRadius: 4,
+          maxBarThickness: barCapFor(labels.length),
           backgroundColor: css('--brand-mid')
         },
         {
@@ -2830,6 +2831,10 @@ function renderYoy() {
   S.charts.yoy = new Chart(document.getElementById('chartYoy'), {
     data: {
       labels,
+      // Cột ở đây xếp NHÓM: mỗi nhãn tháng chứa một cột cho mỗi năm, nên số
+      // cột thật là số nhãn nhân số năm. Đếm theo nhãn không thôi thì chọn "By
+      // Month" (một nhãn, ba năm) vẫn ra trần của một cột đơn và ba cột phình
+      // hết cỡ.
       datasets: points.map((data, i) => ({
         type: 'bar',
         label: years[i],
@@ -2837,7 +2842,8 @@ function renderYoy() {
         backgroundColor: COLORS[i % COLORS.length] + 'cc',
         borderColor: COLORS[i % COLORS.length],
         borderWidth: 1,
-        borderRadius: 4
+        borderRadius: 4,
+        maxBarThickness: barCapFor(labels.length * points.length)
       }))
     },
     options: {
