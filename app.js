@@ -249,26 +249,6 @@ function staffCoef(name) {
   return c === undefined ? 1 : num(c);
 }
 
-// Share of a month already elapsed, measured against the last day that has sales
-// data rather than today's date — otherwise a late data refresh makes everyone
-// look behind pace. Finished months return 1, months not started yet return 0.
-function monthElapsedRatio(mKey, lastDate) {
-  const [y, mo] = String(mKey).split('-').map(Number);
-  if (!y || !mo) return 1;
-  const daysInMonth = new Date(y, mo, 0).getDate();
-  if (!lastDate) return 1;
-  const lastKey = monthKey(lastDate);
-  if (mKey < lastKey) return 1;
-  if (mKey > lastKey) return 0;
-  return Math.min(lastDate.getDate(), daysInMonth) / daysInMonth;
-}
-
-function latestSaleDate() {
-  let max = null;
-  S.raw.sales.forEach((r) => { if (r.date && (!max || r.date > max)) max = r.date; });
-  return max;
-}
-
 function normalizeText(v) {
   const base = String(v ?? '').trim().toUpperCase();
   return base || 'UNKNOWN';
@@ -755,6 +735,28 @@ function aggregate() {
       colors: [...p.colorAmt.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c),
     }));
   })();
+  // ===== COLOUR — ký tự 10-11 của mã SKU =====
+  // Giữ nguyên cặp (màu, nhóm hàng) chứ không cộng gộp ngay: card By Color có
+  // bộ lọc nhóm hàng riêng, mà màu chỉ có nghĩa TRONG một nhóm — BK bán chạy ở
+  // quần không nói được gì về BK ở áo phông. Cộng gộp ở đây thì bộ lọc kia
+  // không còn gì để lọc.
+  const colorStats = (() => {
+    const map = new Map();
+    rows.forEach((r) => {
+      const raw = String(r.sku || r.upc || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (raw.length !== 14) return;
+      const color = raw.slice(9, 11);
+      if (!color) return;
+      const category = raw.slice(2, 4);
+      const key = `${color}|${category}`;
+      const p = map.get(key) || { color, category, value: 0, qty: 0 };
+      p.value += num(r.amount);
+      p.qty += num(r.qty);
+      map.set(key, p);
+    });
+    return [...map.values()];
+  })();
+
   const promotionStats = (() => {
     const map = new Map();
     rows.forEach((r) => {
@@ -852,8 +854,7 @@ function aggregate() {
       bucket.set(key, num(bucket.get(key)) + num(r.amount));
     });
 
-    const lastDate = latestSaleDate();
-    const staff = new Map();        // name -> { label, amount, target, pace }
+    const staff = new Map();        // name -> { label, amount, target }
 
     months.forEach((mo) => {
       const bucket = revByMonth.get(mo.monthKey);
@@ -861,16 +862,13 @@ function aggregate() {
       // A month nobody is named on (Sep–Dec 2024) leaves its target undivided.
       if (!names.length) return;
       const totalCoef = names.reduce((s, n) => s + staffCoef(n), 0);
-      const elapsed = monthElapsedRatio(mo.monthKey, lastDate);
       const monthTarget = num(mo.target);
 
       names.forEach((n) => {
-        const e = staff.get(n) || { label: n, coef: staffCoef(n), amount: 0, target: 0, pace: 0 };
+        const e = staff.get(n) || { label: n, coef: staffCoef(n), amount: 0, target: 0 };
         e.amount += num(bucket.get(n));
         if (totalCoef > 0 && monthTarget > 0) {
-          const share = (monthTarget * staffCoef(n)) / totalCoef;
-          e.target += share;
-          e.pace += share * elapsed;
+          e.target += (monthTarget * staffCoef(n)) / totalCoef;
         }
         staff.set(n, e);
       });
@@ -880,8 +878,7 @@ function aggregate() {
     return {
       list,
       totalAmount: list.reduce((s, e) => s + e.amount, 0),
-      totalTarget: list.reduce((s, e) => s + e.target, 0),
-      totalPace: list.reduce((s, e) => s + e.pace, 0)
+      totalTarget: list.reduce((s, e) => s + e.target, 0)
     };
   })();
 
@@ -993,6 +990,7 @@ function aggregate() {
     byType: safeGroupSum(rows, 'type'),
     byGender: safeGroupSum(rows, 'gender'),
     byCategory: safeGroupSum(rows, 'category'),
+    colorStats,
     promotionStats, cashierStats, cashierMatrix, cashierTotals, staffMatrix, dowStats, rangeFrom, rangeTo,
     seasonStats, seasonTotals, seasonMonthly
   };
@@ -1235,10 +1233,11 @@ function renderPromotionInfo(m) {
   `).join('')}</div>`;
 }
 
-// ===== PERSONAL SALES — revenue vs a weighted slice of the store target =====
-// One shared scale across every row, so bar lengths compare between staff. The
-// pale track is the person's total target (AN's is visibly shorter at coef 0.85),
-// the solid fill is actual revenue, and the tick marks the timeline target.
+// ===== PERSONAL SALES — doanh thu vs phần target được chia của mỗi người =====
+// Mỗi dòng là một thang riêng: khung nhạt luôn chiếm trọn chiều ngang và bằng
+// TARGET của chính người đó, nên phần đậm đọc thẳng ra "% đạt" mà không phải so
+// với ai. Hệ số 0,85 của An nằm ở chỗ target nhỏ hơn, không còn ở chỗ khung ngắn
+// hơn như bản cũ — cột % bên phải mới là chỗ so giữa người với người.
 function renderStaffTargets(m) {
   const el = document.getElementById('staffTargetList');
   const footEl = document.getElementById('staffTargetFoot');
@@ -1252,29 +1251,28 @@ function renderStaffTargets(m) {
     return;
   }
 
-  // Scale on the longest of any bar so nothing clips, target track included.
-  const scale = Math.max(...list.map((s) => Math.max(num(s.amount), num(s.target)))) || 1;
   const hasTarget = list.some((s) => num(s.target) > 0);
+  // Kỳ chưa có target thì không có khung để chia phần trăm; lúc đó quay lại một
+  // thang chung trên doanh thu lớn nhất để các dòng vẫn so được độ dài.
+  const revScale = Math.max(...list.map((s) => num(s.amount))) || 1;
 
   el.innerHTML = list.map((s) => {
     const amount = num(s.amount);
     const target = num(s.target);
-    const pace = num(s.pace);
-    const onPace = amount >= pace;
-    const fillPct = Math.min((amount / scale) * 100, 100);
-    const targetPct = Math.min((target / scale) * 100, 100);
-    const pacePct = Math.min((pace / scale) * 100, 100);
     const pct = target > 0 ? (amount / target) * 100 : 0;
+    const fillPct = target > 0
+      ? Math.min((amount / target) * 100, 100)
+      : (amount / revScale) * 100;
+
     const tip = target > 0
-      ? `${esc(s.label)} — Revenue ${fmtVND(amount)} / Timeline ${fmtVND(pace)} / Target ${fmtVND(target)}`
+      ? `${esc(s.label)} — Revenue ${fmtVND(amount)} / Target ${fmtVND(target)}`
       : `${esc(s.label)} — Revenue ${fmtVND(amount)} (no target for this period)`;
     return `
-      <div class="st-row${onPace ? '' : ' behind'}" title="${esc(tip)}">
+      <div class="st-row" title="${esc(tip)}">
         <div class="st-name">${esc(s.label)}</div>
         <div class="st-track">
-          ${target > 0 ? `<div class="st-target" style="width:${targetPct}%"></div>` : ''}
+          ${target > 0 ? '<div class="st-target"></div>' : ''}
           <div class="st-fill" style="width:${fillPct}%"></div>
-          ${pace > 0 ? `<div class="st-pace" data-pct="${pacePct}" style="left:${pacePct}%"></div>` : ''}
         </div>
         <div class="st-pct">${target > 0 ? rollHtml(pct, 'pct') : '—'}</div>
       </div>
@@ -1330,7 +1328,7 @@ function renderRevenueChart(m) {
             v >= num(tgtData[i]) && num(tgtData[i]) > 0 ? css('--green') : css('--brand-mid')
           )),
           borderRadius: 6,
-          maxBarThickness: 44,
+          maxBarThickness: barCapFor(labels.length),
           categoryPercentage: 0.72,
           barPercentage: 0.88,
           order: 2
@@ -1342,8 +1340,18 @@ function renderRevenueChart(m) {
           borderColor: css('--accent'),
           borderWidth: 2,
           borderDash: [5, 4],
-          pointRadius: 3,
-          tension: 0.25,
+          // 'monotone' thay cho tension: tension kéo đường cong vọt lên trên
+          // hoặc thụt xuống dưới các điểm thật, có tháng target 0 mà đường lại
+          // võng xuống số âm. Monotone cong mượt nhưng không bao giờ ra khỏi
+          // khoảng giá trị thật của hai điểm kề.
+          cubicInterpolationMode: 'monotone',
+          borderJoinStyle: 'round',
+          borderCapStyle: 'round',
+          // Đường target là mốc tham chiếu, không phải chuỗi số để đọc từng
+          // điểm — bỏ chấm đi thì nó thành một nét liền mềm, chấm chỉ hiện khi
+          // rê chuột tới.
+          pointRadius: 0,
+          pointHoverRadius: 4,
           order: 1,
           spanGaps: true
         }
@@ -1372,7 +1380,10 @@ function renderCharts(m) {
         },
         {
           type: 'line', label: 'Traffic', data: traffic,
-          borderColor: green, borderWidth: 2, pointRadius: 3, tension: 0.2,
+          borderColor: green, borderWidth: 2,
+          cubicInterpolationMode: 'monotone',
+          borderJoinStyle: 'round', borderCapStyle: 'round',
+          pointRadius: 2, pointHoverRadius: 5, pointBorderWidth: 0,
           // Vùng nền mờ dưới đường Traffic — đọc ra "khối lượng khách", không
           // chỉ là một sợi chỉ vắt ngang. Chỗ này buộc phải là hàm vì gradient
           // cần khung vẽ, mà khung vẽ chưa có ở lượt dựng đầu tiên — nhưng màu
@@ -1386,6 +1397,7 @@ function renderCharts(m) {
   });
 
   renderCategoryList(m);
+  renderColorList(m);
   renderDoughnut('type', 'chartType', 'dTypeVal', 'legendType', m.byType, PALETTE.multi);
   renderDoughnut('gender', 'chartGender', 'dGenderVal', 'legendGender', m.byGender, PALETTE.gender);
   renderPromotionInfo(m);
@@ -1426,6 +1438,88 @@ function renderCategoryList(m) {
   }).join('');
 }
 
+/* Trần bề dày cột theo số cột có thật.
+   Trần cứng 44px được đặt cho khung nhìn thường gặp là 12–24 tháng. Nhưng lọc
+   xuống một tháng thì cả biểu đồ chỉ còn ĐÚNG MỘT cột 44px trôi giữa vùng vẽ
+   600px — lấp 7% bề ngang, nhìn như dữ liệu bị lỗi chứ không như một tháng.
+   Càng ít cột thì mỗi cột càng được phép dày hơn, nhưng vẫn có trần để cột
+   không phình thành tấm phản chắn ngang thẻ. */
+const BAR_CAP = { 1: 96, 2: 86, 3: 76, 4: 68, 5: 60, 6: 54, 7: 48 };
+function barCapFor(count) {
+  return BAR_CAP[count] || 44;
+}
+
+// ===== BY COLOUR — cùng hình thức với By Category =====
+// Mã màu để nguyên hai ký tự (BK, B1, OW…): đây là mã dùng khi đặt hàng và tra
+// kho, dịch sang tiếng Việt chỉ thêm một bước đối chiếu ngược.
+// Ô nhóm hàng là thứ làm card này có ích: gộp mọi nhóm lại thì BK luôn đứng đầu
+// và chẳng nói được gì, còn lọc riêng PA hay TS mới thấy màu nào bán được.
+const COLOR_FILTER = { category: 'all' };
+
+window.switchColorCategory = function (code) {
+  COLOR_FILTER.category = code;
+  renderColorList(metrics());
+};
+
+function syncColorCategoryOptions(stats) {
+  const sel = document.getElementById('colorCategory');
+  if (!sel) return;
+  const rev = new Map();
+  stats.forEach((p) => {
+    if (!p.category) return;
+    rev.set(p.category, num(rev.get(p.category)) + num(p.value));
+  });
+  const codes = [...rev.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c);
+  if (COLOR_FILTER.category !== 'all' && !codes.includes(COLOR_FILTER.category)) COLOR_FILTER.category = 'all';
+  const sig = codes.join(',');
+  if (sel.dataset.sig !== sig) {
+    sel.innerHTML = '<option value="all">All categories</option>' +
+      codes.map((c) => {
+        const name = CATEGORY_NAME[c];
+        return `<option value="${esc(c)}">${esc(c)}${name ? ' · ' + esc(name) : ''}</option>`;
+      }).join('');
+    sel.dataset.sig = sig;
+  }
+  sel.value = COLOR_FILTER.category;
+}
+
+function renderColorList(m) {
+  const el = document.getElementById('colorList');
+  if (!el) return;
+  const stats = m.colorStats || [];
+  syncColorCategoryOptions(stats);
+
+  const roll = new Map();
+  stats.forEach((p) => {
+    if (COLOR_FILTER.category !== 'all' && p.category !== COLOR_FILTER.category) return;
+    const e = roll.get(p.color) || { color: p.color, value: 0, qty: 0 };
+    e.value += num(p.value);
+    e.qty += num(p.qty);
+    roll.set(p.color, e);
+  });
+  const list = [...roll.values()].filter((x) => num(x.value) > 0).sort((a, b) => b.value - a.value);
+  if (!list.length) {
+    el.innerHTML = '<div style="padding:14px 16px;color:var(--text-3);font-size:12px;text-align:center">No Data</div>';
+    return;
+  }
+
+  const maxVal = num(list[0].value) || 1;
+  // Tổng lấy trên TOÀN BỘ màu của nhóm đang chọn, không phải 10 màu hiện ra —
+  // giống By Category, cắt bớt là chuyện hiển thị chứ không được đổi mẫu số.
+  const total = list.reduce((s, x) => s + num(x.value), 0);
+  el.innerHTML = list.slice(0, 10).map((x) => {
+    const share = total > 0 ? (num(x.value) / total) * 100 : 0;
+    return `
+    <div class="cat-row" title="${esc(x.color)}">
+      <div class="cat-fill" style="width:${Math.max(2, (num(x.value) / maxVal) * 100)}%"></div>
+      <div class="cat-code">${esc(x.color)}</div>
+      <div class="cat-name">${rollHtml(x.qty, 'n')} pcs</div>
+      <div class="cat-amt">${rollHtml(x.value, 'short')}</div>
+      <div class="cat-pct">${rollHtml(share, 'pct')}</div>
+    </div>`;
+  }).join('');
+}
+
 // ===== SEASON — stacked revenue per month =====
 function renderSeasonChart(m) {
   const sm = m.seasonMonthly || { labels: [], series: [] };
@@ -1448,7 +1542,7 @@ function renderSeasonChart(m) {
         data: s.data,
         backgroundColor: s.color,
         borderRadius: 3,
-        maxBarThickness: 44,
+        maxBarThickness: barCapFor(sm.labels.length),
       }))
     },
     options: opts
@@ -1740,6 +1834,7 @@ window.switchTopGender = function (gender, btn) {
 function resetTopFilter() {
   TP_FILTER.gender = 'all';
   TP_FILTER.category = 'all';
+  COLOR_FILTER.category = 'all';
   document.querySelectorAll('#tpGenderTabs .chart-tab').forEach((t) => {
     t.classList.toggle('active', t.dataset.tpGender === 'all');
   });
@@ -1822,15 +1917,8 @@ function renderTopProducts(m) {
 }
 
 /* ---- Khung xem ảnh ---------------------------------------------------- */
-/** Mã màu Hazzys chỉ là hai ký tự (BK, OW, N3…) nên hiện thêm tên cho dễ chọn.
- *  Mã lạ thì để nguyên hai ký tự chứ không đoán bừa. */
-const COLOR_NAME = {
-  BK: 'Đen',      OW: 'Trắng ngà', WH: 'Trắng',
-  N1: 'Xanh navy', N3: 'Xanh navy', N5: 'Xanh navy',
-  B1: 'Xanh dương', B5: 'Xanh dương', G1: 'Xám', G2: 'Xám',
-  E1: 'Be',       E3: 'Be',        I1: 'Xanh rêu', I2: 'Xanh rêu', I3: 'Xanh rêu',
-  P2: 'Hồng',     R1: 'Đỏ',        Y1: 'Vàng',
-};
+/* Nhãn màu để nguyên mã hai ký tự (BK, B1, OW…) — đây là mã dùng khi đặt hàng
+   và tra kho, dịch sang tiếng Việt chỉ thêm một bước đối chiếu ngược. */
 
 let PREVIEW_STATE = null;
 
@@ -1916,7 +2004,7 @@ async function openProductPreview(sku, colorsCsv) {
   swatches.innerHTML = shots.map((s, i) => `
     <button type="button" class="pv-swatch${i === 0 ? ' active' : ''}" onclick="showPreviewColor(${i})">
       <img src="${esc(s.thumb)}" alt="">
-      <span>${esc(COLOR_NAME[s.color] || s.color)}</span>
+      <span>${esc(s.color)}</span>
     </button>`).join('');
   showPreviewColor(0);
 }
@@ -2012,7 +2100,6 @@ function renderAll() {
   requestAnimationFrame(() => {
     syncCharts();
     initFadeMasks();
-    snapPaceMarks();
     initScrollReveal();
     // Đổi bộ lọc: các thẻ đang hiện đã dựng lại nội dung nhưng observer không
     // bắn lại (chúng chưa hề rời khung nhìn), nên phải tự cho số chạy. Chỉ
@@ -2150,35 +2237,6 @@ function initFadeMasks() {
     }, { passive: true });
   });
   syncFadeMasks();
-}
-
-/* ======== VẠCH TIMELINE: ÉP VỀ ĐIỂM ẢNH THẬT CỦA MÀN HÌNH ========
-   Vạch khai báo 2px ở mọi dòng, nhưng đặt bằng phần trăm nên mép trái rơi vào
-   toạ độ lẻ (620.338px, 543.450px…). Trình duyệt phải tán vạch ra 2–3 điểm ảnh
-   với độ phủ khác nhau, thành ra dòng thì vạch đậm và dày, dòng thì mảnh và nhạt.
-
-   Làm tròn về px CSS nguyên vẫn chưa đủ: Windows thường chạy ở mức phóng 125%
-   (devicePixelRatio 1.25) nên 2px CSS = 2,5 điểm ảnh thật — nửa điểm ảnh thừa
-   lại bị tán ra, và tán về bên nào thì tuỳ vị trí lẻ hay chẵn. Phải làm tròn cả
-   bề rộng lẫn vị trí theo lưới điểm ảnh THẬT thì mọi dòng mới ra một vạch giống
-   hệt nhau. Vạch cũng bị kẹp lại trong lòng đường ray để không có dòng nào vạch
-   lửng lơ ngoài mép. */
-function snapPaceMarks() {
-  const dpr = window.devicePixelRatio || 1;
-  const snap = (v) => Math.round(v * dpr) / dpr;
-  const width = Math.max(2, Math.round(2 * dpr)) / dpr;   // ≥2 điểm ảnh thật
-  document.querySelectorAll('#staffTargetList .st-row').forEach((row) => {
-    const track = row.querySelector('.st-track');
-    const pace = row.querySelector('.st-pace');
-    if (!track || !pace) return;
-    const pct = parseFloat(pace.dataset.pct);
-    if (!Number.isFinite(pct)) return;
-    const trackW = track.clientWidth;
-    const center = (trackW * pct) / 100;
-    const left = Math.min(Math.max(center - width / 2, 0), Math.max(trackW - width, 0));
-    pace.style.width = width + 'px';
-    pace.style.left = snap(left) + 'px';
-  });
 }
 
 /** Gọi lại sau mỗi lần vẽ: nội dung đổi thì chiều cao cuộn cũng đổi. */
@@ -2873,6 +2931,5 @@ window.addEventListener('resize', () => {
     resizeRaf = null;
     syncCharts();
     syncFadeMasks();   // đổi bề rộng làm nội dung xuống dòng khác đi
-    snapPaceMarks();   // bề rộng đổi thì vị trí pixel nguyên cũng đổi
   });
 });

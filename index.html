@@ -334,13 +334,26 @@
         <div class="product-list" id="topProductList"></div>
       </div>
 
-      <!-- Mix breakdowns: Category | Type | Gender -->
-      <div class="g-row g-row-3">
+      <!-- Mix breakdowns: Category | Colour | Type | Gender -->
+      <div class="g-row g-row-4">
         <div class="chart-card" id="categoryCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">By Category</div>
           </div>
           <div class="product-list" id="categoryList"></div>
+        </div>
+        <div class="chart-card" id="colorCard">
+          <div class="chart-card-hd">
+            <div class="chart-card-title">By Colour</div>
+            <!-- Màu chỉ có nghĩa trong một nhóm hàng: BK ở quần và BK ở áo phông
+                 là hai câu chuyện khác nhau. Lọc riêng của thẻ, không đụng bộ
+                 lọc chung ở đầu trang. -->
+            <select class="yoy-select" id="colorCategory" aria-label="Filter colours by category"
+                    onchange="switchColorCategory(this.value)">
+              <option value="all">All categories</option>
+            </select>
+          </div>
+          <div class="product-list" id="colorList"></div>
         </div>
         <div class="chart-card">
           <div class="chart-card-hd">
@@ -411,7 +424,6 @@
             <div class="chart-card-title">Personal Sales</div>
             <div class="st-legend">
               <span class="st-legend-item"><i class="st-key-fill"></i>Revenue</span>
-              <span class="st-legend-item"><i class="st-key-pace"></i>Timeline</span>
               <span class="st-legend-item"><i class="st-key-target"></i>Target</span>
             </div>
           </div>
