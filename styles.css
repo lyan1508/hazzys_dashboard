@@ -29,8 +29,6 @@
   /* Bề mặt phái sinh — tách khỏi màu cứng để chế độ sáng đổi được */
   --kpi-grad-2:  rgba(17,22,34,.72);      /* đáy gradient thẻ KPI (mờ để lọt lớp blur) */
   --row-alt:     rgba(255,255,255,.018);  /* sọc chẵn của bảng */
-  --row-alt-1st: #161b28;                 /* cột đầu dính, hàng chẵn */
-  --row-hov-1st: #1a2130;                 /* cột đầu dính, hàng hover */
 
   /* Lớp kính: nền mờ + viền sáng ở mép trên tạo cảm giác dày */
   --glass-bg:    rgba(19,24,36,.72);
@@ -101,8 +99,6 @@
 
   --kpi-grad-2:  rgba(245,248,253,.72);
   --row-alt:     rgba(17,24,39,.022);
-  --row-alt-1st: #f6f9fd;
-  --row-hov-1st: #eaf1fd;
 
   --glass-bg:    rgba(255,255,255,.74);
   --glass-brd:   rgba(17,24,39,.07);
@@ -430,8 +426,6 @@ select{cursor:pointer}
 /* =========================================
    SPRINT 1 ADDITIONS
    ========================================= */
-/* Analytics Row — ABC + Cashier Matrix */
-
 /* Cashier Matrix table */
 .matrix-wrap{overflow:auto;max-height:360px;flex:1;min-height:0}
 .matrix-table{width:100%;border-collapse:collapse;font-size:12px}
@@ -510,12 +504,6 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 .dow-cell-rev{font-size:var(--fs-md);font-weight:800}
 .dow-cell-meta{font-size:var(--fs-xs)}
 
-/* Cashier chips */
-
-/* Forecast / pace metadata */
-
-/* Inventory KPI cards — tighten label hierarchy */
-
 /* YoY metric tabs and labels */
 .yoy-metric-tab{font-size:var(--fs-xs)}
 .yoy-year-card-head{font-size:var(--fs-xs)}
@@ -525,13 +513,6 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 
 /* Chart tabs (Monthly/Cumulative, Rev/Bills/ATV) */
 .chart-tab{font-size:var(--fs-xs)}
-
-/* ABC chips */
-
-/* Status pills */
-
-/* Tooltips and hover boxes — ensure system font, not browser default */
-[role="tooltip"],.tooltip{font-family:var(--font)}
 
 /* =========================================
    MINIMAL DARK REDESIGN — remove colored accents
@@ -602,7 +583,6 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 /* =========================================
    PRODUCT TAB — Left col (Top + Type/Gender) | Right col (ABC full height)
    ========================================= */
-/* ABC description subtitle */
 /* Target progress bar */
 .tp-section{
   background:var(--surface);
@@ -703,15 +683,10 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
    Phones are typically 375-480px wide.
    ========================================= */
 @media(max-width:600px){
-  /* Stack all overview rows to single column */
-
-  /* Reduce chart height (overrides inline height:240px) */
-
-  /* DOW strip: 4 cols when full-width */
-
-  /* YoY controls: compact spacing */
+  /* Hàng điều khiển YoY: bớt khoảng đệm để năm chọn xếp vừa một dòng. Cỡ ô
+     chọn thì để khối cảm ứng ở cuối tệp lo — ở đây bóp nhỏ thì bấm không trúng. */
   .yoy-controls{padding:8px;gap:6px}
-  .yoy-select{padding:4px 6px;font-size:11px}
+  .yoy-select{font-size:11px}
 }
 
 /* =========================================
@@ -842,8 +817,8 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 /* Row helpers — mọi nhóm dùng chung, dễ cân bố cục */
 .g-row{display:grid;gap:10px;align-items:stretch;min-width:0}
 .g-row + .g-row{margin-top:var(--gap)}
+.g-row-1{grid-template-columns:minmax(0,1fr)}
 .g-row-2{grid-template-columns:repeat(2,minmax(0,1fr))}
-.g-row-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .g-row > *{min-width:0;margin-bottom:0}
 
 /* Các section cũ mang sẵn margin — nhóm đã lo khoảng cách rồi */
@@ -857,9 +832,6 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 
 /* Chiều cao chart chuẩn cho các ô cùng hàng */
 .chart-wrap--md{height:250px}
-
-/* --- Promotion: cuộn trong thẻ, không kéo dài trang --- */
-#promoCard #promotionInfo{flex:1;min-height:0;max-height:300px;overflow-y:auto}
 
 /* --- Day of Week: lấp đầy chiều cao thẻ --- */
 #dowSection{overflow:hidden}
@@ -877,8 +849,8 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 #topProductList{padding-right:2px}
 
 /* --- Doughnut row: chart + legend cân nhau --- */
-.g-row-3 .split-inner,.g-row-4 .split-inner{padding:2px 0 4px;min-height:130px}
-.g-row-3 .legend-list,.g-row-4 .legend-list{max-height:130px;overflow-y:auto}
+.g-row-4 .split-inner{padding:2px 0 4px;min-height:130px}
+.g-row-4 .legend-list{max-height:130px;overflow-y:auto}
 
 /* --- Staff: bảng cao bằng chart cạnh nó --- */
 /* Không đặt trần riêng cho bảng Cashier: trần 250px cũ còn THẤP HƠN nhịp
@@ -890,30 +862,27 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
    SINGLE-PAGE LAYOUT — responsive
    ========================================= */
 @media(max-width:1100px){
-  .g-row-3{grid-template-columns:repeat(2,minmax(0,1fr))}
   #topProductList{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
 }
 
 @media(max-width:820px){
   /* Điện thoại & tablet dọc: tất cả xếp 1 cột */
-  .g-row-2,.g-row-3{grid-template-columns:1fr}
+  .g-row-2{grid-template-columns:1fr}
   .chart-wrap--md{height:220px}
-  #promoCard #promotionInfo{max-height:260px}
   #topProductList{max-height:400px}
   .dash-group{margin-bottom:14px}
   #dowSection .dow-strip{grid-template-columns:repeat(4,minmax(0,1fr))}
 }
 
 @media(max-width:640px){
-  .g-row-3 .split-inner,.g-row-4 .split-inner{flex-direction:column;align-items:center;gap:10px;padding:6px 0 8px}
-  .g-row-3 .doughnut-wrap,.g-row-4 .doughnut-wrap,
-  .g-row-3 .doughnut-wrap canvas,.g-row-4 .doughnut-wrap canvas{width:120px!important;height:120px!important}
-  .g-row-3 .legend-list,.g-row-4 .legend-list{
+  .g-row-4 .split-inner{flex-direction:column;align-items:center;gap:10px;padding:6px 0 8px}
+  .g-row-4 .doughnut-wrap,.g-row-4 .doughnut-wrap canvas{width:120px!important;height:120px!important}
+  .g-row-4 .legend-list{
     width:100%;flex-direction:row;flex-wrap:wrap;
     gap:6px 14px;justify-content:center;max-height:none;
   }
-  .g-row-3 .legend-item,.g-row-4 .legend-item{flex:0 0 auto;min-width:84px}
-  .g-row-3 .legend-name,.g-row-4 .legend-name{white-space:normal}
+  .g-row-4 .legend-item{flex:0 0 auto;min-width:84px}
+  .g-row-4 .legend-name{white-space:normal}
   #topProductList{grid-template-columns:1fr;max-height:420px}
   .chart-wrap--md{height:200px}
   .group-title{font-size:var(--fs-md)}
@@ -978,7 +947,6 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 
 /* ---------- 4. Thẻ cùng hàng cao bằng nhau ---------- */
 .chart-wrap--md{height:var(--card-body)}
-#promoCard #promotionInfo{height:var(--card-body);max-height:var(--card-body);min-height:0}
 .chart-card .matrix-wrap{height:var(--card-body);max-height:var(--card-body)}
 
 /* Hàng Season: bảng Collection có 9 bộ sưu tập + dòng đầu + dòng tổng, cần
@@ -994,15 +962,9 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
    chỉ cần thêm một thu ngân là lại tràn. Nới cả hàng để còn chỗ thở. */
 #staffTargetCard,
 #cashierMatrixCard{--card-body:300px}
-.g-row-3 .split-inner,.g-row-4 .split-inner{min-height:146px;height:146px}
-.g-row-3 .legend-list,.g-row-4 .legend-list{max-height:146px}
+.g-row-4 .split-inner{min-height:146px;height:146px}
+.g-row-4 .legend-list{max-height:146px}
 
-/* Hàng 3 doughnut giữ nguyên 3 cột tới tận mốc xếp dọc 820px.
-   Rớt xuống 2 cột ở 1100px sẽ để lại 1 thẻ mồ côi ở dòng dưới, mà
-   ở 830px mỗi cột vẫn còn ~256px — thừa chỗ cho doughnut 100px + chú thích. */
-@media(min-width:821px){
-  .g-row-3{grid-template-columns:repeat(3,minmax(0,1fr))}
-}
 
 @media(max-width:820px){
   :root{--card-body:224px}
@@ -1016,8 +978,8 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 }
 @media(max-width:640px){
   :root{--card-body:200px}
-  .g-row-3 .split-inner,.g-row-4 .split-inner{height:auto;min-height:0}
-  .g-row-3 .legend-list,.g-row-4 .legend-list{max-height:none}
+  .g-row-4 .split-inner{height:auto;min-height:0}
+  .g-row-4 .legend-list{max-height:none}
 }
 
 /* ---------- 5. Bảng: đọc rõ, cột số cân ---------- */
@@ -1128,18 +1090,11 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 .kpi-value{font-weight:800;letter-spacing:-.5px}
 .kpi-label{font-size:10px;color:var(--text-3)}
 
-/* 4. Bảng: sọc nhẹ + cột đầu dính khi cuộn ngang */
+/* 4. Bảng: sọc nhẹ cho dễ dò dòng.
+   Cột đầu KHÔNG ghim khi cuộn ngang: cả nền riêng lẫn lớp z-index đi kèm đều
+   gỡ theo, vì chúng chỉ tồn tại để che phần trượt bên dưới cột dính. */
 .matrix-table tbody tr:nth-child(even){background:var(--row-alt)}
 .matrix-table tbody tr:hover{background:rgba(var(--brand-rgb),.08)}
-.matrix-table tbody td:first-child,
-.matrix-table tfoot td:first-child{
-  position:sticky;left:0;z-index:1;
-  background:var(--surface);
-}
-.matrix-table tbody tr:nth-child(even) td:first-child{background:var(--row-alt-1st)}
-.matrix-table tbody tr:hover td:first-child{background:var(--row-hov-1st)}
-.matrix-table tfoot td:first-child{background:var(--surface-2)}
-.matrix-table thead th:first-child{position:sticky;left:0;z-index:2}
 
 /* 5. Chú thích biểu đồ gọn hơn (chart Season có legend) */
 .chart-card canvas{cursor:default}
@@ -1169,7 +1124,6 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 }
 @media(max-width:1280px){#topProductList{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){#topProductList{grid-template-columns:1fr}}
-
 
 /* ===== KHUNG XEM ẢNH SẢN PHẨM =====
    Ảnh hiện ngay trong trang thay vì mở tab web bán hàng: người xem báo cáo
@@ -1273,18 +1227,17 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 }
 
 /* Type / Gender chỉ có 2 giá trị — phóng to doughnut cho lấp đầy cột */
-.g-row-3 .split-inner,.g-row-4 .split-inner{height:var(--card-body);min-height:0;justify-content:center;gap:18px}
-.g-row-3 .doughnut-wrap,.g-row-4 .doughnut-wrap,
-.g-row-3 .doughnut-wrap canvas,.g-row-4 .doughnut-wrap canvas{width:150px!important;height:150px!important}
-.g-row-3 .legend-list,.g-row-4 .legend-list{max-height:none;flex:0 1 auto}
-.g-row-3 .legend-name,.g-row-4 .legend-name{font-size:var(--fs-md)}
-.g-row-3 .legend-pct,.g-row-4 .legend-pct{font-size:var(--fs-sm)}
-.g-row-3 .doughnut-center .d-val,.g-row-4 .doughnut-center .d-val{font-size:var(--fs-lg)}
+.g-row-4 .split-inner{height:var(--card-body);min-height:0;justify-content:center;gap:18px}
+.g-row-4 .doughnut-wrap,.g-row-4 .doughnut-wrap canvas{width:150px!important;height:150px!important}
+.g-row-4 .legend-list{max-height:none;flex:0 1 auto}
+.g-row-4 .legend-name{font-size:var(--fs-md)}
+.g-row-4 .legend-pct{font-size:var(--fs-sm)}
+.g-row-4 .doughnut-center .d-val{font-size:var(--fs-lg)}
 
 @media(max-width:820px){
   #categoryList,
   #colorList{height:300px;max-height:300px}
-  .g-row-3 .split-inner,.g-row-4 .split-inner{height:200px}
+  .g-row-4 .split-inner{height:200px}
 }
 
 /* Hàng mix bốn thẻ: Category | Colour | Type | Gender.
@@ -1304,17 +1257,14 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 /* Chỉ những vùng thật sự cuộn mới chừa máng — Top Products (10 mục vừa khung)
    và legend không cuộn, chừa máng ở đó chỉ làm lề phải dày hơn lề trái 8px. */
 .matrix-wrap,
-#categoryList,
-#promoCard #promotionInfo{
+#categoryList{
   scrollbar-gutter:stable;
 }
-#topProductList,
-.g-row-3 .legend-list,.g-row-4 .legend-list{overflow:visible}
+#topProductList,.g-row-4 .legend-list{overflow:visible}
 
 /* Danh sách: số nằm cách thanh cuộn một khoảng thở */
 #categoryList,
 #colorList{padding-right:8px}
-#promoCard #promotionInfo{padding-right:8px}
 
 /* Bảng: đẩy cột cuối ra thay vì đệm cả khung, để nền dòng tiêu đề
    và dòng TOTAL vẫn chạy hết chiều ngang. */
@@ -1326,8 +1276,7 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 ::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:4px}
 .matrix-wrap:hover::-webkit-scrollbar-thumb,
 #categoryList:hover::-webkit-scrollbar-thumb,
-#colorList:hover::-webkit-scrollbar-thumb,
-#promotionInfo:hover::-webkit-scrollbar-thumb{background:var(--text-3)}
+#colorList:hover::-webkit-scrollbar-thumb{background:var(--text-3)}
 
 /* =========================================
    PERSONAL SALES — doanh thu vs target từng nhân viên
@@ -1407,15 +1356,45 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
    đầu được xuống dòng để tên dài không đẩy bảng rộng ra.
    ========================================= */
 @media(max-width:640px){
-  .matrix-wrap,
-  .matrix-table{min-width:0}
-  .matrix-wrap{scrollbar-gutter:auto;overflow-x:hidden}
-  .matrix-table{width:100%;table-layout:auto;font-size:10px}
-  .matrix-table thead th{padding:5px 3px;font-size:9px;letter-spacing:0}
+  /* Bảng rộng thì CUỘN NGANG, không bóp. Bóp cho vừa 375px là cách cũ, và nó
+     đẻ ra "MEMBE RSHIP" với "BLACK FRIDA Y" — chữ vỡ giữa từ, dòng cao gấp
+     đôi, mà vẫn khó đọc. Khung .matrix-wrap tự cuộn được nên thẻ bao ngoài có
+     overflow:hidden cũng không cản. */
+  .matrix-wrap{scrollbar-gutter:auto;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+  /* Ẩn hẳn thanh cuộn TRONG THẺ trên màn hình hẹp. Điện thoại thật vẽ thanh
+     cuộn dạng nổi và tự ẩn sau một nhịp, nhưng khung hẹp trên máy tính thì vẽ
+     vạch xám 8px nằm thường trực, ăn mất một dòng dữ liệu ở mỗi vùng cuộn —
+     bốn năm vùng như vậy trên một trang trông như trang bị hỏng. Dấu hiệu
+     "còn nữa" đã có vệt mờ .hz-fade / .hz-fade-x lo, mà vệt thì không chiếm chỗ.
+     overscroll-behavior:contain: kéo hết bảng thì dừng ở đó, không đẩy tiếp cả
+     trang phía sau — lỗi khó chịu nhất khi vuốt bảng bằng ngón tay. */
+  .matrix-wrap,#categoryList,#colorList,#topProductList,.st-list,.legend-list{
+    scrollbar-width:none;
+    overscroll-behavior:contain;
+  }
+  .matrix-wrap::-webkit-scrollbar,
+  #categoryList::-webkit-scrollbar,
+  #colorList::-webkit-scrollbar,
+  #topProductList::-webkit-scrollbar,
+  .st-list::-webkit-scrollbar,
+  .legend-list::-webkit-scrollbar{width:0;height:0}
+
+  /* --- Vùng chạm ---
+     Tab và ô chọn cao 25–26px là cỡ dành cho con trỏ chuột: nhỏ hơn đầu ngón
+     tay, bấm "Bills" hay trúng "Qty" bên cạnh. Nới chiều cao ô và khoảng cách
+     giữa các tab, KHÔNG phóng cỡ chữ — chữ to lên thì nhịp chữ của cả trang
+     lệch, mà cái thiếu ở đây là chỗ đặt ngón tay chứ không phải chữ. */
+  .chart-tab,.yoy-metric-tab{padding:10px 12px;border-radius:8px}
+  .chart-tabs,.yoy-metric-tabs{gap:6px}
+  .yoy-select{padding:9px 26px 9px 10px;background-position:right 9px center}
+  .btn-icon{width:36px;height:36px}
+  .matrix-table{width:auto;min-width:100%;table-layout:auto;font-size:10px}
+  .matrix-table thead th{padding:5px 6px;font-size:9px;letter-spacing:0}
   .matrix-table tbody td,
-  .matrix-table tfoot td{padding:5px 3px;font-size:10px}
+  .matrix-table tfoot td{padding:5px 6px;font-size:10px}
   .matrix-table th:last-child,
-  .matrix-table td:last-child{padding-right:6px}
+  .matrix-table td:last-child{padding-right:8px}
   /* Bỏ khoá 11% cho cột số: để trình duyệt tự chia theo nội dung thật */
   .matrix-table thead th:not(:first-child),
   .matrix-table tbody td:not(:first-child),
@@ -1423,8 +1402,14 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
   .matrix-table th:first-child,
   .matrix-table td:first-child{
     font-size:10px;
-    white-space:normal;
-    word-break:break-word;
+    white-space:nowrap;
+    word-break:normal;
+  }
+  /* Tên chương trình dài ("CHRISTMAS & NEW YEAR GIFT") cắt bằng dấu ba chấm
+     thay vì đẩy bảng rộng thêm 90px. Tên đầy đủ vẫn nằm ở title của ô, và
+     cuộn ngang vẫn còn cho các cột số. */
+  #promoTable td:first-child{
+    max-width:118px;overflow:hidden;text-overflow:ellipsis;
   }
 
   /* Nhãn KPI dài (Achievement, Conversion, Units Sold) xuống dòng thay vì bị cắt */
@@ -1620,6 +1605,24 @@ html.theme-anim *::after{
   mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent);
 }
 .hz-fade.at-end{-webkit-mask-image:none;mask-image:none}
+
+/* Vệt mờ ở mép PHẢI cho vùng cuộn ngang — cùng ngôn ngữ với vệt ở đáy, chỉ
+   xoay 90 độ. Đặt sau .hz-fade.at-end để một bảng đã cuộn hết chiều dọc vẫn
+   giữ được dấu hiệu "còn cột bên phải". */
+.hz-fade-x:not(.at-end-x){
+  -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent);
+  mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent);
+}
+/* Cuộn được cả hai chiều thì giao hai mặt nạ lại, chứ không để cái sau đè cái
+   trước — đè thì mất hẳn một trong hai dấu hiệu. */
+.hz-fade:not(.at-end).hz-fade-x:not(.at-end-x){
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent),
+                     linear-gradient(to right,#000 calc(100% - 24px),transparent);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent),
+             linear-gradient(to right,#000 calc(100% - 24px),transparent);
+  -webkit-mask-composite:source-in;
+  mask-composite:intersect;
+}
 
 /* --- 13. Ngày cao nhất / thấp nhất của Day of Week ---------------------
    Nhãn nằm ở chân ô, ngay gốc cột màu. Ô được chuyển sang flex cột để
@@ -1906,33 +1909,93 @@ html.theme-anim *::after{
 .cat-amt{font-size:var(--fs-sm);font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
 .cat-pct{font-size:var(--fs-xs);color:var(--text-3);text-align:right;font-variant-numeric:tabular-nums}
 
-/* ---------- Promotion: chỉ số và chip, không thanh ---------- */
-.pm-list{display:flex;flex-direction:column;gap:5px}
-.pm-item{
-  display:grid;grid-template-columns:minmax(0,1fr) auto;
-  grid-template-areas:'name nums' 'chips nums';
-  align-items:center;column-gap:10px;
-  padding:8px 11px;border-radius:9px;
-  background:var(--surface-2);border-left:2px solid var(--brand-mid);
+/* Ghi chú nhỏ ở góc phải tiêu đề thẻ: nói phạm vi của con số bên dưới
+   (ví dụ "1.559/2.038 hoá đơn có danh tính"), thứ mà nếu thiếu thì người đọc
+   dễ tưởng tỉ lệ đang tính trên toàn bộ. */
+.hz-note{
+  font-size:var(--fs-xs);color:var(--text-3);font-weight:500;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  /* Lấy đúng phần bề ngang tiêu đề để lại, thay vì một tỉ lệ chết: đặt 56% thì
+     thẻ tên ngắn như "Retention" vẫn cắt cụt ghi chú dù còn thừa 100px. */
+  flex:0 1 auto;min-width:0;text-align:right;
 }
-.pm-name{
-  grid-area:name;font-size:var(--fs-sm);font-weight:700;color:var(--text);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+.chart-card-hd > .chart-card-title{flex:0 0 auto}
+
+/* ---------- Dải số tóm tắt trong thân thẻ ---------- */
+/* Dải số nén sát: bốn ô này là phần phụ của thẻ, phần chính là biểu đồ bên
+   dưới. Đệm 7px cho mỗi ô ăn mất 22px chiều cao mà không thêm thông tin nào. */
+.mini-stats{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:6px;padding:0 0 8px;
 }
-.pm-nums{grid-area:nums;display:flex;align-items:baseline;gap:8px;white-space:nowrap}
-.pm-amt{font-size:var(--fs-md);font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
-.pm-share{
-  font-size:var(--fs-xs);font-weight:700;color:var(--brand-light);
-  font-variant-numeric:tabular-nums;min-width:38px;text-align:right;
+.mini-stat{
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:4px 8px;text-align:center;min-width:0;
 }
-.pm-chips{grid-area:chips;display:flex;gap:5px;margin-top:3px}
-.pm-chip{
-  font-size:9px;font-weight:600;color:var(--text-3);
-  padding:1px 6px;border-radius:999px;
-  background:var(--surface);border:1px solid var(--border);
+.mini-stat-val{
+  font-size:var(--fs-num-sm);font-weight:800;color:var(--text);
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.mini-stat-lbl{
+  font-size:var(--fs-xs);color:var(--text-3);margin-top:2px;
+  text-transform:uppercase;letter-spacing:.3px;font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.mini-stat.accent .mini-stat-val{color:var(--brand-light)}
+.mini-stat.warn   .mini-stat-val{color:var(--warn)}
+.mini-stat.good   .mini-stat-val{color:var(--green)}
+
+/* ---------- Dải chip ở chân thẻ ---------- */
+.band-strip{
+  display:flex;flex-wrap:wrap;gap:5px;
+  padding:8px 0 0;margin-top:auto;border-top:1px solid var(--border);
+}
+.band-item{
+  display:flex;align-items:baseline;gap:5px;
+  font-size:var(--fs-xs);color:var(--text-3);font-weight:600;
+  padding:3px 8px;border-radius:999px;
+  background:var(--surface-2);border:1px solid var(--border);
   white-space:nowrap;font-variant-numeric:tabular-nums;
+}
+.band-item b{color:var(--text);font-weight:800}
+.band-item.good b{color:var(--green)}
+.band-item.warn b{color:var(--warn)}
+.band-item.bad  b{color:var(--red)}
+
+/* Giỏ hàng dùng lại ô của Day of Week nhưng chỉ có 5 cột thay vì 7. */
+.basket-strip{grid-template-columns:repeat(5,minmax(0,1fr));flex:1;min-height:0;align-content:stretch}
+
+/* Thẻ Discount xếp ba tầng: dải số, biểu đồ, dải chip. Với thân mặc định
+   264px thì biểu đồ chỉ còn 162px — 24 cột tháng thấp tịt, nhìn không ra hình.
+   Nới thân riêng cho hàng này; thẻ Basket bên cạnh giãn theo là vừa đẹp.
+   56px = chiều cao thật của .mini-stats, 33px = dải chip ở chân. */
+#discountCard,
+#basketCard{--card-body:320px}
+.chart-wrap--sm{height:calc(var(--card-body) - 56px - 33px)}
+
+@media(max-width:640px){
+  /* Ô giỏ hàng đi theo đúng cách bày của Day of Week trên điện thoại: xếp dọc
+     thành từng dòng ngang, thanh màu chạy từ trái. Lưới 4-5 cột ở bề ngang
+     375px thì mỗi ô chỉ còn ~66px, không đủ chỗ cho cả nhãn lẫn số. */
+  .basket-strip{
+    display:flex!important;flex-direction:column;
+    flex:0 0 auto!important;gap:4px!important;
+  }
+  /* Ghi chú phạm vi xuống hàng riêng thay vì bị cắt cụt bằng dấu ba chấm —
+     "1.559/2.038 hoá đơn có danh tính" mà mất vế sau thì thành khó hiểu. */
+  .chart-card-hd{flex-wrap:wrap}
+  .hz-note{max-width:100%;flex:1 0 100%;white-space:normal}
+  /* Bốn ô trên một hàng ở bề ngang 375px chỉ còn ~72px mỗi ô: "22.3 B ₫" mất
+     phần đơn vị, nhãn "LIST PRICE" cụt thành "LIST PRI…". Hai hàng hai ô. */
+  .mini-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
 /* Hiệu ứng dâng khi cuộn tới — thay cho .p-bar mà ba khối này không còn dùng */
 .in-view .pr-meter i,
 .in-view .cat-fill{transform-origin:left center;animation:hz-grow-x 1.5s var(--ease) both}
+
+/* Top Customers — cột Phone giờ đứng cuối, sau bốn cột số đo được. Nó chỉ là
+   mã nhận diện chứ không phải số để so, nên làm nhạt đi để mắt quét cột
+   Revenue/ATV không bị nó níu lại. */
+#topCustomerBody .tc-phone{color:var(--text-3);font-family:var(--mono)}

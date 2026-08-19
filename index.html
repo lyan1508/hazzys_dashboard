@@ -26,7 +26,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260816-final-2">
+<link rel="stylesheet" href="styles.css?v=20260819-mobile">
 </head>
 <body>
 <div class="app">
@@ -215,20 +215,71 @@
           <div class="chart-wrap chart-wrap--md"><canvas id="chartTraffic"></canvas></div>
         </div>
       </div>
+
+      <!-- Chiết khấu: hiệu giữa cột PRICE (niêm yết) và AMOUNT (thực thu).
+           Doanh thu so target đã có ở trên; chỗ này trả lời phần còn lại của
+           câu hỏi — doanh thu ấy mua bằng bao nhiêu biên lãi. -->
+      <div class="g-row g-row-2">
+        <div class="chart-card" id="discountCard">
+          <div class="chart-card-hd">
+            <div class="chart-card-title">Discount &amp; Margin</div>
+            <span class="hz-note" id="discountCoverage"></span>
+          </div>
+          <div class="mini-stats" id="discountStats"></div>
+          <div class="chart-wrap chart-wrap--sm"><canvas id="chartDiscount"></canvas></div>
+          <div class="band-strip" id="discountBands"></div>
+        </div>
+
+        <!-- Giỏ hàng: UPT trung bình (2,04) che mất phân bố thật — hơn nửa số
+             hoá đơn chỉ có ĐÚNG một món. Đó mới là con số nói ra dư địa bán kèm.
+             Đứng cạnh Discount vì cùng trả lời "mỗi lượt bán tốt tới đâu". -->
+        <div class="chart-card" id="basketCard">
+          <div class="chart-card-hd">
+            <div class="chart-card-title">Basket Size</div>
+          </div>
+          <div class="dow-strip basket-strip" id="basketStrip"></div>
+          <div class="band-strip" id="basketAttach"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ══════════ GROUP 2 · PATTERNS ══════════ -->
     <section class="dash-group" id="grpPatterns">
       <div class="group-hd"><h2 class="group-title">Patterns</h2></div>
 
-      <div class="g-row g-row-2">
+      <!-- Một thẻ Promotion duy nhất: doanh thu, số món, số hoá đơn VÀ mức
+           chiết khấu của cùng một chương trình nằm chung một dòng. Trước đây
+           tách làm hai thẻ nhóm theo đúng một chiều, đọc phải nhảy qua lại.
+           Bảy cột nên trải hết bề ngang. -->
+      <div class="g-row g-row-1">
         <div class="chart-card" id="promoCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Promotion</div>
+            <span class="hz-note" id="promoNote"></span>
           </div>
-          <div id="promotionInfo"></div>
+          <div class="matrix-wrap">
+            <table class="matrix-table" id="promoTable">
+              <thead>
+                <tr>
+                  <th>Programme</th>
+                  <th>Revenue</th>
+                  <th>Share</th>
+                  <th>Units</th>
+                  <th>Bills</th>
+                  <th>Given away</th>
+                  <th>Discount</th>
+                </tr>
+              </thead>
+              <tbody id="promotionInfo"></tbody>
+            </table>
+          </div>
         </div>
+      </div>
 
+      <!-- Day of Week trải hết bề ngang: bảy ô trong nửa hàng chỉ còn 64px mỗi
+           ô, chật đến mức số tiền phải xuống dòng. Cả hàng thì mỗi ô hơn gấp
+           đôi chỗ. -->
+      <div class="g-row g-row-1">
         <div class="chart-card dow-section" id="dowSection">
           <div class="chart-card-hd">
             <div class="chart-card-title">Day of Week</div>
@@ -239,6 +290,43 @@
             </div>
           </div>
           <div class="dow-strip" id="dowStrip"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ GROUP 2b · CUSTOMERS ══════════ -->
+    <section class="dash-group" id="grpCustomer">
+      <div class="group-hd"><h2 class="group-title">Customers</h2></div>
+
+      <div class="g-row g-row-2">
+        <div class="chart-card" id="customerCard">
+          <div class="chart-card-hd">
+            <div class="chart-card-title">Repeat Customers</div>
+            <span class="hz-note" id="customerCoverage"></span>
+          </div>
+          <div class="mini-stats" id="customerStats"></div>
+          <div class="st-list" id="customerFreq"></div>
+        </div>
+
+        <div class="chart-card" id="topCustomerCard">
+          <div class="chart-card-hd">
+            <div class="chart-card-title">Top Customers</div>
+          </div>
+          <div class="matrix-wrap">
+            <table class="matrix-table">
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Bills</th>
+                  <th>Units</th>
+                  <th>Revenue</th>
+                  <th>ATV</th>
+                  <th>Phone</th>
+                </tr>
+              </thead>
+              <tbody id="topCustomerBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>
@@ -470,6 +558,6 @@
 
 </div><!-- /app -->
 
-<script defer src="app.js?v=20260816-final-2"></script>
+<script defer src="app.js?v=20260819-mobile"></script>
 </body>
 </html>

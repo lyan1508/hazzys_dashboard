@@ -165,8 +165,13 @@ function num(v) {
   if (!Number.isFinite(n)) return 0;
   return negative ? -n : n;
 }
-function fmtVND(v) { return `${new Intl.NumberFormat('vi-VN').format(Math.round(num(v)))} ₫`; }
-function fmtN(v) { return new Intl.NumberFormat('vi-VN').format(Math.round(num(v))); }
+/* Dựng một Intl.NumberFormat tốn ~30µs, gấp 35 lần chính việc định dạng số.
+   Hai hàm này chạy trong vòng lặp chạy số của rollNumber() — 77 ô trên trang
+   dùng định dạng 'n', mỗi khung hình một lượt suốt 1,5 giây — và còn là hàm
+   vẽ nhãn trục / tooltip của Chart.js. Dựng sẵn một lần rồi dùng lại: 73µs
+   xuống còn 2µs mỗi lượt gọi. */
+const NF_VN = new Intl.NumberFormat('vi-VN');
+function fmtN(v) { return NF_VN.format(Math.round(num(v))); }
 function fmtPct(v) { return `${num(v).toFixed(1)}%`; }
 function fmtVNDShort(v) {
   const n = num(v), a = Math.abs(n);
@@ -313,6 +318,48 @@ const CATEGORY_NAME = {
   SS: 'Socks',        SW: 'Sweater',     TS: 'T-Shirt',         WA: 'Wallet',
 };
 
+/* Phụ kiện hay hàng mặc. Cột DIVISION của sheet đã ghi sẵn APP/ACC và ánh xạ
+   một-một với mã nhóm hàng, nên bảng dưới chỉ là đường lui cho tệp không có
+   cột đó (ví dụ file Excel tải tay). Dùng để đo tỉ lệ bán kèm phụ kiện. */
+const ACC_CATEGORIES = new Set(['BA', 'BE', 'GF', 'GV', 'HE', 'HO', 'LG', 'MU', 'SC', 'SO', 'SS', 'WA']);
+function isAccessory(row) {
+  if (row.division === 'ACC') return true;
+  if (row.division === 'APP') return false;
+  return ACC_CATEGORIES.has(String(row.category || '').toUpperCase());
+}
+
+/* ======== Ô GOM KHÁCH LẺ ========
+   Cửa hàng gõ một số điện thoại giả cho mọi khách không để lại thông tin —
+   trong dữ liệu hiện tại là 123456789 / "KHACH LE", gom 477 hoá đơn và 17,3%
+   doanh thu vào một chỗ. Đếm nó như một người thì nó lập tức thành "khách
+   trung thành nhất cửa hàng" và kéo lệch mọi tỉ lệ quay lại.
+
+   Nhận diện bằng chính HÌNH DẠNG con số chứ không phải một danh sách cứng, để
+   hôm nào cửa hàng đổi sang 0000000000 thì vẫn bắt được: toàn chữ số giống
+   nhau, hoặc chạy tuần tự lên/xuống, hoặc ngắn quá mức. Kèm theo vài nhãn tên
+   thường gặp cho trường hợp số nhìn như thật nhưng tên đã nói rõ. */
+const WALK_IN_NAMES = new Set(['KHACH LE', 'KHACHLE', 'KHÁCH LẺ', 'WALK IN', 'WALKIN', 'GUEST']);
+function isWalkIn(phone, customer) {
+  if (WALK_IN_NAMES.has(String(customer || '').toUpperCase())) return true;
+  const d = String(phone || '').replace(/\D/g, '');
+  if (d.length < 6) return true;                 // trống hoặc quá ngắn: không phải số thật
+  if (/^(\d)\1+$/.test(d)) return true;          // 0000000000
+  let asc = true, desc = true;
+  for (let i = 1; i < d.length; i += 1) {
+    if (+d[i] !== +d[i - 1] + 1) asc = false;
+    if (+d[i] !== +d[i - 1] - 1) desc = false;
+  }
+  return asc || desc;                            // 123456789 / 987654321
+}
+
+/** Chỉ ba số cuối. Đủ để nhân viên đối chiếu với khách đang đứng trước mặt,
+ *  không đủ để ai nhìn lướt qua màn hình chép được cả danh bạ khách hàng. */
+function maskPhone(p) {
+  const d = String(p || '').replace(/\D/g, '');
+  if (!d) return '—';
+  return d.length <= 3 ? d : `···${d.slice(-3)}`;
+}
+
 /** Decode product year (char 5) + season (char 6) from a style code. */
 function productSeason(code) {
   const raw = String(code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -434,21 +481,42 @@ function flattenMergedRows(sheet) {
   return rows;
 }
 
+/* Chỉ mục cột của MỘT sheet, đặt trên prototype dùng chung cho mọi dòng của
+   sheet đó. Khoá là Symbol nên nó không lọt vào Object.keys / for-in /
+   JSON.stringify — các dòng vẫn hành xử đúng như object thường. */
+const HEADER_INDEX = Symbol('headerIndex');
+
 function rowsToObjects(rows, fallbackPrefix = 'COL') {
   if (!rows || rows.length < 2) return [];
   const rawHeader = (rows[0] || []).map((h, i) => {
     const v = String(h ?? '').trim();
     return v ? v : `${fallbackPrefix}_${i + 1}`;
   });
+  // Mọi dòng của một sheet có CÙNG bộ tiêu đề, nên chỉ mục chỉ cần dựng một
+  // lần ở đây thay vì dựng lại ở từng lượt readField() — xem readField().
+  const proto = { [HEADER_INDEX]: new Map(rawHeader.map((h) => [canonKey(h), h])) };
   return rows.slice(1).filter((r) => r && r.some((v) => v !== null && v !== undefined && String(v).trim() !== '')).map((r) => {
-    const o = {};
+    const o = Object.create(proto);
     rawHeader.forEach((h, i) => { o[h] = r?.[i]; });
     return o;
   });
 }
 
+/* canonKey() chỉ bao giờ được gọi trên tên cột và trên các hằng số alias viết
+   thẳng trong mã nguồn — một tập hữu hạn vài chục chuỗi, nhưng số LƯỢT gọi thì
+   tỉ lệ với số dòng. Nhớ lại kết quả để mỗi lượt còn đúng một lần tra Map. */
+const canonCache = new Map();
 function canonKey(s) {
-  return String(s ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const raw = String(s ?? '');
+  let hit = canonCache.get(raw);
+  if (hit === undefined) {
+    hit = raw.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Chặn phòng trường hợp đầu vào bất ngờ đa dạng: bộ nhớ đệm chỉ để tăng
+    // tốc, xoá nó đi không làm sai kết quả.
+    if (canonCache.size > 500) canonCache.clear();
+    canonCache.set(raw, hit);
+  }
+  return hit;
 }
 
 // ---- Bill counting ----
@@ -469,9 +537,16 @@ function countBills(rows) {
   return billTotal(acc);
 }
 
+/* Đọc một ô theo danh sách tên cột có thể có, ưu tiên đúng thứ tự alias.
+
+   Chỉ mục cột lấy từ prototype dùng chung do rowsToObjects() đặt sẵn. Trước
+   đây hàm này dựng LẠI Map 26 cột ở MỖI lượt gọi, mà một dòng bán hàng cần
+   khoảng 21 lượt đọc — thành 2,4 triệu lượt canonKey() cho 4.400 dòng, chiếm
+   ~85% của 1,26 giây ingestWorkbook(). Nhánh sau dấu || dành cho object không
+   đi qua rowsToObjects: hiện không còn chỗ gọi nào, giữ lại cho chắc. */
 function readField(row, aliases) {
-  const keys = Object.keys(row || {});
-  const keyMap = new Map(keys.map((k) => [canonKey(k), k]));
+  if (!row) return '';
+  const keyMap = row[HEADER_INDEX] || new Map(Object.keys(row).map((k) => [canonKey(k), k]));
   for (const alias of aliases) {
     const hit = keyMap.get(canonKey(alias));
     if (hit) return row[hit];
@@ -554,6 +629,15 @@ function ingestWorkbook(wb) {
     const billNo = normalizeGroup(readField(r, BILLNO_ALIASES));
     const rawCat = readField(r, ['category', 'catogory', 'cat', 'division', 'dept', 'department']);
     const store = normalizeGroup(readField(r, ['store', 'storename', 'store_name', 'shop', 'branch']) || info.store || '');
+    // Cùng một ô TYPE trước đây được đọc hai lượt: một cho trường type, một
+    // cho tham số của deriveCategory. Đọc một lượt rồi dùng lại.
+    const rawType = readField(r, ['type', 'itemtype', 'product_type', 'producttype']) || info.type;
+    const qty = num(readField(r, ['qty', 'quantity', 'pcs', 'count']));
+    // Giá niêm yết một món. Nhân với số lượng CÓ DẤU chứ không phải trị tuyệt
+    // đối: dòng trả hàng mang số lượng âm và tiền âm, lấy |số lượng| thì giá
+    // niêm yết vào dương còn tiền vào âm, và mức chiết khấu của cả kỳ bị thổi
+    // từ 9,5% lên 14,7%.
+    const listPrice = num(readField(r, ['price', 'listprice', 'list_price', 'retailprice', 'unitprice']));
     return {
       date,
       dateStr: localDateKey(date),
@@ -570,13 +654,17 @@ function ingestWorkbook(wb) {
       productKey: p9,
       prodYear: season ? season.year : '',
       seasonGroup: season ? season.group : '',
-      type: normalizeGroup(readField(r, ['type', 'itemtype', 'product_type', 'producttype']) || info.type),
+      type: normalizeGroup(rawType),
       gender: normalizeGender(readField(r, ['gender', 'sex']) || info.gender),
       promotion: normalizeGroup(readField(r, ['promotion', 'promo', 'program', 'campaign'])),
       cashier: normalizeGroup(readField(r, ['cashier', 'staff', 'employee', 'seller'])),
-      category: deriveCategory(rawCat, info.category, readField(r, ['type', 'itemtype', 'product_type', 'producttype']) || info.type, rawProduct),
-      qty: num(readField(r, ['qty', 'quantity', 'pcs', 'count'])),
-      amount: num(readField(r, ['amount', 'sales', 'revenue', 'netamount', 'net_amount', 'price', 'total']))
+      category: deriveCategory(rawCat, info.category, rawType, rawProduct),
+      qty,
+      amount: num(readField(r, ['amount', 'sales', 'revenue', 'netamount', 'net_amount', 'price', 'total'])),
+      listValue: listPrice > 0 ? listPrice * qty : 0,
+      phone: String(readField(r, ['phone', 'phoneno', 'mobile', 'tel', 'sdt', 'dienthoai']) ?? '').replace(/\D/g, ''),
+      customer: normalizeGroup(readField(r, ['customer', 'customername', 'client', 'khachhang'])),
+      division: normalizeGroup(readField(r, ['division', 'div'])),
     };
   }).filter(Boolean);
 
@@ -635,8 +723,22 @@ function aggregate() {
   const rows = filteredSalesRows();
   const targets = filteredTargetsRows();
   const monthMap = new Map();
+  // Tổng doanh thu / số lượng và mốc ngày đầu–cuối cộng dồn ngay trong vòng
+  // lặp theo tháng ở dưới. Trước đây mỗi thứ là một lượt quét riêng, còn mốc
+  // ngày thì sao chép rồi SẮP XẾP cả 4.400 đối tượng Date chỉ để lấy hai giá
+  // trị đầu–cuối.
+  let totalSales = 0;
+  let qty = 0;
+  let minDate = null;
+  let maxDate = null;
 
   rows.forEach((r) => {
+    totalSales += num(r.amount);
+    qty += num(r.qty);
+    if (r.date) {
+      if (minDate === null || r.date < minDate) minDate = r.date;
+      if (maxDate === null || r.date > maxDate) maxDate = r.date;
+    }
     if (!monthMap.has(r.monthKey)) {
       monthMap.set(r.monthKey, {
         monthKey: r.monthKey,
@@ -692,8 +794,6 @@ function aggregate() {
       upt: billCount > 0 ? qty / billCount : 0
     };
   });
-  const totalSales = rows.reduce((s, r) => s + num(r.amount), 0);
-  const qty = rows.reduce((s, r) => s + num(r.qty), 0);
   const bills = countBills(rows);
   const traffic = months.reduce((s, m) => s + num(m.traffic), 0);
   const target = months.reduce((s, m) => s + num(m.target), 0);
@@ -757,18 +857,31 @@ function aggregate() {
     return [...map.values()];
   })();
 
+  /* Một thẻ Promotion duy nhất gánh cả doanh thu lẫn mức chiết khấu: trước đây
+     hai thẻ tách rời cùng nhóm theo đúng một chiều, đọc phải nhảy qua nhảy lại
+     mới ghép được "chương trình này bán bao nhiêu" với "nhượng bao nhiêu".
+
+     Giá niêm yết cộng riêng: dòng nào không có PRICE thì đứng ngoài cả list
+     lẫn netList, nếu không mức chiết khấu sẽ bị pha loãng bởi chính những dòng
+     không đo được. */
   const promotionStats = (() => {
     const map = new Map();
     rows.forEach((r) => {
       const key = normalizeGroup(r.promotion);
-      const p = map.get(key) || { label: key, amount: 0, qty: 0, billAcc: newBillAcc() };
+      const p = map.get(key) || { label: key, amount: 0, qty: 0, list: 0, netList: 0, billAcc: newBillAcc() };
       p.amount += num(r.amount);
       p.qty += num(r.qty);
+      const list = num(r.listValue);
+      if (list) { p.list += list; p.netList += num(r.amount); }
       addBill(p.billAcc, r);
       map.set(key, p);
     });
     return [...map.values()]
-      .map((p) => ({ label: p.label, amount: p.amount, qty: p.qty, bills: billTotal(p.billAcc) }))
+      .map((p) => ({
+        label: p.label, amount: p.amount, qty: p.qty, bills: billTotal(p.billAcc),
+        given: p.list - p.netList,
+        discPct: p.list > 0 ? (1 - p.netList / p.list) * 100 : 0,
+      }))
       .sort((a, b) => b.amount - a.amount);
   })();
   const cashierStats = (() => {
@@ -787,9 +900,8 @@ function aggregate() {
       .sort((a, b) => b.amount - a.amount);
   })();
 
-  const sortedDates = rows.map((r) => r.date).sort((a, b) => a - b);
-  const rangeFrom = sortedDates[0]?.toLocaleDateString('vi-VN') || '—';
-  const rangeTo = sortedDates[sortedDates.length - 1]?.toLocaleDateString('vi-VN') || '—';
+  const rangeFrom = minDate?.toLocaleDateString('vi-VN') || '—';
+  const rangeTo = maxDate?.toLocaleDateString('vi-VN') || '—';
 
   // ── Cashier matrix: revenue + basket quality per cashier ──
   // No per-day metrics: "days worked" is inferred from rows that happen to carry
@@ -824,17 +936,22 @@ function aggregate() {
   // them legitimately counts that bill. Summing the per-cashier columns would
   // therefore double-count — the footer needs its own de-duplicated totals.
   const cashierTotals = (() => {
-    const known = rows.filter((r) => {
+    // Một lượt quét, không phải filter + ba lượt cộng dồn trên bản sao.
+    const acc = newBillAcc();
+    let amount = 0;
+    let qtyKnown = 0;
+    rows.forEach((r) => {
       const k = normalizeGroup(r.cashier);
-      return k && k !== 'UNKNOWN';
+      if (!k || k === 'UNKNOWN') return;
+      addBill(acc, r);
+      amount += num(r.amount);
+      qtyKnown += num(r.qty);
     });
-    const bills = countBills(known);
-    const amount = known.reduce((s, r) => s + num(r.amount), 0);
-    const qty = known.reduce((s, r) => s + num(r.qty), 0);
+    const bills = billTotal(acc);
     return {
-      bills, amount, qty,
+      bills, amount, qty: qtyKnown,
       atv: bills > 0 ? amount / bills : 0,
-      upt: bills > 0 ? qty / bills : 0,
+      upt: bills > 0 ? qtyKnown / bills : 0,
     };
   })();
 
@@ -926,10 +1043,16 @@ function aggregate() {
   // Bills are de-duplicated across the whole table: one receipt often mixes items
   // from several seasons, so summing the per-season bill counts would overcount.
   const seasonTotals = (() => {
-    const known = rows.filter((r) => r.seasonGroup);
-    const bills = countBills(known);
-    const amount = known.reduce((s, r) => s + num(r.amount), 0);
-    const qtyAll = known.reduce((s, r) => s + num(r.qty), 0);
+    const acc = newBillAcc();
+    let amount = 0;
+    let qtyAll = 0;
+    rows.forEach((r) => {
+      if (!r.seasonGroup) return;
+      addBill(acc, r);
+      amount += num(r.amount);
+      qtyAll += num(r.qty);
+    });
+    const bills = billTotal(acc);
     return {
       bills, amount, qty: qtyAll,
       atv: bills > 0 ? amount / bills : 0,
@@ -985,7 +1108,186 @@ function aggregate() {
     return [1,2,3,4,5,6,0].map((i) => buckets[i]);
   })();
 
+  /* ── CHIẾT KHẤU ──────────────────────────────────────────────────────────
+     Cột PRICE là giá niêm yết, AMOUNT là tiền thực thu. Hiệu của hai cột là
+     phần đã nhượng — con số này chưa từng hiện ở đâu trên trang, dù nó quyết
+     định doanh thu ấy đắt hay rẻ. Dòng nào không có giá niêm yết thì đứng
+     ngoài cả tử lẫn mẫu, chứ không tính như bán đúng giá: thiếu dữ liệu và
+     bán đúng giá là hai chuyện khác nhau. */
+  const discountStats = (() => {
+    const byMonth = new Map();
+    // Phân bố mức giảm chỉ tính trên dòng BÁN (số lượng dương): một dòng trả
+    // hàng không có "mức giảm" để xếp vào đâu cả.
+    const bands = { full: 0, light: 0, mid: 0, deep: 0, lines: 0 };
+    let listTotal = 0;
+    let netTotal = 0;
+    let covered = 0;
+
+    const bump = (map, key, extra) => {
+      const e = map.get(key) || Object.assign({ label: key, list: 0, net: 0 }, extra || {});
+      map.set(key, e);
+      return e;
+    };
+
+    rows.forEach((r) => {
+      const list = num(r.listValue);
+      if (!list) return;
+      const net = num(r.amount);
+      listTotal += list;
+      netTotal += net;
+      covered += 1;
+
+      const m = bump(byMonth, r.monthKey, { monthLabelYY: r.monthLabelYY });
+      m.list += list; m.net += net;
+
+      if (num(r.qty) > 0) {
+        bands.lines += 1;
+        const d = 1 - net / list;
+        if (d <= 0.005) bands.full += 1;
+        else if (d < 0.15) bands.light += 1;
+        else if (d < 0.30) bands.mid += 1;
+        else bands.deep += 1;
+      }
+    });
+
+    const pctOf = (e) => (e.list > 0 ? (1 - e.net / e.list) * 100 : 0);
+
+    return {
+      listTotal, netTotal,
+      given: listTotal - netTotal,
+      pct: pctOf({ list: listTotal, net: netTotal }),
+      coveredLines: covered,
+      totalLines: rows.length,
+      bands,
+      // Theo tháng giữ đúng thứ tự thời gian của months[] để khớp trục biểu đồ.
+      byMonth: months.map((mo) => {
+        const e = byMonth.get(mo.monthKey);
+        return { label: mo.monthLabelYY, net: e ? e.net : 0, pct: e ? pctOf(e) : 0 };
+      }),
+    };
+  })();
+
+  /* ── HOÁ ĐƠN: phân loại giao dịch + giỏ hàng + khách hàng ─────────────────
+     Ba thẻ dưới đây đều hỏi chuyện ở cấp HOÁ ĐƠN chứ không phải cấp dòng, nên
+     gom một lượt ở đây rồi dùng chung, thay vì mỗi thẻ tự quét lại.
+
+     Phân loại theo dấu của số lượng trong cùng một hoá đơn: toàn dương là BÁN,
+     toàn âm là TRẢ, có cả hai là ĐỔI (quầy ghi hàng trả và hàng lấy mới trên
+     cùng một phiếu). Theo đúng quy ước bạn chọn: một hoá đơn vẫn là MỘT lượt
+     giao dịch, các chỉ số Bills / ATV / UPT giữ nguyên như trước — chỗ này chỉ
+     dán nhãn để nhìn ra cơ cấu. */
+  const billMap = new Map();
+  rows.forEach((r) => {
+    const id = r.billNo || `#${r.dateStr}|${r.monthKey}`;
+    let b = billMap.get(id);
+    if (!b) {
+      b = { id, pos: 0, neg: 0, amount: 0, qty: 0, takenQty: 0, cats: new Set(), acc: 0,
+            phone: '', customer: '', date: r.date };
+      billMap.set(id, b);
+    }
+    const q = num(r.qty);
+    if (q > 0) b.pos += 1; else if (q < 0) b.neg += 1;
+    b.amount += num(r.amount);
+    b.qty += q;
+    // Số món khách MANG VỀ, chỉ đếm dòng dương. Một phiếu đổi 1 đổi 1 có tổng
+    // số lượng bằng 0, nhưng khách vẫn cầm một món ra khỏi cửa — đó mới là độ
+    // lớn giỏ hàng. Nhóm hàng và phụ kiện cũng chỉ tính trên dòng mang về.
+    if (q > 0) {
+      b.takenQty += q;
+      if (r.category) b.cats.add(r.category);
+      if (isAccessory(r)) b.acc += 1;
+    }
+    if (!b.phone && r.phone) { b.phone = r.phone; b.customer = r.customer; }
+  });
+  const billList = [...billMap.values()];
+
+  const txTypes = (() => {
+    const mk = () => ({ bills: 0, amount: 0, qty: 0 });
+    const out = { sale: mk(), exchange: mk(), ret: mk(), total: billList.length };
+    billList.forEach((b) => {
+      const k = b.neg === 0 ? 'sale' : (b.pos === 0 ? 'ret' : 'exchange');
+      out[k].bills += 1;
+      out[k].amount += b.amount;
+      out[k].qty += b.qty;
+    });
+    return out;
+  })();
+
+  /* Tính trên MỌI hoá đơn có khách mang hàng về — cả phiếu bán lẫn phiếu đổi
+     hàng. Chỉ hoá đơn thuần trả hàng đứng ngoài, vì khách không cầm món nào ra
+     nên nó không có "độ lớn giỏ" để xếp vào đâu. */
+  const basketStats = (() => {
+    const basket = billList.filter((b) => b.takenQty > 0);
+    const buckets = [1, 2, 3, 4, 5].map((k) => ({ items: k, bills: 0 }));
+    basket.forEach((b) => { buckets[Math.min(Math.round(b.takenQty), 5) - 1].bills += 1; });
+    const withAcc = basket.filter((b) => b.acc > 0).length;
+    const multiCat = basket.filter((b) => b.cats.size > 1).length;
+    const den = basket.length || 1;
+    return {
+      basketBills: basket.length,
+      totalBills: billList.length,
+      returnOnlyBills: billList.length - basket.length,
+      dist: buckets.map((b) => ({ ...b, pct: (b.bills / den) * 100 })),
+      singleItemPct: (buckets[0].bills / den) * 100,
+      accAttach: withAcc,
+      accAttachPct: (withAcc / den) * 100,
+      multiCat,
+      multiCatPct: (multiCat / den) * 100,
+    };
+  })();
+
+  const customerStats = (() => {
+    const people = new Map();
+    let walkInBills = 0;
+    let walkInAmount = 0;
+    billList.forEach((b) => {
+      if (isWalkIn(b.phone, b.customer)) { walkInBills += 1; walkInAmount += b.amount; return; }
+      const e = people.get(b.phone) || { phone: b.phone, name: b.customer, bills: 0, amount: 0, qty: 0 };
+      e.bills += 1;
+      e.amount += b.amount;
+      e.qty += b.qty;
+      if (!e.name || e.name === 'UNKNOWN') e.name = b.customer;
+      people.set(b.phone, e);
+    });
+    const list = [...people.values()];
+    const idBills = list.reduce((s, e) => s + e.bills, 0);
+    const idAmount = list.reduce((s, e) => s + e.amount, 0);
+    const repeat = list.filter((e) => e.bills > 1);
+    const repeatAmount = repeat.reduce((s, e) => s + e.amount, 0);
+    const repeatBills = repeat.reduce((s, e) => s + e.bills, 0);
+    const repeatQty = repeat.reduce((s, e) => s + e.qty, 0);
+    const rden = repeat.length || 1;
+    const freq = [1, 2, 3, 4].map((k) => ({
+      times: k,
+      customers: list.filter((e) => (k === 4 ? e.bills >= 4 : e.bills === k)).length,
+    }));
+    const den = list.length || 1;
+    return {
+      customers: list.length,
+      identifiedBills: idBills,
+      identifiedAmount: idAmount,
+      walkInBills, walkInAmount,
+      totalBills: billList.length,
+      billCoverage: billList.length > 0 ? (idBills / billList.length) * 100 : 0,
+      revCoverage: totalSales !== 0 ? (idAmount / totalSales) * 100 : 0,
+      repeat: repeat.length,
+      repeatPct: (repeat.length / den) * 100,
+      repeatAmount,
+      repeatBills,
+      repeatQty,
+      repeatShare: idAmount > 0 ? (repeatAmount / idAmount) * 100 : 0,
+      // Trung bình của RIÊNG nhóm mua lại, không phải của toàn bộ khách.
+      repeatAvgSpend: repeatAmount / rden,
+      repeatAvgBills: repeatBills / rden,
+      avgSpend: idAmount / den,
+      avgBills: idBills / den,
+      freq: freq.map((f) => ({ ...f, pct: (f.customers / den) * 100 })),
+      top: list.slice().sort((a, b) => b.amount - a.amount).slice(0, 10),
+    };
+  })();
+
   return {
+    discountStats, txTypes, basketStats, customerStats,
     rows, months, totalSales, qty, bills, traffic, target, cvr, atv, upt, topProducts,
     byType: safeGroupSum(rows, 'type'),
     byGender: safeGroupSum(rows, 'gender'),
@@ -1108,9 +1410,14 @@ function baseOptions(yFmt, ttFmt, showLegend = false) {
     },
     scales: {
       // Không kẻ lưới: cột đã đủ nói lên độ lớn, thêm lưới chỉ làm nền rối.
-      // Giá trị chính xác đã có ở nhãn trục và tooltip.
       x: { grid: { display: false, drawBorder: false }, ticks: { color: css('--text-3'), font: { size: 11 } } },
+      /* Trục tung tắt hẳn. Cột nhãn "1.40B / 1.20B / 1.00B…" ăn 45–55px bên
+         trái của MỖI biểu đồ mà không nói thêm được gì: giá trị chính xác đã
+         có ở tooltip, còn so hơn kém thì nhìn chiều cao cột là ra. Chỗ ấy trả
+         lại cho vùng vẽ, biểu đồ 24 tháng thở hẳn ra.
+         Cấu hình ticks vẫn giữ nguyên bên dưới để bật lại chỉ cần bỏ display. */
       y: {
+        display: false,
         beginAtZero: true,
         grid: { display: false, drawBorder: false },
         ticks: { color: css('--text-3'), font: { size: 11 }, callback: (v) => (yFmt ? yFmt(v) : v) }
@@ -1186,7 +1493,7 @@ function renderDoughnut(chartKey, canvasId, centerId, legendId, data, colors) {
             label: (ctx) => {
               const value = num(ctx.raw);
               const pct = total > 0 ? (value / total) * 100 : 0;
-              return `${ctx.label}: ${fmtVND(value)} (${fmtPct(pct)})`;
+              return `${ctx.label}: ${fmtVNDShort(value)} (${fmtPct(pct)})`;
             }
           }
         }
@@ -1206,31 +1513,40 @@ function renderDoughnut(chartKey, canvasId, centerId, legendId, data, colors) {
   }).join('');
 }
 
+/* Promotion: một bảng duy nhất cho cả doanh thu lẫn mức chiết khấu của từng
+   chương trình. Chuyển từ danh sách chip sang bảng vì giờ có bảy cột — mắt
+   quét theo cột dễ hơn nhiều so với bảy con số nhồi trong một ô.
+
+   "Given away" là tiền đã nhượng, "Discount" là mức nhượng tính theo phần
+   trăm. Hai cột chứ không phải một: một chương trình giảm sâu trên doanh số
+   nhỏ tốn ít tiền hơn một chương trình giảm nhẹ trên doanh số lớn. */
 function renderPromotionInfo(m) {
   const el = document.getElementById('promotionInfo');
-  const list = (m.promotionStats || []).filter((x) => num(x.amount) > 0).slice(0, 12);
+  if (!el) return;
+  const list = (m.promotionStats || []).filter((x) => num(x.amount) > 0);
+  const note = document.getElementById('promoNote');
   if (!list.length) {
-    el.innerHTML = '<div style="padding:14px 16px;color:var(--text-3);font-size:12px;text-align:center">No Data</div>';
+    el.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:14px">No Data</td></tr>';
+    if (note) note.textContent = '';
     return;
   }
   const totalVal = list.reduce((s, x) => s + num(x.amount), 0);
-  // Không dùng thanh ở thẻ này. Ba khối Promotion / Top Products / By Category
-  // nằm gần nhau, mà thanh ngang là hình đã dùng cho hai khối kia — ở đây con
-  // số mới là thứ đáng đọc, nên bày thành chip: doanh thu lớn, tỉ trọng bám
-  // ngay bên cạnh, số món và số hoá đơn thành hai chip phụ.
-  el.innerHTML = `<div class="pm-list">${list.map((x) => `
-    <div class="pm-item">
-      <div class="pm-name" title="${esc(x.label)}">${esc(x.label)}</div>
-      <div class="pm-nums">
-        <span class="pm-amt">${rollHtml(x.amount, 'short')}</span>
-        <span class="pm-share">${rollHtml(totalVal > 0 ? (num(x.amount) / totalVal) * 100 : 0, 'pct')}</span>
-      </div>
-      <div class="pm-chips">
-        <span class="pm-chip">${rollHtml(x.qty, 'n')} units</span>
-        <span class="pm-chip">${rollHtml(x.bills, 'n')} bills</span>
-      </div>
-    </div>
-  `).join('')}</div>`;
+  const totalGiven = list.reduce((s, x) => s + num(x.given), 0);
+  if (note) note.textContent = `${fmtN(list.length)} programmes · ${fmtVNDShort(totalGiven)} given away`;
+
+  el.innerHTML = list.map((x) => {
+    const share = totalVal > 0 ? (num(x.amount) / totalVal) * 100 : 0;
+    return `
+    <tr>
+      <td title="${esc(x.label)}">${esc(x.label)}</td>
+      <td>${rollHtml(x.amount, 'short')}</td>
+      <td>${rollHtml(share, 'pct')}</td>
+      <td>${rollHtml(x.qty, 'n')}</td>
+      <td>${rollHtml(x.bills, 'n')}</td>
+      <td>${rollHtml(x.given, 'short')}</td>
+      <td>${rollHtml(x.discPct, 'pct')}</td>
+    </tr>`;
+  }).join('');
 }
 
 // ===== PERSONAL SALES — doanh thu vs phần target được chia của mỗi người =====
@@ -1264,9 +1580,12 @@ function renderStaffTargets(m) {
       ? Math.min((amount / target) * 100, 100)
       : (amount / revScale) * 100;
 
+    // Dạng rút gọn ("2.45 B ₫") chứ không phải đủ chữ số: mọi con số tiền
+    // khác trên trang — thẻ KPI, thanh Revenue vs Target, các bảng — đều bày
+    // ở dạng này, để riêng tooltip đọc ra "2.451.754.241 ₫" thì lạc nhịp.
     const tip = target > 0
-      ? `${esc(s.label)} — Revenue ${fmtVND(amount)} / Target ${fmtVND(target)}`
-      : `${esc(s.label)} — Revenue ${fmtVND(amount)} (no target for this period)`;
+      ? `${esc(s.label)} — Revenue ${fmtVNDShort(amount)} / Target ${fmtVNDShort(target)}`
+      : `${esc(s.label)} — Revenue ${fmtVNDShort(amount)} (no target for this period)`;
     return `
       <div class="st-row" title="${esc(tip)}">
         <div class="st-name">${esc(s.label)}</div>
@@ -1301,7 +1620,7 @@ function renderRevenueChart(m) {
   destroyChart('rev');
   const revData = S.revMode === 'cumulative' ? actual.reduce((acc, x, i) => [...acc, x + (acc[i - 1] || 0)], []) : actual;
   const tgtData = S.revMode === 'cumulative' ? target.reduce((acc, x, i) => [...acc, x + (acc[i - 1] || 0)], []) : target;
-  const revOptions = baseOptions((v) => fmtShort(v), (ctx) => `${ctx.dataset.label}: ${fmtVND(ctx.raw)}`);
+  const revOptions = baseOptions((v) => fmtShort(v), (ctx) => `${ctx.dataset.label}: ${fmtVNDShort(ctx.raw)}`);
   revOptions.layout = { padding: { top: 4, right: 8, bottom: 2, left: 2 } };
   revOptions.scales.x.grid = { display: false, drawBorder: false };
   revOptions.scales.x.ticks.color = css('--text-3');
@@ -1404,6 +1723,9 @@ function renderCharts(m) {
   renderPromotionInfo(m);
   renderStaffTargets(m);
   renderSeasonChart(m);
+  // Nằm trong renderCharts chứ không phải renderAll: thẻ này có canvas, mà đổi
+  // theme thì mọi canvas đều phải dựng lại (Chart.js nướng màu lúc khởi tạo).
+  renderDiscount(m);
 }
 
 // ===== CATEGORY — ranked bar list =====
@@ -1474,11 +1796,11 @@ function syncColorCategoryOptions(stats) {
   if (COLOR_FILTER.category !== 'all' && !codes.includes(COLOR_FILTER.category)) COLOR_FILTER.category = 'all';
   const sig = codes.join(',');
   if (sel.dataset.sig !== sig) {
+    // Chỉ mã hai ký tự, không kèm tên tiếng Anh: đây là mã dùng hằng ngày khi
+    // đặt hàng và tra kho nên đọc mã là ra, còn "PA · Pants" kéo dài ô chọn
+    // gấp ba mà không thêm thông tin nào.
     sel.innerHTML = '<option value="all">All categories</option>' +
-      codes.map((c) => {
-        const name = CATEGORY_NAME[c];
-        return `<option value="${esc(c)}">${esc(c)}${name ? ' · ' + esc(name) : ''}</option>`;
-      }).join('');
+      codes.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
     sel.dataset.sig = sig;
   }
   sel.value = COLOR_FILTER.category;
@@ -2018,7 +2340,6 @@ function closeProductPreview() {
   PREVIEW_STATE = null;
   document.removeEventListener('keydown', onPreviewKey);
 }
-window.closeProductPreview = closeProductPreview;
 
 function onPreviewKey(e) {
   if (e.key === 'Escape') { closeProductPreview(); return; }
@@ -2096,6 +2417,9 @@ function renderAll() {
   renderCashierMatrix(m);
   renderSeasonMatrix(m);
   renderDowHeatmap(m);
+  renderBasket(m);
+  renderCustomers(m);
+  renderTopCustomers(m);
   syncYoyFromFilters();
   renderYoy();
   requestAnimationFrame(() => {
@@ -2196,6 +2520,208 @@ function renderDowHeatmap(m) {
   }).join('');
 }
 
+/* ======== CHIẾT KHẤU ========
+   Cột PRICE là giá niêm yết, AMOUNT là tiền thực thu. Không phải tệp nào cũng
+   có PRICE (file Excel tải tay thường thiếu), nên cả cụm thẻ tự ẩn khi không
+   có dòng nào đo được — hiện một thẻ toàn số 0 thì tệ hơn là không hiện. */
+function setCardVisible(id, on) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = on ? '' : 'none';
+}
+
+function renderDiscount(m) {
+  const d = m.discountStats || {};
+  const has = num(d.coveredLines) > 0 && num(d.listTotal) > 0;
+  setCardVisible('discountCard', has);
+  destroyChart('discount');
+  if (!has) return;
+
+  const cov = document.getElementById('discountCoverage');
+  if (cov) {
+    const pct = d.totalLines > 0 ? (d.coveredLines / d.totalLines) * 100 : 0;
+    // Chỉ nói ra khi có dòng thiếu giá niêm yết: 100% thì câu này là tiếng ồn.
+    cov.textContent = pct >= 99.95
+      ? ''
+      : `${fmtN(d.coveredLines)}/${fmtN(d.totalLines)} lines have a retail price`;
+  }
+
+  document.getElementById('discountStats').innerHTML = [
+    ['Retail price', rollHtml(d.listTotal, 'vndShort'), '',
+      'What the goods would have brought in at full retail price'],
+    ['Net sales', rollHtml(d.netTotal, 'vndShort'), '',
+      'What actually came in'],
+    ['Given away', rollHtml(d.given, 'vndShort'), 'warn',
+      'The gap between the two — money handed back to customers'],
+    ['Discount', rollHtml(d.pct, 'pct'), 'accent',
+      'That gap as a share of retail price'],
+  ].map(([lbl, val, cls, tip]) => `
+    <div class="mini-stat ${cls}" title="${esc(tip)}">
+      <div class="mini-stat-val">${val}</div>
+      <div class="mini-stat-lbl">${lbl}</div>
+    </div>`).join('');
+
+  const months = d.byMonth || [];
+  const labels = safeLabels(months.map((x) => x.label));
+  const data = safeDataset(months.map((x) => x.pct), labels.length);
+  const avg = num(d.pct);
+  const warn = css('--warn');
+  const mid = css('--brand-mid');
+  const opts = baseOptions((v) => `${num(v).toFixed(0)}%`, (ctx) => `Discount: ${fmtPct(ctx.raw)}`);
+  opts.scales.x.ticks.maxRotation = labels.length > 10 ? 40 : 0;
+  opts.scales.x.ticks.autoSkip = true;
+  S.charts.discount = new Chart(document.getElementById('chartDiscount'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Discount %',
+        data,
+        // Tháng nhượng nhiều hơn mức trung bình của kỳ thì đổi màu — mắt bắt
+        // ngay tháng nào phải bán rẻ mới ra được doanh thu.
+        backgroundColor: data.map((v) => (v > avg ? warn : mid)),
+        borderRadius: 4,
+        maxBarThickness: barCapFor(labels.length),
+      }]
+    },
+    options: opts
+  });
+
+  /* Phân bố mức giảm: trong 100 dòng bán ra thì bao nhiêu dòng bán đúng giá,
+     bao nhiêu giảm nhẹ, bao nhiêu giảm sâu. Cùng thẻ với con số tổng vì nó
+     chính là chi tiết của con số ấy. */
+  const b = d.bands || {};
+  const tot = num(b.lines) || 1;
+  const bandEl = document.getElementById('discountBands');
+  if (bandEl) {
+    bandEl.innerHTML = [
+      ['Full price', b.full, 'good'],
+      ['< 15%', b.light, ''],
+      ['15–30%', b.mid, 'warn'],
+      ['≥ 30%', b.deep, 'bad'],
+    ].map(([lbl, v, cls]) =>
+      `<span class="band-item ${cls}" title="${fmtN(v)} sold lines"><b>${fmtPct((num(v) / tot) * 100)}</b>${esc(lbl)}</span>`
+    ).join('');
+  }
+}
+
+/* ======== GIỎ HÀNG & PHÂN LOẠI GIAO DỊCH ======== */
+function renderBasket(m) {
+  const b = m.basketStats || {};
+  const strip = document.getElementById('basketStrip');
+  if (!strip) return;
+  const dist = b.dist || [];
+  if (!b.basketBills) {
+    strip.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-3);font-size:var(--fs-sm);padding:20px">No Data</div>';
+    document.getElementById('basketAttach').innerHTML = '';
+    return;
+  }
+  const maxPct = Math.max(...dist.map((x) => num(x.pct)), 0.001);
+  strip.innerHTML = dist.map((x) => {
+    const intensity = num(x.pct) / maxPct;
+    // Không tô viền cảnh báo cho ô nào: đây là một phân bố, mọi ô đều là số
+    // liệu bình thường. Ô "1 món" cao nhất thì tự nó đã nổi bằng chiều cao
+    // thanh nền rồi, thêm viền đỏ chỉ làm thẻ trông như đang báo lỗi.
+    return `<div class="dow-cell">
+      <div class="dow-cell-fill" style="--fill:${Math.max(6, intensity * 100)}%;opacity:${0.35 + intensity * 0.5}"></div>
+      <div class="dow-cell-day">${x.items >= 5 ? '5+ items' : x.items + (x.items === 1 ? ' item' : ' items')}</div>
+      <div class="dow-cell-rev">${rollHtml(x.pct, 'pct')}</div>
+      <div class="dow-cell-meta"><span class="dow-days">${rollHtml(x.bills, 'n')} bills</span></div>
+    </div>`;
+  }).join('');
+
+  /* Cơ cấu giao dịch nằm luôn ở dải chip này thay vì một thẻ riêng: ba con số
+     không đủ nuôi một thẻ, mà đổi và trả hàng thì cùng một câu chuyện "lượt
+     này không phải một lần bán mới" nên gộp làm một. Chi tiết tách đôi để ở
+     tooltip. Một hoá đơn vẫn là MỘT lượt giao dịch — Bills / ATV / UPT không
+     đổi gì, đây chỉ là nhãn phân loại. */
+  const t = m.txTypes || {};
+  const totalTx = num(t.total) || 1;
+  const nonSale = num(t.exchange?.bills) + num(t.ret?.bills);
+  document.getElementById('basketAttach').innerHTML = [
+    ['with accessory', b.accAttachPct, `${fmtN(b.accAttach)} of ${fmtN(b.basketBills)} bills`],
+    ['multi-category', b.multiCatPct, `${fmtN(b.multiCat)} of ${fmtN(b.basketBills)} bills`],
+    ['exchange / return', (nonSale / totalTx) * 100,
+      `${fmtN(t.exchange?.bills)} exchanges · ${fmtN(t.ret?.bills)} returns, of ${fmtN(totalTx)} transactions`],
+  ].map(([lbl, pct, tip]) =>
+    `<span class="band-item" title="${esc(tip)}"><b>${fmtPct(pct)}</b>${esc(lbl)}</span>`
+  ).join('');
+}
+
+/* ======== KHÁCH HÀNG ========
+   Mọi tỉ lệ ở đây tính trên phần hoá đơn CÓ DANH TÍNH, không phải trên toàn
+   bộ — nên độ phủ phải hiện ngay cạnh tiêu đề, bằng không "31% khách quay
+   lại" nghe như 31% của cả cửa hàng. Khách lẻ gom vào một số giả đứng ngoài,
+   xem isWalkIn(). */
+function renderCustomers(m) {
+  const c = m.customerStats || {};
+  const has = num(c.customers) > 0;
+  setCardVisible('grpCustomer', has);
+  if (!has) return;
+
+  const cov = document.getElementById('customerCoverage');
+  if (cov) {
+    // Ngắn gọn để không bị cắt cụt trong góc tiêu đề; con số đầy đủ nằm ở
+    // tooltip, chỗ người muốn biết kỹ sẽ tìm tới.
+    cov.textContent = `${fmtN(c.repeat)} of ${fmtN(c.customers)} known customers · ${fmtPct(c.repeatPct)}`;
+    cov.title = `Repeat = bought on 2 or more separate bills. They averaged `
+      + `${num(c.repeatAvgBills).toFixed(1)} visits and ${fmtVNDShort(c.repeatAvgSpend)} each.\n`
+      + `Only ${fmtN(c.identifiedBills)} of ${fmtN(c.totalBills)} bills carry a customer, so every `
+      + `share here is of that identified part (${fmtPct(c.revCoverage)} of revenue).\n`
+      + `Walk-ins with no contact details: ${fmtN(c.walkInBills)} bills, ${fmtVNDShort(c.walkInAmount)}.`;
+  }
+
+  /* Bốn ô này nói về RIÊNG nhóm mua từ 2 lần trở lên, không phải về toàn bộ
+     khách — tên thẻ là "Repeat Customers" nên số liệu phải khớp với cái tên
+     đó. Tổng số khách đã nằm ở ghi chú bên cạnh tiêu đề. */
+  document.getElementById('customerStats').innerHTML = [
+    ['Buyers',    rollHtml(c.repeat, 'n'), 'accent',
+      `${fmtN(c.repeat)} customers bought on 2 or more separate bills`],
+    ['Revenue',   rollHtml(c.repeatAmount, 'vndShort'), '',
+      `Revenue from those ${fmtN(c.repeat)} repeat customers`],
+    ['Share',     rollHtml(c.repeatShare, 'pct'), 'good',
+      `Their ${fmtVNDShort(c.repeatAmount)} out of ${fmtVNDShort(c.identifiedAmount)} from all identified customers`],
+    ['Avg spend', rollHtml(c.repeatAvgSpend, 'vndShort'), '',
+      `Average per repeat customer over ${num(c.repeatAvgBills).toFixed(1)} visits`],
+    // Nhãn ngắn vì ô chỉ rộng ~72px — "Repeat buyers" cụt thành "REPEAT BUYE…".
+    // Nghĩa đầy đủ nằm ở tooltip, và tên thẻ đã nói rõ đang đếm nhóm nào.
+  ].map(([lbl, val, cls, tip]) => `
+    <div class="mini-stat ${cls}" title="${esc(tip)}">
+      <div class="mini-stat-val">${val}</div>
+      <div class="mini-stat-lbl">${lbl}</div>
+    </div>`).join('');
+
+  const freq = c.freq || [];
+  const maxPct = Math.max(...freq.map((f) => num(f.pct)), 0.001);
+  document.getElementById('customerFreq').innerHTML = freq.map((f) => `
+    <div class="st-row" title="${fmtN(f.customers)} customers came ${f.times >= 4 ? '4 or more times' : f.times + (f.times === 1 ? ' time' : ' times')}">
+      <div class="st-name">${f.times >= 4 ? '4+ visits' : f.times + (f.times === 1 ? ' visit' : ' visits')}</div>
+      <div class="st-track"><div class="st-fill" style="width:${Math.max(2, (num(f.pct) / maxPct) * 100)}%"></div></div>
+      <div class="st-pct">${rollHtml(f.pct, 'pct')}</div>
+    </div>`).join('');
+}
+
+function renderTopCustomers(m) {
+  const body = document.getElementById('topCustomerBody');
+  if (!body) return;
+  const list = (m.customerStats || {}).top || [];
+  if (!list.length) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:14px">No customer data</td></tr>';
+    return;
+  }
+  body.innerHTML = list.map((c) => {
+    const atv = c.bills > 0 ? c.amount / c.bills : 0;
+    return `
+    <tr>
+      <td title="${esc(c.name)}">${esc(c.name || '—')}</td>
+      <td>${rollHtml(c.bills, 'n')}</td>
+      <td>${rollHtml(c.qty, 'n')}</td>
+      <td>${rollHtml(c.amount, 'short')}</td>
+      <td>${rollHtml(atv, 'short')}</td>
+      <td class="tc-phone">${esc(maskPhone(c.phone))}</td>
+    </tr>`;
+  }).join('');
+}
+
 function switchRevChart(mode, btn) {
   S.revMode = mode;
   // Scope to this card's own tab group — a global query would also clear the
@@ -2215,13 +2741,21 @@ window.switchRevChart = switchRevChart;
    Các danh sách này cuộn trong thẻ cao cố định nên hàng cuối bị cắt ngang
    thân chữ, trông như hỏng chứ không như "còn nữa". Mask làm nó mờ dần ở
    đáy, và tắt đi khi đã cuộn tới cuối để hàng cuối cùng đọc được rõ. */
-const FADE_SELECTORS = ['#promotionInfo', '#topProductList', '#categoryList', '.legend-list', '.st-list', '.matrix-wrap'];
+const FADE_SELECTORS = ['#topProductList', '#categoryList', '#colorList', '.legend-list', '.st-list', '.matrix-wrap'];
 
 function refreshFade(el) {
-  const scrollable = el.scrollHeight - el.clientHeight > 2;
-  el.classList.toggle('hz-fade', scrollable);
-  const atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
-  el.classList.toggle('at-end', !scrollable || atEnd);
+  const scrollableY = el.scrollHeight - el.clientHeight > 2;
+  el.classList.toggle('hz-fade', scrollableY);
+  const atEndY = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+  el.classList.toggle('at-end', !scrollableY || atEndY);
+
+  // Chiều ngang cũng cần vệt mờ, và cần hơn: bảng chỉ cuộn ngang trên màn hình
+  // hẹp, mà ở đó thanh cuộn đã bị ẩn đi cho đỡ vướng — không có vệt này thì
+  // không còn dấu hiệu nào cho biết bảng còn cột phía sau.
+  const scrollableX = el.scrollWidth - el.clientWidth > 2;
+  el.classList.toggle('hz-fade-x', scrollableX);
+  const atEndX = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
+  el.classList.toggle('at-end-x', !scrollableX || atEndX);
 }
 
 function initFadeMasks() {
@@ -2521,13 +3055,31 @@ async function loadFromGSheets() {
 }
 
 // ======== DIMENSION FILTER HELPER (shared by dashboard + YOY) ========
+/* Lọc theo các chiều KHÔNG phải thời gian: thẻ Year over Year tự chọn kỳ của
+   riêng nó nên bỏ qua năm/quý/tháng ở thanh lọc trên đầu, nhưng Store thì phải
+   theo — chính thẻ đó đang treo huy hiệu "🔍 <tên cửa hàng>" để báo là số liệu
+   đã thu hẹp. Trước đây huy hiệu hiện lên mà các con số vẫn tính cả mọi cửa
+   hàng. Lỗi này chưa lộ ra vì ô chọn Store chỉ hiện khi dữ liệu có từ hai cửa
+   hàng trở lên, mà hiện tại chỉ có một. */
 function applyDimFilters(rows) {
   const f = S.filters;
+  // Không chiều nào đang bật thì trả thẳng mảng gốc. renderYoy() gọi hàm này
+  // hai tới ba lượt cho MỖI năm, mỗi lượt trước đây sao chép cả 4.400 dòng chỉ
+  // để ra lại đúng danh sách cũ.
+  if (f.gender === 'all' && f.type === 'all' && f.store === 'all') return rows;
   return rows.filter(r => {
     if (f.gender !== 'all' && r.gender !== f.gender) return false;
     if (f.type     !== 'all' && r.type     !== f.type)     return false;
+    if (f.store    !== 'all' && r.store    !== f.store)    return false;
     return true;
   });
+}
+
+/** Cùng một chiều lọc, áp cho bảng target — target chỉ mang chiều Store. */
+function applyDimFiltersTargets(rows) {
+  const f = S.filters;
+  if (f.store === 'all') return rows;
+  return rows.filter(t => t.store === f.store);
 }
 
 // ======== YOY COMPARISON ========
@@ -2614,7 +3166,7 @@ function getYoyRows(year) {
 }
 
 function getYoyTargetRows(year) {
-  return S.raw.targets.filter(t => {
+  return applyDimFiltersTargets(S.raw.targets).filter(t => {
     if (t.year !== String(year)) return false;
     const rt = YOY.rangeType;
     if (rt === 'month')   return t.monthIndex === YOY.month;
@@ -2659,19 +3211,33 @@ function fmtMetricVal(v, metric) {
   return fmtN(v);
 }
 
+/* Gom theo tháng bằng MỘT lượt quét. Bản cũ quét lại cả năm cho từng tháng
+   (12 lượt filter + 3 lượt cộng dồn trên mỗi lát cắt), rồi nhân lên số năm. */
 function getYoyMonthlyData(year, months) {
   const rows = getYoyRows(year);
   const tgts = getYoyTargetRows(year);
+  const buckets = new Map(months.map(m => [m, { revenue: 0, qty: 0, traffic: 0, billAcc: newBillAcc() }]));
+  rows.forEach(r => {
+    const b = buckets.get(r.monthIndex);
+    if (!b) return;
+    b.revenue += num(r.amount);
+    b.qty     += num(r.qty);
+    addBill(b.billAcc, r);
+  });
+  tgts.forEach(t => {
+    const b = buckets.get(t.monthIndex);
+    if (b) b.traffic += num(t.traffic);
+  });
   return months.map(m => {
-    const mr = rows.filter(r => r.monthIndex === m);
-    const mt = tgts.filter(t => t.monthIndex === m);
-    const revenue = mr.reduce((s,r) => s + num(r.amount), 0);
-    const qty     = mr.reduce((s,r) => s + num(r.qty), 0);
-    const bills   = countBills(mr);
-    const traffic = mt.reduce((s,t) => s + num(t.traffic), 0);
-    const atv  = bills > 0 ? revenue / bills : 0;
-    const cvr  = traffic > 0 ? (bills / traffic) * 100 : 0;
-    return { revenue, qty, bills, atv, cvr };
+    const b = buckets.get(m);
+    const bills = billTotal(b.billAcc);
+    return {
+      revenue: b.revenue,
+      qty: b.qty,
+      bills,
+      atv: bills > 0 ? b.revenue / bills : 0,
+      cvr: b.traffic > 0 ? (bills / b.traffic) * 100 : 0,
+    };
   });
 }
 
@@ -2679,17 +3245,29 @@ function getYoyMonthlyData(year, months) {
    quý, để bốn cột Q1..Q4 luôn có mặt bất kể kỳ đang chọn. */
 function getYoyQuarterlyData(year) {
   const rows = applyDimFilters(S.raw.sales).filter(r => r.year === year);
-  const tgts = S.raw.targets.filter(t => t.year === year);
-  return [1,2,3,4].map(q => {
-    const mr = rows.filter(r => Math.ceil(r.monthIndex/3) === q);
-    const mt = tgts.filter(t => Math.ceil(t.monthIndex/3) === q);
-    const revenue = mr.reduce((s,r) => s + num(r.amount), 0);
-    const qty     = mr.reduce((s,r) => s + num(r.qty), 0);
-    const bills   = countBills(mr);
-    const traffic = mt.reduce((s,t) => s + num(t.traffic), 0);
-    const atv = bills > 0 ? revenue / bills : 0;
-    const cvr = traffic > 0 ? (bills / traffic) * 100 : 0;
-    return { revenue, qty, bills, atv, cvr };
+  const tgts = applyDimFiltersTargets(S.raw.targets).filter(t => t.year === year);
+  // Một lượt quét gom vào bốn ngăn, cùng lý do như getYoyMonthlyData().
+  const buckets = [1,2,3,4].map(() => ({ revenue: 0, qty: 0, traffic: 0, billAcc: newBillAcc() }));
+  rows.forEach(r => {
+    const b = buckets[Math.ceil(r.monthIndex/3) - 1];
+    if (!b) return;
+    b.revenue += num(r.amount);
+    b.qty     += num(r.qty);
+    addBill(b.billAcc, r);
+  });
+  tgts.forEach(t => {
+    const b = buckets[Math.ceil(t.monthIndex/3) - 1];
+    if (b) b.traffic += num(t.traffic);
+  });
+  return buckets.map(b => {
+    const bills = billTotal(b.billAcc);
+    return {
+      revenue: b.revenue,
+      qty: b.qty,
+      bills,
+      atv: bills > 0 ? b.revenue / bills : 0,
+      cvr: b.traffic > 0 ? (bills / b.traffic) * 100 : 0,
+    };
   });
 }
 
@@ -2858,14 +3436,14 @@ function renderYoy() {
       },
       scales: {
         x: { grid: { display: false }, ticks: { color: css('--text-3'), font: { size: 13 } } },
-        y: { beginAtZero: true, grid: { display: false },
+        // Trục tung tắt như mọi biểu đồ khác — xem chú thích ở baseOptions().
+        y: { display: false, beginAtZero: true, grid: { display: false },
              ticks: { color: css('--text-3'), font: { size: needMonthly ? 12 : 13 },
                       callback: v => fmtMetricVal(v, YOY.metric) } }
       }
     }
   });
 }
-window.renderYoy = renderYoy;
 
 function bindEvents() {
   [['fYear', 'year'], ['fQuarter', 'quarter'], ['fMonth', 'month'], ['fStore', 'store']]
