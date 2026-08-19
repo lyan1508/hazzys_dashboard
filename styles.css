@@ -869,7 +869,6 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
   /* Điện thoại & tablet dọc: tất cả xếp 1 cột */
   .g-row-2{grid-template-columns:1fr}
   .chart-wrap--md{height:220px}
-  #topProductList{max-height:400px}
   .dash-group{margin-bottom:14px}
   #dowSection .dow-strip{grid-template-columns:repeat(4,minmax(0,1fr))}
 }
@@ -883,7 +882,7 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
   }
   .g-row-4 .legend-item{flex:0 0 auto;min-width:84px}
   .g-row-4 .legend-name{white-space:normal}
-  #topProductList{grid-template-columns:1fr;max-height:420px}
+  #topProductList{grid-template-columns:1fr}
   .chart-wrap--md{height:200px}
   .group-title{font-size:var(--fs-md)}
   #dowSection .dow-strip{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
@@ -1379,6 +1378,12 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
   #topProductList::-webkit-scrollbar,
   .st-list::-webkit-scrollbar,
   .legend-list::-webkit-scrollbar{width:0;height:0}
+
+  /* Top Products: 10 thẻ xếp một cột là ~700px, dài gấp đôi màn hình — vuốt
+     hết nó mới tới được thẻ kế tiếp. Cắt còn ~5 thẻ rồi cho cuộn trong thẻ;
+     vệt mờ ở đáy (.hz-fade) tự bật lên làm dấu "còn nữa". Bản desktop xếp
+     5×2 nên vừa khung, không cần trần này. */
+  #topProductList{max-height:350px;overflow-y:auto}
 
   /* --- Vùng chạm ---
      Tab và ô chọn cao 25–26px là cỡ dành cho con trỏ chuột: nhỏ hơn đầu ngón
