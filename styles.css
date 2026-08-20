@@ -364,6 +364,12 @@ select{cursor:pointer}
    Đây là lý do ba ô ẩn bằng visibility chứ không phải display. */
 .yoy-period-slot{display:grid;align-items:center}
 .yoy-period-slot>.yoy-range-group{grid-area:1/1}
+/* Trừ YTD: kỳ này không có ô chọn nào để giữ chỗ cả, mà chỗ đứng thì vẫn rộng
+   bằng ô Custom Range. Trên máy là 196px trống giữa Period và dãy Revenue; trên
+   điện thoại thanh điều khiển xuống dòng nên nó chiếm hẳn MỘT DÒNG rỗng, đẩy
+   dãy chỉ số rơi xuống tận dòng thứ ba. Ba kỳ còn lại vẫn dùng chung một chỗ
+   đứng cố định, nên đổi qua lại giữa chúng không làm thanh nhúc. */
+.yoy-period-slot.is-empty{display:none}
 .yoy-select{appearance:none;background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a94a6' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 8px center;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 22px 4px 8px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer;transition:border-color .15s}
 .yoy-select:focus{border-color:var(--brand-light);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 .yoy-metric-tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px;margin-left:auto}
@@ -1418,10 +1424,15 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
     word-break:normal;
   }
   /* Tên chương trình dài ("CHRISTMAS & NEW YEAR GIFT") cắt bằng dấu ba chấm
-     thay vì đẩy bảng rộng thêm 90px. Tên đầy đủ vẫn nằm ở title của ô, và
-     cuộn ngang vẫn còn cho các cột số. */
+     thay vì đẩy bảng rộng thêm 90px. Tên đầy đủ vẫn nằm ở title của ô.
+
+     Trần này quyết định bảng có vừa màn hình hay không: 118px cho ra bảng
+     311px trong khung 306px — thừa đúng 5px, vừa đủ để cột Discount bị xén
+     mất chữ cuối và trông như bảng hỏng, chứ không đủ xa để ai nghĩ tới
+     chuyện vuốt ngang. Cắt xuống 100px thì cả sáu cột vào gọn một màn hình,
+     chỉ tốn thêm vài chữ bị dấu ba chấm nuốt — tên đã cắt sẵn từ trước rồi. */
   #promoTable td:first-child{
-    max-width:118px;overflow:hidden;text-overflow:ellipsis;
+    max-width:calc(100vw - 310px);overflow:hidden;text-overflow:ellipsis;
   }
 
   /* Nhãn KPI dài (Achievement, Conversion, Units Sold) xuống dòng thay vì bị cắt */
@@ -1439,6 +1450,8 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
   .matrix-table tfoot td{padding:5px 2px}
   .matrix-table th:last-child,
   .matrix-table td:last-child{padding-right:4px}
+  /* Đệm hẹp đi thì năm cột số cũng hẹp theo, trả lại 40px cho cột tên. */
+  #promoTable td:first-child{max-width:calc(100vw - 270px)}
 }
 
 /* Nhãn KPI dài nhất ("Achievement") không thể xuống dòng vì là một từ, nên màn
@@ -1935,7 +1948,49 @@ html.theme-anim *::after{
      thẻ tên ngắn như "Retention" vẫn cắt cụt ghi chú dù còn thừa 100px. */
   flex:0 1 auto;min-width:0;text-align:right;
 }
+/* Thẻ Discount chỉ hiện độ phủ khi có dòng thiếu giá niêm yết, còn lại để
+   rỗng — nhưng ô rỗng vẫn ăn một khoảng gap của flex, trên điện thoại còn
+   chiếm hẳn một dòng cao 0px làm tiêu đề lệch so với thẻ bên cạnh. */
+.hz-note:empty{display:none}
 .chart-card-hd > .chart-card-title{flex:0 0 auto}
+
+/* ---------- Chữ "i" cạnh tiêu đề thẻ ---------- */
+/* Mấy thẻ này đọc ra số nhưng không đọc ra ý: "15–30% · 24%" là 24% của cái
+   gì. Câu trả lời dài hơn một nhãn cho phép, mà tooltip title="" thì ngón tay
+   không mở được — nên phải là nút bấm thật, nội dung nằm ở data-info. */
+.hz-info{
+  flex:0 0 auto;width:15px;height:15px;padding:0;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-family:var(--serif,Georgia,serif);font-size:11px;font-weight:700;
+  font-style:italic;line-height:1;
+  color:var(--text-3);background:var(--surface-2);
+  border:1px solid var(--border-2);cursor:pointer;
+  transition:color .15s,border-color .15s;
+}
+.hz-info:hover,
+.hz-info.open{color:var(--brand-light);border-color:var(--brand)}
+
+/* Ô nổi vẽ ở <body> nên không bị thân thẻ cắt cụt; position:fixed nên phải
+   đóng khi trang cuộn, xem closeInfoPop(). */
+#hzInfoPop{
+  position:fixed;z-index:9998;max-width:min(320px,calc(100vw - 24px));
+  background:var(--surface);border:1px solid var(--border-2);
+  border-radius:var(--radius-sm);padding:10px 12px;
+  font-size:var(--fs-xs);line-height:1.55;color:var(--text-2);
+  box-shadow:0 10px 26px rgba(0,0,0,.24);
+}
+#hzInfoPop p{margin:0 0 7px}
+#hzInfoPop p:last-child{margin:0}
+#hzInfoPop b{color:var(--text);font-weight:700}
+/* Gạch đầu dòng thay vì một đoạn liền: mỗi dòng giải nghĩa đúng một ô số trên
+   thẻ, nên mắt phải nhảy thẳng tới dòng cần đọc chứ không dò trong đoạn văn. */
+#hzInfoPop ul{margin:7px 0 0;padding:0;list-style:none}
+#hzInfoPop li{position:relative;padding-left:11px;margin-bottom:5px}
+#hzInfoPop li:last-child{margin-bottom:0}
+#hzInfoPop li::before{
+  content:"";position:absolute;left:0;top:.55em;
+  width:4px;height:4px;border-radius:50%;background:var(--brand);
+}
 
 /* ---------- Dải số tóm tắt trong thân thẻ ---------- */
 /* Dải số nén sát: bốn ô này là phần phụ của thẻ, phần chính là biểu đồ bên
@@ -1963,8 +2018,11 @@ html.theme-anim *::after{
 .mini-stat.good   .mini-stat-val{color:var(--green)}
 
 /* ---------- Dải chip ở chân thẻ ---------- */
+/* Căn giữa: dải này là phần tóm tắt của cả thẻ chứ không phải một cột số cần
+   thẳng hàng với thứ gì bên trên. Dồn trái thì ba bốn chip ngắn nằm lệch một
+   góc, chừa một khoảng trống dài bên phải trông như còn thiếu nội dung. */
 .band-strip{
-  display:flex;flex-wrap:wrap;gap:5px;
+  display:flex;flex-wrap:wrap;gap:5px;justify-content:center;
   padding:8px 0 0;margin-top:auto;border-top:1px solid var(--border);
 }
 .band-item{
@@ -1978,6 +2036,11 @@ html.theme-anim *::after{
 .band-item.good b{color:var(--green)}
 .band-item.warn b{color:var(--warn)}
 .band-item.bad  b{color:var(--red)}
+
+/* Nhãn ở dải tần suất khách là chữ ("4+ orders"), không phải tên viết tắt như
+   thẻ Staff Target mà .st-row vốn được cắt cho — 62px vừa đủ ở máy tính nhưng
+   ở 375px cột tụt còn 52px, chữ cuối bị dấu ba chấm nuốt mất. */
+#customerFreq .st-row{grid-template-columns:74px minmax(0,1fr) 46px}
 
 /* Giỏ hàng dùng lại ô của Day of Week nhưng chỉ có 5 cột thay vì 7. */
 .basket-strip{grid-template-columns:repeat(5,minmax(0,1fr));flex:1;min-height:0;align-content:stretch}
@@ -2001,7 +2064,10 @@ html.theme-anim *::after{
   /* Ghi chú phạm vi xuống hàng riêng thay vì bị cắt cụt bằng dấu ba chấm —
      "1.559/2.038 hoá đơn có danh tính" mà mất vế sau thì thành khó hiểu. */
   .chart-card-hd{flex-wrap:wrap}
-  .hz-note{max-width:100%;flex:1 0 100%;white-space:normal}
+  /* Xuống dòng riêng thì phải căn TRÁI: canh phải chỉ đúng khi ghi chú đứng
+     cùng hàng với tiêu đề và tựa vào mép phải thẻ. Rơi xuống dòng dưới mà
+     vẫn dạt phải thì hai dòng chữ so le nhau, không có lề chung nào. */
+  .hz-note{max-width:100%;flex:1 0 100%;white-space:normal;text-align:left}
   /* Bốn ô trên một hàng ở bề ngang 375px chỉ còn ~72px mỗi ô: "22.3 B ₫" mất
      phần đơn vị, nhãn "LIST PRICE" cụt thành "LIST PRI…". Hai hàng hai ô. */
   .mini-stats{grid-template-columns:repeat(2,minmax(0,1fr))}

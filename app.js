@@ -1437,6 +1437,38 @@ function renderNoDataLegend(legendId) {
   document.getElementById(legendId).innerHTML = '<div class="legend-item"><div class="legend-name">No Data</div></div>';
 }
 
+/* ── Ô giải thích của chữ "i" ─────────────────────────────────
+   Tooltip title="" của trình duyệt không mở được bằng ngón tay, mà đây lại là
+   chỗ duy nhất nói ra con số trên thẻ nghĩa là gì — nên tự vẽ một ô nổi:
+   bấm mở, bấm ra ngoài hoặc cuộn trang thì đóng. Nội dung nằm ở data-info của
+   chính nút, không rải rác trong JS. */
+function closeInfoPop() {
+  document.getElementById('hzInfoPop')?.remove();
+  document.querySelectorAll('.hz-info.open').forEach((b) => b.classList.remove('open'));
+}
+
+function openInfoPop(btn) {
+  closeInfoPop();
+  btn.classList.add('open');
+  const pop = document.createElement('div');
+  pop.id = 'hzInfoPop';
+  pop.innerHTML = btn.dataset.info || '';
+  // Nhớ nút nào đang mở nó: bấm lại đúng nút ấy là đóng, bấm nút khác là đổi nội
+  // dung. Hỏi qua class thay vì qua chính ô đang hiện thì chỉ cần một lần lệch
+  // nhịp là nút kẹt ở trạng thái "đang mở" trong khi không có ô nào.
+  pop.owner = btn;
+  document.body.appendChild(pop);
+  // Bám dưới nút, nhưng không được thò ra ngoài khung nhìn: thẻ nằm sát mép
+  // phải thì ô lùi vào, thẻ ở đáy trang thì ô lật lên trên.
+  const b = btn.getBoundingClientRect();
+  const p = pop.getBoundingClientRect();
+  let y = b.bottom + 8;
+  if (y + p.height > window.innerHeight - 10) y = b.top - p.height - 8;   // lật lên trên
+  y = Math.max(10, Math.min(y, window.innerHeight - p.height - 10));
+  pop.style.left = Math.max(10, Math.min(b.left, window.innerWidth - p.width - 10)) + 'px';
+  pop.style.top = y + 'px';
+}
+
 // External HTML tooltip — renders in body so it can overflow small chart containers
 function externalTooltipHandler(context) {
   let el = document.getElementById('chartjs-ext-tooltip');
@@ -2550,11 +2582,11 @@ function renderDiscount(m) {
   }
 
   document.getElementById('discountStats').innerHTML = [
-    ['Retail price', rollHtml(d.listTotal, 'vndShort'), '',
+    ['Retail',    rollHtml(d.listTotal, 'vndShort'), '',
       'What the goods would have brought in at full retail price'],
     ['Net sales', rollHtml(d.netTotal, 'vndShort'), '',
       'What actually came in'],
-    ['Given away', rollHtml(d.given, 'vndShort'), 'warn',
+    ['Given',     rollHtml(d.given, 'vndShort'), 'warn',
       'The gap between the two — money handed back to customers'],
     ['Discount', rollHtml(d.pct, 'pct'), 'accent',
       'That gap as a share of retail price'],
@@ -2668,7 +2700,7 @@ function renderCustomers(m) {
     // tooltip, chỗ người muốn biết kỹ sẽ tìm tới.
     cov.textContent = `${fmtN(c.repeat)} of ${fmtN(c.customers)} known customers · ${fmtPct(c.repeatPct)}`;
     cov.title = `Repeat = bought on 2 or more separate bills. They averaged `
-      + `${num(c.repeatAvgBills).toFixed(1)} visits and ${fmtVNDShort(c.repeatAvgSpend)} each.\n`
+      + `${num(c.repeatAvgBills).toFixed(1)} orders and ${fmtVNDShort(c.repeatAvgSpend)} each.\n`
       + `Only ${fmtN(c.identifiedBills)} of ${fmtN(c.totalBills)} bills carry a customer, so every `
       + `share here is of that identified part (${fmtPct(c.revCoverage)} of revenue).\n`
       + `Walk-ins with no contact details: ${fmtN(c.walkInBills)} bills, ${fmtVNDShort(c.walkInAmount)}.`;
@@ -2678,16 +2710,18 @@ function renderCustomers(m) {
      khách — tên thẻ là "Repeat Customers" nên số liệu phải khớp với cái tên
      đó. Tổng số khách đã nằm ở ghi chú bên cạnh tiêu đề. */
   document.getElementById('customerStats').innerHTML = [
-    ['Buyers',    rollHtml(c.repeat, 'n'), 'accent',
+    ['Repeat',      rollHtml(c.repeat, 'n'), 'accent',
       `${fmtN(c.repeat)} customers bought on 2 or more separate bills`],
-    ['Revenue',   rollHtml(c.repeatAmount, 'vndShort'), '',
+    ['Their rev',   rollHtml(c.repeatAmount, 'vndShort'), '',
       `Revenue from those ${fmtN(c.repeat)} repeat customers`],
-    ['Share',     rollHtml(c.repeatShare, 'pct'), 'good',
+    ['% of rev',    rollHtml(c.repeatShare, 'pct'), 'good',
       `Their ${fmtVNDShort(c.repeatAmount)} out of ${fmtVNDShort(c.identifiedAmount)} from all identified customers`],
-    ['Avg spend', rollHtml(c.repeatAvgSpend, 'vndShort'), '',
-      `Average per repeat customer over ${num(c.repeatAvgBills).toFixed(1)} visits`],
-    // Nhãn ngắn vì ô chỉ rộng ~72px — "Repeat buyers" cụt thành "REPEAT BUYE…".
-    // Nghĩa đầy đủ nằm ở tooltip, và tên thẻ đã nói rõ đang đếm nhóm nào.
+    ['Avg each',    rollHtml(c.repeatAvgSpend, 'vndShort'), '',
+      `Average per repeat customer over ${num(c.repeatAvgBills).toFixed(1)} orders`],
+    /* Nhãn phải nói ra CHỦ NGỮ: "Revenue" và "Share" đứng một mình thì đọc ra
+       doanh thu của cả cửa hàng, trong khi cả bốn ô đều chỉ tính riêng nhóm
+       khách quay lại. Viết tắt "rev" vì ô chỉ rộng 68px khi thẻ nằm nửa hàng:
+       nhãn dài bằng "Each spent" đã tràn mất 2px và bị dấu ba chấm nuốt. */
   ].map(([lbl, val, cls, tip]) => `
     <div class="mini-stat ${cls}" title="${esc(tip)}">
       <div class="mini-stat-val">${val}</div>
@@ -2697,8 +2731,8 @@ function renderCustomers(m) {
   const freq = c.freq || [];
   const maxPct = Math.max(...freq.map((f) => num(f.pct)), 0.001);
   document.getElementById('customerFreq').innerHTML = freq.map((f) => `
-    <div class="st-row" title="${fmtN(f.customers)} customers came ${f.times >= 4 ? '4 or more times' : f.times + (f.times === 1 ? ' time' : ' times')}">
-      <div class="st-name">${f.times >= 4 ? '4+ visits' : f.times + (f.times === 1 ? ' visit' : ' visits')}</div>
+    <div class="st-row" title="${fmtN(f.customers)} customers placed ${f.times >= 4 ? '4 or more orders' : f.times + (f.times === 1 ? ' order' : ' orders')}">
+      <div class="st-name">${f.times >= 4 ? '4+ orders' : f.times + (f.times === 1 ? ' order' : ' orders')}</div>
       <div class="st-track"><div class="st-fill" style="width:${Math.max(2, (num(f.pct) / maxPct) * 100)}%"></div></div>
       <div class="st-pct">${rollHtml(f.pct, 'pct')}</div>
     </div>`).join('');
@@ -3106,6 +3140,12 @@ function syncYoyPeriodRows() {
   showYoyPeriodRow('yoyMonthRow',   YOY.rangeType === 'month');
   showYoyPeriodRow('yoyQuarterRow', YOY.rangeType === 'quarter');
   showYoyPeriodRow('yoyCustomRow',  YOY.rangeType === 'custom');
+  // YTD không có ô chọn kỳ nào để giữ chỗ cả — để nguyên thì chỗ đứng rộng
+  // 196px vẫn nằm đó, đẩy dãy Revenue / Bills / Qty ra xa chữ Period. Cụp lại
+  // chỉ ở riêng YTD: ba kỳ còn lại vẫn dùng chung một chỗ đứng cố định nên đổi
+  // qua lại giữa chúng không làm thanh điều khiển nhúc nào.
+  document.querySelector('.yoy-period-slot')
+    ?.classList.toggle('is-empty', YOY.rangeType === 'ytd');
 }
 
 window.onYoyRangeChange = function() {
@@ -3485,6 +3525,22 @@ function bindEvents() {
   };
   document.addEventListener('click', hideExtTooltip);
   document.addEventListener('touchstart', hideExtTooltip, { passive: true });
+
+  // Chữ "i" ở tiêu đề thẻ. Dùng uỷ quyền sự kiện vì các thẻ được vẽ lại mỗi
+  // lần đổi bộ lọc, gắn thẳng vào nút thì lần vẽ sau là mất.
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.hz-info');
+    if (btn) {
+      if (document.getElementById('hzInfoPop')?.owner === btn) closeInfoPop();
+      else openInfoPop(btn);
+      return;
+    }
+    if (!e.target.closest('#hzInfoPop')) closeInfoPop();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInfoPop(); });
+  // capture:true để bắt cả khi phần cuộn được là một thẻ bên trong chứ không
+  // phải cả trang — ô nổi dùng position:fixed nên đứng yên khi thẻ trôi đi.
+  window.addEventListener('scroll', closeInfoPop, { passive: true, capture: true });
 
   document.getElementById('fileInput').addEventListener('change', onUpload);
 
