@@ -823,8 +823,12 @@ button,input,select,textarea,table,th,td{font-family:var(--font)}
 /* Row helpers — mọi nhóm dùng chung, dễ cân bố cục */
 .g-row{display:grid;gap:10px;align-items:stretch;min-width:0}
 .g-row + .g-row{margin-top:var(--gap)}
-.g-row-1{grid-template-columns:minmax(0,1fr)}
 .g-row-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+/* Hai thẻ đứng cạnh nhau CHỈ khi màn đủ rộng. Dưới 1281px mỗi thẻ chỉ còn
+   ~610px, bảy ô Day of Week teo lại tới mức số tiền phải xuống dòng — nên
+   khúc đó quay về xếp dọc như cũ. */
+.g-row-wide{grid-template-columns:minmax(0,1fr)}
+@media(min-width:1281px){.g-row-wide{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .g-row > *{min-width:0;margin-bottom:0}
 
 /* Các section cũ mang sẵn margin — nhóm đã lo khoảng cách rồi */

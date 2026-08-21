@@ -223,7 +223,7 @@
         <div class="chart-card" id="discountCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Discount &amp; Margin
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Chênh lệch giữa giá niêm yết và tiền thực thu.</p><ul><li><b>Retail</b> — tổng giá niêm yết của hàng đã bán.</li><li><b>Net sales</b> — tiền khách thực trả.</li><li><b>Given</b> — phần đã giảm cho khách: Retail trừ Net sales.</li><li><b>Discount</b> — phần giảm ấy bằng bao nhiêu % giá niêm yết.</li><li><b>Biểu đồ</b> — mức giảm từng tháng; cột cam là tháng giảm sâu hơn trung bình.</li><li><b>Dải chip</b> — tỉ lệ dòng bán theo mức giảm giá.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Chênh lệch giữa giá niêm yết và tiền thực thu.</p><ul><li><b>Retail</b> — tổng giá niêm yết của hàng đã bán.</li><li><b>Net sales</b> — tiền khách thực trả.</li><li><b>Discount</b> — phần đã giảm cho khách: Retail trừ Net sales.</li><li><b>Discount %</b> — cũng phần giảm ấy, quy ra % giá niêm yết.</li><li><b>Biểu đồ</b> — mức giảm từng tháng; cột cam là tháng giảm sâu hơn trung bình.</li><li><b>Dải chip</b> — tỉ lệ dòng bán theo mức giảm giá.</li></ul>">i</button>
             </div>
             <span class="hz-note" id="discountCoverage"></span>
           </div>
@@ -238,7 +238,7 @@
         <div class="chart-card" id="basketCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Basket Size
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Một hoá đơn là một lượt khách tính tiền.</p><ul><li><b>Năm ô</b> — % hoá đơn mang về 1 món, 2 món… 5 món trở lên.</li><li><b>with accessory</b> — % hoá đơn có phụ kiện.</li><li><b>multi-category</b> — % hoá đơn mua từ 2 nhóm hàng trở lên.</li><li><b>exchange / return</b> — % lượt đổi hoặc trả hàng.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Một hoá đơn là một lượt khách tính tiền.</p><ul><li><b>Năm ô</b> — % hoá đơn mang về 1 món, 2 món… 5 món trở lên.</li><li><b>… each</b> — trung bình mỗi hoá đơn trong ô ấy đáng bao nhiêu tiền.</li><li><b>with accessory</b> — % hoá đơn có phụ kiện.</li><li><b>multi-category</b> — % hoá đơn mua từ 2 nhóm hàng trở lên.</li><li><b>exchange / return</b> — % lượt đổi hoặc trả hàng.</li></ul>">i</button>
             </div>
           </div>
           <div class="dow-strip basket-strip" id="basketStrip"></div>
@@ -251,15 +251,18 @@
     <section class="dash-group" id="grpPatterns">
       <div class="group-hd"><h2 class="group-title">Patterns</h2></div>
 
-      <!-- Một thẻ Promotion duy nhất: doanh thu, số món, số hoá đơn VÀ mức
+      <!-- Promotion và Day of Week đứng cạnh nhau trên màn rộng: một bảng sáu
+           cột và bảy ô nhỏ, cả hai đều không cần trọn 1.550px. Trải hết bề
+           ngang thì Promotion thừa chỗ mà nhóm Patterns lại dài gấp đôi, phải
+           cuộn mới thấy hết. Dưới 1281px hàng tự tách đôi, xem .g-row-wide.
+
+           Một thẻ Promotion duy nhất: doanh thu, số món, số hoá đơn VÀ mức
            chiết khấu của cùng một chương trình nằm chung một dòng. Trước đây
-           tách làm hai thẻ nhóm theo đúng một chiều, đọc phải nhảy qua lại.
-           Sáu cột nên trải hết bề ngang. -->
-      <div class="g-row g-row-1">
+           tách làm hai thẻ nhóm theo đúng một chiều, đọc phải nhảy qua lại. -->
+      <div class="g-row g-row-wide">
         <div class="chart-card" id="promoCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Promotion</div>
-            <span class="hz-note" id="promoNote"></span>
           </div>
           <div class="matrix-wrap">
             <table class="matrix-table" id="promoTable">
@@ -277,12 +280,7 @@
             </table>
           </div>
         </div>
-      </div>
 
-      <!-- Day of Week trải hết bề ngang: bảy ô trong nửa hàng chỉ còn 64px mỗi
-           ô, chật đến mức số tiền phải xuống dòng. Cả hàng thì mỗi ô hơn gấp
-           đôi chỗ. -->
-      <div class="g-row g-row-1">
         <div class="chart-card dow-section" id="dowSection">
           <div class="chart-card-hd">
             <div class="chart-card-title">Day of Week</div>

@@ -879,7 +879,14 @@ function aggregate() {
     return [...map.values()]
       .map((p) => ({
         label: p.label, amount: p.amount, qty: p.qty, bills: billTotal(p.billAcc),
-        discPct: p.list > 0 ? (1 - p.netList / p.list) * 100 : 0,
+        // NO PROMOTION theo định nghĩa là bán đúng giá, nên chốt 0%. Công thức
+        // chung vẫn nhả ra "-0,0%" cho dòng này: cột PRICE là giá HIỆN HÀNH,
+        // cập nhật hồi tố, nên món nào từng đổi giá là sinh chênh ảo giữa giá
+        // hôm nay và tiền đã thu năm ngoái. Chênh ấy không phải chiết khấu, và
+        // đọc ra thì chỉ gây hiểu nhầm là có giảm giá lén.
+        discPct: p.label === 'NO PROMOTION'
+          ? 0
+          : (p.list > 0 ? (1 - p.netList / p.list) * 100 : 0),
       }))
       .sort((a, b) => b.amount - a.amount);
   })();
@@ -1225,8 +1232,14 @@ function aggregate() {
      nên nó không có "độ lớn giỏ" để xếp vào đâu. */
   const basketStats = (() => {
     const basket = billList.filter((b) => b.takenQty > 0);
-    const buckets = [1, 2, 3, 4, 5].map((k) => ({ items: k, bills: 0 }));
-    basket.forEach((b) => { buckets[Math.min(Math.round(b.takenQty), 5) - 1].bills += 1; });
+    const buckets = [1, 2, 3, 4, 5].map((k) => ({ items: k, bills: 0, amount: 0 }));
+    basket.forEach((b) => {
+      const k = buckets[Math.min(Math.round(b.takenQty), 5) - 1];
+      k.bills += 1;
+      // Tiền của cả hoá đơn, tức đã trừ dòng trả hàng nếu là phiếu đổi — đúng
+      // nghĩa "lượt này mang về cho cửa hàng bao nhiêu".
+      k.amount += b.amount;
+    });
     const withAcc = basket.filter((b) => b.acc > 0).length;
     const multiCat = basket.filter((b) => b.cats.size > 1).length;
     const den = basket.length || 1;
@@ -1234,7 +1247,11 @@ function aggregate() {
       basketBills: basket.length,
       totalBills: billList.length,
       returnOnlyBills: billList.length - basket.length,
-      dist: buckets.map((b) => ({ ...b, pct: (b.bills / den) * 100 })),
+      dist: buckets.map((b) => ({
+        ...b,
+        pct: (b.bills / den) * 100,
+        atv: b.bills > 0 ? b.amount / b.bills : 0,
+      })),
       singleItemPct: (buckets[0].bills / den) * 100,
       accAttach: withAcc,
       accAttachPct: (withAcc / den) * 100,
@@ -1562,14 +1579,11 @@ function renderPromotionInfo(m) {
   const el = document.getElementById('promotionInfo');
   if (!el) return;
   const list = (m.promotionStats || []).filter((x) => num(x.amount) > 0);
-  const note = document.getElementById('promoNote');
   if (!list.length) {
     el.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:14px">No Data</td></tr>';
-    if (note) note.textContent = '';
     return;
   }
   const totalVal = list.reduce((s, x) => s + num(x.amount), 0);
-  if (note) note.textContent = `${fmtN(list.length)} promotions`;
 
   el.innerHTML = list.map((x) => {
     const share = totalVal > 0 ? (num(x.amount) / totalVal) * 100 : 0;
@@ -2586,10 +2600,10 @@ function renderDiscount(m) {
       'What the goods would have brought in at full retail price'],
     ['Net sales', rollHtml(d.netTotal, 'vndShort'), '',
       'What actually came in'],
-    ['Given',     rollHtml(d.given, 'vndShort'), 'warn',
+    ['Discount',   rollHtml(d.given, 'vndShort'), 'warn',
       'The gap between the two — money handed back to customers'],
-    ['Discount', rollHtml(d.pct, 'pct'), 'accent',
-      'That gap as a share of retail price'],
+    ['Discount %', rollHtml(d.pct, 'pct'), 'accent',
+      'That same gap as a share of retail price'],
   ].map(([lbl, val, cls, tip]) => `
     <div class="mini-stat ${cls}" title="${esc(tip)}">
       <div class="mini-stat-val">${val}</div>
@@ -2661,7 +2675,7 @@ function renderBasket(m) {
       <div class="dow-cell-fill" style="--fill:${Math.max(6, intensity * 100)}%;opacity:${0.35 + intensity * 0.5}"></div>
       <div class="dow-cell-day">${x.items >= 5 ? '5+ items' : x.items + (x.items === 1 ? ' item' : ' items')}</div>
       <div class="dow-cell-rev">${rollHtml(x.pct, 'pct')}</div>
-      <div class="dow-cell-meta"><span class="dow-days">${rollHtml(x.bills, 'n')} bills</span></div>
+      <div class="dow-cell-meta"><span class="dow-days">${rollHtml(x.bills, 'n')} bills</span><span class="dow-share">${rollHtml(x.atv, 'vndShort')} each</span></div>
     </div>`;
   }).join('');
 
