@@ -437,11 +437,14 @@ select{cursor:pointer}
 .matrix-table{width:100%;border-collapse:collapse;font-size:12px}
 .matrix-table thead th{position:sticky;top:0;z-index:1;background:var(--surface-2);padding:6px 9px;font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;text-align:right;border-bottom:1px solid var(--border-2);white-space:nowrap}
 .matrix-table thead th:first-child{text-align:left}
+/* Ô không tính được (số lượng 0, hoặc món không có giá niêm yết) — gạch ngang
+   phải nhạt hơn số thật, nếu không mắt đọc nó thành một giá trị. */
+.matrix-table .cell-na{color:var(--text-3)}
 .matrix-table tbody td{padding:6px 9px;color:var(--text-2);text-align:right;border-bottom:1px solid var(--border);white-space:nowrap;font-variant-numeric:tabular-nums}
 .matrix-table tbody td:first-child{text-align:left;font-weight:600;color:var(--text);font-family:var(--mono);font-size:11px}
 .matrix-table tbody tr:hover{background:var(--surface-2)}
 .matrix-table tfoot td{padding:7px 9px;font-size:11px;font-weight:800;color:var(--text);background:var(--surface-2);border-top:2px solid var(--border-2);text-align:right;position:sticky;bottom:0}
-.matrix-table tfoot td:first-child{text-align:left}
+.matrix-table tfoot td:first-child{text-align:left;white-space:nowrap}
 
 /* DOW Heatmap */
 .dow-section{margin-bottom:12px}

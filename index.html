@@ -493,8 +493,8 @@
                   <th>Revenue</th>
                   <th>Share</th>
                   <th>Qty</th>
-                  <th>ATV</th>
-                  <th>UPT</th>
+                  <th title="Average Unit Price — giá trung bình một món bán ra của bộ sưu tập này. Tiền và số lượng đều cộng ở cấp dòng hàng nên không phụ thuộc vào việc một hóa đơn có mấy bộ sưu tập.">AUP</th>
+                  <th title="Chênh lệch giữa giá niêm yết và tiền thực thu. Lưu ý: cột PRICE là giá HIỆN HÀNH, cập nhật hồi tố — món nào từng đổi giá sẽ sinh một phần chênh ảo, nên số của các bộ cũ chỉ đọc theo xu hướng.">Disc%</th>
                 </tr>
               </thead>
               <tbody id="seasonMatrixBody"></tbody>
@@ -532,9 +532,10 @@
                 <tr>
                   <th>Cashier</th>
                   <th>Revenue</th>
+                  <th>Share</th>
                   <th>Qty</th>
-                  <th>ATV</th>
-                  <th>UPT</th>
+                  <th title="Chênh lệch giữa giá niêm yết và tiền thực thu trên các món người này bán. Lưu ý: cột PRICE là giá HIỆN HÀNH, cập nhật hồi tố — món nào từng đổi giá sẽ sinh một phần chênh ảo.">Disc%</th>
+                  <th title="Tỉ lệ phụ kiện trong tổng số món bán ra — thước đo kỹ năng bán kèm. Không có ATV/UPT ở bảng này: 28% hóa đơn có nhiều thu ngân cùng bán nên số hóa đơn không chia được cho từng người.">Acc%</th>
                 </tr>
               </thead>
               <tbody id="cashierMatrixBody"></tbody>

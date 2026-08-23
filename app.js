@@ -890,74 +890,63 @@ function aggregate() {
       }))
       .sort((a, b) => b.amount - a.amount);
   })();
-  const cashierStats = (() => {
-    const map = new Map();
-    rows.forEach((r) => {
-      const key = normalizeGroup(r.cashier);
-      if (!key || key === 'UNKNOWN') return;
-      const p = map.get(key) || { label: key, amount: 0, qty: 0, billAcc: newBillAcc() };
-      p.amount += num(r.amount);
-      p.qty += num(r.qty);
-      addBill(p.billAcc, r);
-      map.set(key, p);
-    });
-    return [...map.values()]
-      .map((p) => ({ label: p.label, amount: p.amount, qty: p.qty, bills: billTotal(p.billAcc) }))
-      .sort((a, b) => b.amount - a.amount);
-  })();
-
   const rangeFrom = minDate?.toLocaleDateString('vi-VN') || '—';
   const rangeTo = maxDate?.toLocaleDateString('vi-VN') || '—';
 
-  // ── Cashier matrix: revenue + basket quality per cashier ──
-  // No per-day metrics: "days worked" is inferred from rows that happen to carry
-  // the cashier's name, not from a roster, so it understates anyone who shares
-  // receipts and makes Rev/day incomparable between staff.
+  // ── Cashier matrix: revenue + how each person sells ──
+  // Không có ATV/UPT ở đây: 28% hóa đơn có nhiều thu ngân cùng bán, nên tiền thì
+  // cộng được ở cấp dòng (mỗi dòng ghi đúng một tên) còn số hóa đơn thì không —
+  // chia tiền một phần cho số bill nguyên chiếc ra một con số vừa thấp giả vừa
+  // lệch khác nhau tùy ai hay bán chung. Mọi cột dưới đây đều tính hoàn toàn ở
+  // cấp dòng hàng nên không dính chuyện phân bổ hóa đơn.
+  // Cũng không có chỉ số theo ngày: "ngày đi làm" chỉ suy từ những dòng tình cờ
+  // mang tên người đó, không phải từ bảng phân ca.
   const cashierMatrix = (() => {
     const map = new Map();
+    let total = 0;
     rows.forEach((r) => {
       const key = normalizeGroup(r.cashier);
       if (!key || key === 'UNKNOWN') return;
-      const p = map.get(key) || { label: key, amount: 0, qty: 0, billAcc: newBillAcc() };
+      const p = map.get(key) || { label: key, amount: 0, qty: 0, list: 0, accQty: 0 };
       p.amount += num(r.amount);
       p.qty += num(r.qty);
-      addBill(p.billAcc, r);
+      p.list += num(r.listValue);
+      if (isAccessory(r)) p.accQty += num(r.qty);
+      total += num(r.amount);
       map.set(key, p);
     });
-    return [...map.values()].map((p) => {
-      const bills = billTotal(p.billAcc);
-      return {
-        label: p.label,
-        amount: p.amount,
-        qty: p.qty,
-        bills,
-        atv: bills > 0 ? p.amount / bills : 0,
-        upt: bills > 0 ? p.qty / bills : 0,
-      };
-    }).sort((a, b) => b.amount - a.amount);
+    return [...map.values()].map((p) => ({
+      label: p.label,
+      amount: p.amount,
+      qty: p.qty,
+      share: total > 0 ? (p.amount / total) * 100 : 0,
+      discPct: p.list > 0 ? (1 - p.amount / p.list) * 100 : null,
+      accPct: p.qty > 0 ? (p.accQty / p.qty) * 100 : null,
+    })).sort((a, b) => b.amount - a.amount);
   })();
 
   // ── Cashier grand totals ──
-  // 28% of receipts list more than one cashier (staff share a sale), so each of
-  // them legitimately counts that bill. Summing the per-cashier columns would
-  // therefore double-count — the footer needs its own de-duplicated totals.
+  // Cộng thẳng theo cột được: mỗi dòng hàng chỉ ghi một tên nên không dòng nào
+  // bị đếm hai lần, kể cả trên hóa đơn nhiều người bán. Disc% và Acc% vẫn phải
+  // tính lại từ tổng chứ không lấy trung bình các dòng.
   const cashierTotals = (() => {
-    // Một lượt quét, không phải filter + ba lượt cộng dồn trên bản sao.
-    const acc = newBillAcc();
     let amount = 0;
     let qtyKnown = 0;
+    let listAll = 0;
+    let accQty = 0;
     rows.forEach((r) => {
       const k = normalizeGroup(r.cashier);
       if (!k || k === 'UNKNOWN') return;
-      addBill(acc, r);
       amount += num(r.amount);
       qtyKnown += num(r.qty);
+      listAll += num(r.listValue);
+      if (isAccessory(r)) accQty += num(r.qty);
     });
-    const bills = billTotal(acc);
     return {
-      bills, amount, qty: qtyKnown,
-      atv: bills > 0 ? amount / bills : 0,
-      upt: bills > 0 ? qtyKnown / bills : 0,
+      amount, qty: qtyKnown,
+      share: 100,
+      discPct: listAll > 0 ? (1 - amount / listAll) * 100 : null,
+      accPct: qtyKnown > 0 ? (accQty / qtyKnown) * 100 : null,
     };
   })();
 
@@ -1015,25 +1004,24 @@ function aggregate() {
       const year = r.prodYear || '';
       const key = `${year}|${r.seasonGroup}`;
       const p = map.get(key) || {
-        key, year, group: r.seasonGroup, amount: 0, qty: 0, billAcc: newBillAcc()
+        key, year, group: r.seasonGroup, amount: 0, qty: 0, list: 0
       };
       p.amount += num(r.amount);
       p.qty += num(r.qty);
-      addBill(p.billAcc, r);
+      p.list += num(r.listValue);
       map.set(key, p);
     });
     const list = [...map.values()];
     const total = list.reduce((s, p) => s + p.amount, 0);
     return list.map((p) => {
-      const bills = billTotal(p.billAcc);
       return {
         key: p.key, year: p.year, group: p.group,
         collection: collectionLabel(p.group, p.year),
         name: (SEASON_GROUP[p.group] || {}).name || '',
-        amount: p.amount, qty: p.qty, bills,
+        amount: p.amount, qty: p.qty,
         share: total > 0 ? (p.amount / total) * 100 : 0,
-        atv: bills > 0 ? p.amount / bills : 0,
-        upt: bills > 0 ? p.qty / bills : 0,
+        aup: p.qty > 0 ? p.amount / p.qty : null,
+        discPct: p.list > 0 ? (1 - p.amount / p.list) * 100 : null,
       };
     }).sort((a, b) => {
       // Newest collection year first (undecodable legacy codes last), SS before FW.
@@ -1046,23 +1034,23 @@ function aggregate() {
     });
   })();
 
-  // Bills are de-duplicated across the whole table: one receipt often mixes items
-  // from several seasons, so summing the per-season bill counts would overcount.
+  // AUP và Disc% của cả bảng tính lại từ tổng, không phải trung bình các dòng:
+  // mỗi collection có số lượng khác nhau nên cộng rồi chia mới ra đúng con số
+  // của cửa hàng.
   const seasonTotals = (() => {
-    const acc = newBillAcc();
     let amount = 0;
     let qtyAll = 0;
+    let listAll = 0;
     rows.forEach((r) => {
       if (!r.seasonGroup) return;
-      addBill(acc, r);
       amount += num(r.amount);
       qtyAll += num(r.qty);
+      listAll += num(r.listValue);
     });
-    const bills = billTotal(acc);
     return {
-      bills, amount, qty: qtyAll,
-      atv: bills > 0 ? amount / bills : 0,
-      upt: bills > 0 ? qtyAll / bills : 0,
+      amount, qty: qtyAll,
+      aup: qtyAll > 0 ? amount / qtyAll : null,
+      discPct: listAll > 0 ? (1 - amount / listAll) * 100 : null,
     };
   })();
 
@@ -1317,7 +1305,7 @@ function aggregate() {
     byGender: safeGroupSum(rows, 'gender'),
     byCategory: safeGroupSum(rows, 'category'),
     colorStats,
-    promotionStats, cashierStats, cashierMatrix, cashierTotals, staffMatrix, dowStats, rangeFrom, rangeTo,
+    promotionStats, cashierMatrix, cashierTotals, staffMatrix, dowStats, rangeFrom, rangeTo,
     seasonStats, seasonTotals, seasonMonthly
   };
 }
@@ -1943,8 +1931,8 @@ function renderSeasonMatrix(m) {
       <td>${rollHtml(s.amount, 'short')}</td>
       <td>${rollHtml(s.share, 'pct')}</td>
       <td>${rollHtml(s.qty, 'n')}</td>
-      <td>${rollHtml(s.atv, 'short')}</td>
-      <td>${rollHtml(s.upt, 'fixed2')}</td>
+      <td>${rollOrDash(s.aup, 'short')}</td>
+      <td>${rollOrDash(s.discPct, 'pct')}</td>
     </tr>`;
   }).join('');
   const t = m.seasonTotals || {};
@@ -1953,8 +1941,8 @@ function renderSeasonMatrix(m) {
     <td>${rollHtml(t.amount, 'short')}</td>
     <td>100%</td>
     <td>${rollHtml(t.qty, 'n')}</td>
-    <td>${rollHtml(t.atv, 'short')}</td>
-    <td>${rollHtml(t.upt, 'fixed2')}</td>
+    <td>${rollOrDash(t.aup, 'short')}</td>
+    <td>${rollOrDash(t.discPct, 'pct')}</td>
   </tr>`;
 }
 
@@ -1997,6 +1985,13 @@ const ROLL_FMT = {
 function rollHtml(value, fmtName) {
   const f = ROLL_FMT[fmtName] || ROLL_FMT.n;
   return `<span data-roll="${num(value)}" data-fmt="${fmtName}">${f(value)}</span>`;
+}
+
+/* Ô thiếu mẫu số hợp lệ — số lượng bằng 0, hoặc món không có giá niêm yết —
+   hiện gạch ngang chứ không hiện 0. "0" đọc ra là "giá bằng không, giảm 0%",
+   gạch ngang đọc ra là "không tính được": hai chuyện khác hẳn nhau. */
+function rollOrDash(value, fmtName) {
+  return value == null ? '<span class="cell-na">—</span>' : rollHtml(value, fmtName);
 }
 
 /** Cho mọi số trong một thẻ chạy lên.
@@ -2491,7 +2486,7 @@ function renderCashierMatrix(m) {
   const foot = document.getElementById('cashierMatrixFoot');
   const data = m.cashierMatrix || [];
   if (!data.length) {
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:14px">No cashier data</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:14px">No cashier data</td></tr>';
     foot.innerHTML = '';
     return;
   }
@@ -2500,20 +2495,22 @@ function renderCashierMatrix(m) {
     <tr>
       <td title="${esc(c.label)}">${esc(c.label)}</td>
       <td>${rollHtml(c.amount, 'short')}</td>
+      <td>${rollHtml(c.share, 'pct')}</td>
       <td>${rollHtml(c.qty, 'n')}</td>
-      <td>${rollHtml(c.atv, 'short')}</td>
-      <td>${rollHtml(c.upt, 'fixed2')}</td>
+      <td>${rollOrDash(c.discPct, 'pct')}</td>
+      <td>${rollOrDash(c.accPct, 'pct')}</td>
     </tr>
   `).join('');
-  // De-duplicated totals, not a column sum: one receipt can list several
-  // cashiers, and each of them counts it in their own row.
+  // Cộng thẳng theo cột: mỗi dòng hàng chỉ mang tên một người nên không dòng
+  // nào bị đếm hai lần, kể cả trên hóa đơn nhiều thu ngân cùng bán.
   const t = m.cashierTotals || {};
-  foot.innerHTML = `<tr title="Số hóa đơn đã loại trùng: 28% hóa đơn có nhiều thu ngân cùng bán nên ATV/UPT tổng cao hơn từng dòng.">
+  foot.innerHTML = `<tr>
     <td>TOTAL / AVG</td>
     <td>${rollHtml(t.amount, 'short')}</td>
+    <td>100%</td>
     <td>${rollHtml(t.qty, 'n')}</td>
-    <td>${rollHtml(t.atv, 'short')}</td>
-    <td>${rollHtml(t.upt, 'fixed2')}</td>
+    <td>${rollOrDash(t.discPct, 'pct')}</td>
+    <td>${rollOrDash(t.accPct, 'pct')}</td>
   </tr>`;
 }
 
