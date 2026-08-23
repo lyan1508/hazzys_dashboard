@@ -200,7 +200,7 @@
       <div class="g-row g-row-2">
         <div class="chart-card">
           <div class="chart-card-hd">
-            <div><div class="chart-card-title">Revenue Performance <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Doanh thu từng tháng so với target của tháng đó.</p><ul><li><b>Cột xanh lá</b> — tháng đạt target. <b>Cột xanh dương</b> — chưa đạt.</li><li><b>Đường cam</b> — target, lấy từ sheet Target.</li><li><b>Monthly</b> — từng tháng riêng. <b>Cumulative</b> — cộng dồn từ đầu kỳ, để xem cả kỳ đang hụt hay dư so với target.</li></ul>">i</button></div></div>
+            <div><div class="chart-card-title">Revenue Performance <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Cột xanh lá</b> — đạt target. <b>Xanh dương</b> — chưa đạt.</li><li><b>Đường cam</b> — target.</li><li><b>Cumulative</b> — cộng dồn từ đầu kỳ.</li></ul>">i</button></div></div>
             <div class="chart-tabs">
               <button class="chart-tab active" onclick="switchRevChart('monthly',this)">Monthly</button>
               <button class="chart-tab" onclick="switchRevChart('cumulative',this)">Cumulative</button>
@@ -211,7 +211,7 @@
         <div class="chart-card">
           <div class="chart-card-hd">
             <div class="chart-card-title">Bills &amp; Traffic
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Số lượt bán so với số lượt khách vào cửa hàng.</p><ul><li><b>Cột</b> — số hoá đơn trong tháng.</li><li><b>Đường xanh lá</b> — traffic, tức lượt khách vào, nhập tay ở sheet Target.</li><li>Khoảng cách giữa hai đường chính là tỉ lệ chốt đơn: khách vào nhiều mà hoá đơn ít nghĩa là mất khách ở khâu tư vấn.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Cột</b> — số hoá đơn.</li><li><b>Đường xanh lá</b> — lượt khách vào cửa hàng.</li></ul>">i</button>
             </div>
           </div>
           <div class="chart-wrap chart-wrap--md"><canvas id="chartTraffic"></canvas></div>
@@ -225,7 +225,7 @@
         <div class="chart-card" id="discountCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Discount &amp; Margin
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Chênh lệch giữa giá niêm yết và tiền thực thu.</p><ul><li><b>Retail</b> — tổng giá niêm yết của hàng đã bán.</li><li><b>Net sales</b> — tiền khách thực trả.</li><li><b>Discount</b> — phần đã giảm cho khách: Retail trừ Net sales.</li><li><b>Discount %</b> — cũng phần giảm ấy, quy ra % giá niêm yết.</li><li><b>Biểu đồ</b> — mức giảm từng tháng; cột cam là tháng giảm sâu hơn trung bình.</li><li><b>Dải chip</b> — tỉ lệ dòng bán theo mức giảm giá.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Retail</b> — tổng giá niêm yết.</li><li><b>Net sales</b> — tiền thực thu.</li><li><b>Discount</b> — Retail trừ Net sales.</li><li><b>Discount %</b> — phần giảm theo % giá niêm yết.</li><li><b>Biểu đồ</b> — mức giảm từng tháng.</li><li><b>Dải chip</b> — tỉ lệ dòng bán theo mức giảm.</li></ul>">i</button>
             </div>
             <span class="hz-note" id="discountCoverage"></span>
           </div>
@@ -240,7 +240,7 @@
         <div class="chart-card" id="basketCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Basket Size
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Một hoá đơn là một lượt khách tính tiền.</p><ul><li><b>Năm ô</b> — % hoá đơn mang về 1 món, 2 món… 5 món trở lên.</li><li><b>… each</b> — trung bình mỗi hoá đơn trong ô ấy đáng bao nhiêu tiền.</li><li><b>with accessory</b> — % hoá đơn có phụ kiện.</li><li><b>multi-category</b> — % hoá đơn mua từ 2 nhóm hàng trở lên.</li><li><b>exchange / return</b> — % lượt đổi hoặc trả hàng.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Năm ô</b> — % hoá đơn có 1 món, 2 món… 5 món trở lên.</li><li><b>… each</b> — trung bình một hoá đơn trong ô đó.</li><li><b>with accessory</b> — % hoá đơn có phụ kiện.</li><li><b>multi-category</b> — % hoá đơn từ 2 nhóm hàng trở lên.</li><li><b>exchange / return</b> — % lượt đổi, trả.</li></ul>">i</button>
             </div>
           </div>
           <div class="dow-strip basket-strip" id="basketStrip"></div>
@@ -265,7 +265,7 @@
         <div class="chart-card" id="promoCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Promotion
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Mỗi dòng là một chương trình khuyến mãi ghi trên hoá đơn.</p><ul><li><b>Share</b> — chương trình này chiếm bao nhiêu % doanh thu.</li><li><b>Bills</b> — số hoá đơn có chương trình này. Cộng cột lại sẽ lớn hơn tổng thật, vì một hoá đơn có thể dính nhiều chương trình.</li><li><b>Discount</b> — giảm bao nhiêu so với giá niêm yết. Dòng NO PROMOTION luôn là 0% theo định nghĩa.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Share</b> — % doanh thu.</li><li><b>Bills</b> — số hoá đơn có chương trình này. Không cộng cột được.</li><li><b>Discount</b> — giảm bao nhiêu so với giá niêm yết.</li></ul>">i</button>
             </div>
           </div>
           <div class="matrix-wrap">
@@ -288,7 +288,7 @@
         <div class="chart-card dow-section" id="dowSection">
           <div class="chart-card-hd">
             <div class="chart-card-title">Day of Week
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Gộp toàn kỳ lại xem thứ nào trong tuần bán tốt nhất.</p><ul><li><b>Số lớn</b> — trung bình MỘT ngày thứ ấy, không phải tổng. Chia như vậy mới so được, vì trong kỳ có thứ xuất hiện nhiều lần hơn thứ khác.</li><li><b>N days</b> — trong kỳ đã lọc có bao nhiêu ngày thứ ấy.</li><li><b>% of total</b> — thứ ấy chiếm bao nhiêu % doanh thu cả kỳ.</li><li><b>Rev / Bills / ATV</b> — đổi con số lớn sang doanh thu, số hoá đơn, hay giá trị trung bình một hoá đơn.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Số lớn</b> — trung bình một ngày thứ đó, không phải tổng.</li><li><b>N days</b> — số ngày thứ đó trong kỳ.</li><li><b>% of total</b> — % doanh thu cả kỳ.</li></ul>">i</button>
             </div>
             <div class="chart-tabs" id="dowMetricTabs">
               <button class="chart-tab active" data-dow-metric="revenue" onclick="switchDowMetric('revenue',this)">Rev</button>
@@ -309,7 +309,7 @@
         <div class="chart-card" id="customerCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Repeat Customers
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Chỉ hoá đơn có số điện thoại mới biết là của ai, nên mọi tỉ lệ ở đây tính trên nhóm khách đó.</p><ul><li><b>Repeat</b> — số khách mua từ 2 hoá đơn trở lên.</li><li><b>Their rev</b> — doanh thu của nhóm ấy.</li><li><b>% of rev</b> — nhóm ấy chiếm bao nhiêu % doanh thu.</li><li><b>Avg each</b> — trung bình mỗi khách quay lại chi bao nhiêu.</li><li><b>Dải thanh</b> — toàn bộ khách chia theo số hoá đơn đã mua.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Chỉ tính khách có số điện thoại.</p><ul><li><b>Repeat</b> — khách mua từ 2 hoá đơn trở lên.</li><li><b>Their rev</b> — doanh thu nhóm này.</li><li><b>% of rev</b> — chiếm bao nhiêu % doanh thu.</li><li><b>Avg each</b> — trung bình một khách quay lại.</li><li><b>Dải thanh</b> — khách chia theo số hoá đơn đã mua.</li></ul>">i</button>
             </div>
             <span class="hz-note" id="customerCoverage"></span>
           </div>
@@ -320,7 +320,7 @@
         <div class="chart-card" id="topCustomerCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Top Customers
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Khách nhận diện bằng số điện thoại, nên khách không để lại số sẽ không xuất hiện ở đây.</p><ul><li><b>Bills</b> — số lần khách đến mua.</li><li><b>ATV</b> — trung bình mỗi lần khách chi bao nhiêu. Ở bảng này ATV hợp lệ vì một hoá đơn chỉ thuộc về một khách.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Khách nhận diện bằng số điện thoại.</p><ul><li><b>Bills</b> — số lần mua.</li><li><b>ATV</b> — trung bình một lần mua.</li></ul>">i</button>
             </div>
           </div>
           <div class="matrix-wrap">
@@ -417,7 +417,7 @@
       <div class="chart-card" id="topProductCard">
         <div class="chart-card-hd">
           <div class="chart-card-title">Top Products by Style
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Xếp theo mẫu (style), không phải theo mã hàng đầy đủ.</p><ul><li>Mọi màu và mọi size của cùng một mẫu gộp làm một dòng — nếu tách ra thì một áo bán chạy sẽ bị chia nhỏ thành chục dòng lẻ.</li><li><b>All / Men / Women</b> và ô nhóm hàng — lọc riêng của thẻ này, không đụng bộ lọc chung ở đầu trang.</li><li>Bấm vào một mẫu để xem ảnh sản phẩm.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li>Mọi màu và size của cùng một mẫu gộp làm một dòng.</li><li>Bộ lọc riêng của thẻ, không đụng bộ lọc đầu trang.</li><li>Bấm vào một mẫu để xem ảnh.</li></ul>">i</button>
             </div>
           <!-- Lọc riêng của thẻ này, không đụng tới bộ lọc chung ở đầu trang.
                Không chọn gì thì xếp theo doanh thu trên toàn bộ dữ liệu. -->
@@ -440,7 +440,7 @@
         <div class="chart-card" id="categoryCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">By Category
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Doanh thu theo nhóm hàng, đọc từ ký tự thứ 3-4 của mã hàng.</p><ul><li>Nhóm nào chưa có trong sổ mã Hazzys thì hiện mã trần thay vì đoán tên.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li>Nhóm hàng, đọc từ ký tự 3-4 của mã.</li><li>Nhóm chưa có trong sổ mã thì hiện mã trần.</li></ul>">i</button>
             </div>
           </div>
           <div class="product-list" id="categoryList"></div>
@@ -448,7 +448,7 @@
         <div class="chart-card" id="colorCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">By Colour
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Doanh thu theo màu, đọc từ ký tự thứ 10-11 của mã hàng.</p><ul><li>Ô nhóm hàng ở đây là lọc riêng của thẻ. Nên chọn một nhóm rồi mới đọc: màu đen ở quần và màu đen ở áo phông là hai câu chuyện khác nhau, gộp chung thì không rút ra được gì.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li>Màu, đọc từ ký tự 10-11 của mã.</li><li>Nên chọn một nhóm hàng rồi mới đọc.</li></ul>">i</button>
             </div>
             <!-- Màu chỉ có nghĩa trong một nhóm hàng: BK ở quần và BK ở áo phông
                  là hai câu chuyện khác nhau. Lọc riêng của thẻ, không đụng bộ
@@ -491,7 +491,7 @@
         <div class="chart-card" id="seasonChartCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Revenue by Season (SS / FW)
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Mùa của HÀNG, đọc từ mã — không phải mùa bán được.</p><ul><li><b>Cam</b> — hàng Xuân/Hè. <b>Xanh</b> — hàng Thu/Đông.</li><li>Bán hàng Thu/Đông vào giữa mùa hè là chuyện bình thường: đó là hàng tồn của mùa trước.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li>Mùa của hàng, không phải mùa bán được.</li><li><b>Cam</b> — Xuân/Hè. <b>Xanh</b> — Thu/Đông.</li></ul>">i</button>
             </div>
           </div>
           <div class="chart-wrap chart-wrap--md"><canvas id="chartSeason"></canvas></div>
@@ -500,7 +500,7 @@
         <div class="chart-card" id="seasonMatrixCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Collection Performance
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Bộ sưu tập đọc từ mã hàng — năm và mùa của HÀNG, không phải tháng bán được.</p><ul><li><b>Share</b> — bộ này chiếm bao nhiêu % doanh thu.</li><li><b>AUP</b> — giá trung bình một món bán ra của bộ này.</li><li><b>Disc%</b> — giảm bao nhiêu so với giá niêm yết; bộ càng cũ giảm càng sâu.</li><li><b>SS / FW Other</b> — hàng cũ trước 23.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Năm và mùa của hàng, đọc từ mã.</p><ul><li><b>Share</b> — % doanh thu.</li><li><b>AUP</b> — giá trung bình một món.</li><li><b>Disc%</b> — giảm bao nhiêu so với giá niêm yết.</li><li><b>SS / FW Other</b> — hàng cũ trước 23.</li></ul>">i</button>
             </div>
           </div>
           <div class="matrix-wrap">
@@ -531,7 +531,7 @@
         <div class="chart-card" id="staffTargetCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Personal Sales
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Doanh thu từng người so với phần target của riêng người đó.</p><ul><li><b>Khung nhạt</b> luôn dài trọn hàng và bằng target của chính người ấy, nên phần đậm đọc thẳng ra % đạt.</li><li>Target cửa hàng là một số cho cả tháng, được chia cho những ai thực sự có bán trong tháng ấy. Ai vào hay nghỉ giữa chừng thì tháng đó tự chia lại.</li><li>An mang hệ số 0,85 nên phần target được chia nhỏ hơn; cột % bên phải mới là chỗ so giữa người với người.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Khung nhạt</b> — target của người đó. <b>Phần đậm</b> — doanh thu.</li><li>Target cửa hàng chia cho những ai có bán trong tháng.</li><li>An hệ số 0,85 nên target nhỏ hơn.</li></ul>">i</button>
             </div>
             <div class="st-legend">
               <span class="st-legend-item"><i class="st-key-fill"></i>Revenue</span>
@@ -545,7 +545,7 @@
         <div class="chart-card" id="cashierMatrixCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Cashier Productivity
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<p>Mỗi dòng hàng ghi đúng một tên, nên mọi số ở đây cộng theo dòng hàng.</p><ul><li><b>Share</b> — chiếm bao nhiêu % doanh thu của cả nhóm.</li><li><b>Qty</b> — số món đã bán.</li><li><b>Disc%</b> — giảm giá bình quân trên hàng người này bán, tính theo tiền chứ không phải trung bình cộng từng dòng.</li><li><b>Acc%</b> — cứ 100 món bán ra thì bao nhiêu món là phụ kiện; đo kỹ năng bán kèm, không phải % doanh thu.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Share</b> — % doanh thu.</li><li><b>Qty</b> — số món đã bán.</li><li><b>Disc%</b> — giảm bao nhiêu so với giá niêm yết.</li><li><b>Acc%</b> — % số món là phụ kiện.</li></ul>">i</button>
             </div>
           </div>
           <div class="matrix-wrap">
