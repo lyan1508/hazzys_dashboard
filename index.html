@@ -26,7 +26,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260819-mobile">
+<link rel="stylesheet" href="styles.css?v=20261019-pace">
 </head>
 <body>
 <div class="app">
@@ -139,39 +139,39 @@
     <!-- Mỗi thẻ: số → (nhãn + chip so kỳ trước) → sparkline nằm sát đáy thẻ.
          Sparkline đặt tuyệt đối nên không chiếm chỗ của chữ. -->
     <div class="kpi-grid" id="kpiGrid">
-      <div class="kpi-card">
+      <div class="kpi-card" title="Doanh thu thực thu (đã trừ chiết khấu, trả hàng)">
         <div class="kpi-value" id="kSales">—</div>
         <div class="kpi-foot"><span class="kpi-label">Revenue</span><span class="kpi-delta-slot" id="dSales"></span></div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card" title="Target cửa hàng của các tháng trong kỳ">
         <div class="kpi-value" id="kTarget">—</div>
         <div class="kpi-foot"><span class="kpi-label">Target</span><span class="kpi-delta-slot" id="dTarget"></span></div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card" title="Doanh thu / Target cả kỳ. Màu theo tiến độ timeline: xanh ≥100%, cam 90–100%, đỏ <90%">
         <div class="kpi-value" id="kAchieve">—</div>
         <div class="kpi-foot"><span class="kpi-label">Achievement</span><span class="kpi-delta-slot" id="dAchieve"></span></div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card" title="Số hoá đơn (đếm theo số bill, không trùng)">
         <div class="kpi-value" id="kBills">—</div>
         <div class="kpi-foot"><span class="kpi-label">Bills</span><span class="kpi-delta-slot" id="dBills"></span></div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card" title="Tổng số món bán ra (trừ hàng trả)">
         <div class="kpi-value" id="kQty">—</div>
         <div class="kpi-foot"><span class="kpi-label">Units Sold</span><span class="kpi-delta-slot" id="dQty"></span></div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card" title="Lượt khách vào cửa hàng (nhập ở sheet target)">
         <div class="kpi-value" id="kTraffic">—</div>
         <div class="kpi-foot"><span class="kpi-label">Traffic</span><span class="kpi-delta-slot" id="dTraffic"></span></div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card" title="Conversion = Bills / Traffic — bao nhiêu % khách vào mua hàng">
         <div class="kpi-value" id="kCVR">—</div>
         <div class="kpi-foot"><span class="kpi-label">Conversion</span><span class="kpi-delta-slot" id="dCVR"></span></div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card" title="Units per Transaction = số món / hoá đơn">
         <div class="kpi-value" id="kUPT">—</div>
         <div class="kpi-foot"><span class="kpi-label">UPT</span><span class="kpi-delta-slot" id="dUPT"></span></div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card" title="Average Transaction Value = doanh thu / hoá đơn">
         <div class="kpi-value" id="kATV">—</div>
         <div class="kpi-foot"><span class="kpi-label">ATV</span><span class="kpi-delta-slot" id="dATV"></span></div>
       </div>
@@ -180,17 +180,20 @@
     <!-- TARGET PROGRESS BAR (filter-aware, shown when target exists) -->
     <div class="tp-section" id="targetProgressSection" style="display:none">
       <div class="tp-header">
-        <span class="tp-label">Revenue vs Target</span>
+        <span class="tp-label">Revenue vs Target
+          <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Thanh</b> — doanh thu so với target cả kỳ.</li><li><b>Vạch Today</b> — phần target đã đến hạn tới ngày dữ liệu cuối.</li><li><b>Màu</b> — xanh: đúng/vượt timeline, cam: chậm dưới 10%, đỏ: chậm hơn.</li><li><b>Forecast</b> — bình quân mỗi ngày × số ngày của tháng.</li><li><b>Need/day</b> — mỗi ngày còn lại phải bán bao nhiêu để đạt target.</li></ul>">i</button>
+        </span>
         <span class="tp-value" id="tpPct">—</span>
         <span class="tp-meta" id="tpMeta">—</span>
       </div>
       <div class="tp-track">
         <div class="tp-fill" id="tpFill"></div>
-        <div class="tp-mark">
+        <div class="tp-mark" id="tpMark" style="display:none">
           <div class="tp-mark-line"></div>
-          <span class="tp-mark-lbl">85%</span>
+          <span class="tp-mark-lbl" id="tpMarkLbl"></span>
         </div>
       </div>
+      <div class="band-strip tp-pace" id="tpPace"></div>
     </div>
 
     <!-- ══════════ GROUP 1 · PERFORMANCE ══════════ -->
@@ -200,8 +203,8 @@
       <div class="g-row g-row-2">
         <div class="chart-card">
           <div class="chart-card-hd">
-            <div><div class="chart-card-title">Revenue Performance <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Cột xanh lá</b> — đạt target. <b>Xanh dương</b> — chưa đạt.</li><li><b>Đường cam</b> — target.</li><li><b>Cumulative</b> — cộng dồn từ đầu kỳ.</li></ul>">i</button></div></div>
-            <div class="chart-tabs">
+            <div><div class="chart-card-title">Revenue Performance <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Cột xanh lá</b> — đạt target. <b>Xanh dương</b> — chưa đạt.</li><li><b>Đường cam</b> — target.</li><li><b>Cumulative</b> — cộng dồn từ đầu kỳ.</li><li>Chọn <b>một tháng</b> — biểu đồ theo ngày, cột đậm là T7/CN.</li></ul>">i</button></div></div>
+            <div class="chart-tabs" id="revTabs">
               <button class="chart-tab active" onclick="switchRevChart('monthly',this)">Monthly</button>
               <button class="chart-tab" onclick="switchRevChart('cumulative',this)">Cumulative</button>
             </div>
@@ -211,7 +214,7 @@
         <div class="chart-card">
           <div class="chart-card-hd">
             <div class="chart-card-title">Bills &amp; Traffic
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Cột</b> — số hoá đơn.</li><li><b>Đường xanh lá</b> — lượt khách vào cửa hàng.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Cột</b> — số hoá đơn.</li><li><b>Đường xanh lá</b> — lượt khách vào cửa hàng.</li><li>Chọn <b>một tháng</b> — số hoá đơn theo ngày, cột đậm là T7/CN.</li></ul>">i</button>
             </div>
           </div>
           <div class="chart-wrap chart-wrap--md"><canvas id="chartTraffic"></canvas></div>
@@ -447,8 +450,12 @@
         </div>
         <div class="chart-card" id="colorCard">
           <div class="chart-card-hd">
-            <div class="chart-card-title">By Colour
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li>Màu, đọc từ ký tự 10-11 của mã.</li><li>Nên chọn một nhóm hàng rồi mới đọc.</li></ul>">i</button>
+            <div class="chart-card-title">By Colour / Size
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Colour</b> — màu, ký tự 10-11 của mã, xếp theo doanh thu.</li><li><b>Size</b> — ký tự 12-14 của mã, xếp từ nhỏ tới lớn, % theo số món: dùng để chia size khi đặt / bổ sung hàng.</li><li>Nên chọn một nhóm hàng rồi mới đọc.</li></ul>">i</button>
+            </div>
+            <div class="chart-tabs" id="colorModeTabs">
+              <button class="chart-tab active" onclick="switchColorMode('color',this)">Colour</button>
+              <button class="chart-tab" onclick="switchColorMode('size',this)">Size</button>
             </div>
             <!-- Màu chỉ có nghĩa trong một nhóm hàng: BK ở quần và BK ở áo phông
                  là hai câu chuyện khác nhau. Lọc riêng của thẻ, không đụng bộ
@@ -531,11 +538,12 @@
         <div class="chart-card" id="staffTargetCard">
           <div class="chart-card-hd">
             <div class="chart-card-title">Personal Sales
-              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Khung nhạt</b> — target của người đó. <b>Phần đậm</b> — doanh thu.</li><li>Target cửa hàng chia cho những ai có bán trong tháng.</li><li>An hệ số 0,85 nên target nhỏ hơn.</li></ul>">i</button>
+              <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Khung nhạt</b> — target của người đó. <b>Phần đậm</b> — doanh thu.</li><li><b>Vạch dọc</b> — target đã đến hạn tới ngày dữ liệu cuối. <b>Xanh</b> — vượt vạch, <b>cam</b> — đang chậm.</li><li>Target cửa hàng chia cho những ai có bán trong tháng.</li><li>An hệ số 0,85 nên target nhỏ hơn.</li></ul>">i</button>
             </div>
             <div class="st-legend">
               <span class="st-legend-item"><i class="st-key-fill"></i>Revenue</span>
               <span class="st-legend-item"><i class="st-key-target"></i>Target</span>
+              <span class="st-legend-item"><i class="st-key-mark"></i>Today</span>
             </div>
           </div>
           <div class="st-list" id="staffTargetList"></div>
@@ -584,6 +592,6 @@
 
 </div><!-- /app -->
 
-<script defer src="app.js?v=20260819-mobile"></script>
+<script defer src="app.js?v=20261019-pace"></script>
 </body>
 </html>

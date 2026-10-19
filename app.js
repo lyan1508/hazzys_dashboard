@@ -3,6 +3,7 @@ const S = {
   filters: { year: 'all', quarter: 'all', month: 'all', gender: 'all', type: 'all', store: 'all' },
   charts: {},
   revMode: 'monthly',
+  asOf: null,   // ngày bán cuối cùng có trong dữ liệu — xem computeAsOf()
 };
 
 // Categorical colours: same lightness band so no slice visually outranks
@@ -242,6 +243,55 @@ function deltaChip(cur, prev, unit = 'pct') {
 function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
 function monthLabelYY(d) { return `${MONTH_NAMES[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`; }
 function localDateKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+/** m tính từ 1 (1 = tháng Một). Ngày 0 của tháng sau = ngày cuối của tháng m. */
+function daysInMonth(y, m) { return new Date(+y, +m, 0).getDate(); }
+function sameMonth(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth(); }
+
+/* Ô DATE trên Google Sheets bị đọc theo kiểu Mỹ MM/DD với mọi ngày ≤ 12: 03/10
+   (3 tháng Mười) về tới đây thành 10 tháng Ba. Đó chính là ~40% số dòng có
+   tháng ở DATE lệch với MM/YYYY. Đảo ngày ↔ tháng trả lại đúng ngày thật, nên
+   các dòng ấy không còn phải dồn hết về ngày 1 của tháng — điều từng làm thẻ
+   Day of Week cộng gần nửa doanh thu tháng vào đúng thứ của ngày mùng 1. */
+function swapDayMonth(d) {
+  const day = d.getDate();
+  const mon = d.getMonth() + 1;
+  if (day > 12) return null;
+  const out = new Date(d.getFullYear(), day - 1, mon);
+  return out.getMonth() === day - 1 ? out : null;
+}
+
+/* ======== MỐC "DỮ LIỆU ĐẾN NGÀY" ========
+   Ngày bán cuối cùng có trong dữ liệu (chỉ tính dòng có ngày thật). Mọi phép
+   so cùng kỳ và tính tiến độ đều neo vào mốc này chứ không neo vào hôm nay,
+   để dữ liệu về trễ một hai ngày không làm cửa hàng trông như đang hụt. */
+function computeAsOf(rows) {
+  let max = null;
+  let lastMonth = '';
+  rows.forEach((r) => {
+    if (r.monthKey > lastMonth) lastMonth = r.monthKey;
+    if (r.dateExact && (!max || r.date > max)) max = r.date;
+  });
+  // Tháng mới nhất không có dòng nào mang ngày thật thì không biết đang ở ngày
+  // mấy của tháng — thà tắt tính tiến độ còn hơn đoán.
+  if (!max || monthKey(max) !== lastMonth) return null;
+  const y = max.getFullYear();
+  const m = max.getMonth() + 1;
+  const dim = daysInMonth(y, m);
+  return {
+    date: max, year: String(y), monthIndex: m, monthKey: monthKey(max),
+    day: max.getDate(), dim, partial: max.getDate() < dim,
+  };
+}
+
+/** Phần target của một tháng đã "đến hạn" tính tới mốc dữ liệu: tháng đã qua
+ *  = 1, tháng đang chạy = số ngày đã qua / số ngày của tháng, tháng chưa tới = 0. */
+function elapsedRatio(mk) {
+  const a = S.asOf;
+  if (!a) return 1;
+  if (mk < a.monthKey) return 1;
+  if (mk > a.monthKey) return 0;
+  return a.day / a.dim;
+}
 
 // ===== STAFF TARGET WEIGHTS =====
 // The store target is split among the staff who sold that month in proportion to
@@ -614,14 +664,22 @@ function ingestWorkbook(wb) {
     const info = catalog[normalizeGroup(rawProduct)] || catalogByStyle[p9] || {};
     const txDate = parseDate(readField(r, ['date', 'trans_date', 'transdate', '날짜', '日付']));
     const monthDate = parseMonthFromRow(r, ['mm/yyyy', 'm/yyyy', 'mm-yyyy', 'm-yyyy', 'monthyear', 'month_year', 'month']);
-    // The synced DATE column is unreliable: the source DATA.xlsx has scrambled dates
-    // for ~40% of rows (the DATE month often disagrees with MM/YYYY, scattering rows
-    // into future months and pushing the forecast a year or two ahead). MM/YYYY is
-    // authoritative, so when DATE's month contradicts it, fall back to MM/YYYY.
+    // The synced DATE column is unreliable: ~40% of rows carry a DATE whose month
+    // disagrees with MM/YYYY (day and month swapped, see swapDayMonth). MM/YYYY is
+    // authoritative: try the swapped date first, and only when that still does not
+    // land in the right month fall back to the 1st of MM/YYYY. dateExact marks
+    // whether the row knows its real calendar day — Day of Week and the
+    // like-for-like cut-offs only trust rows that do.
     let date = txDate || monthDate;
-    if (txDate && monthDate &&
-        (txDate.getFullYear() !== monthDate.getFullYear() || txDate.getMonth() !== monthDate.getMonth())) {
-      date = monthDate;
+    let dateExact = !!txDate;
+    if (txDate && monthDate && !sameMonth(txDate, monthDate)) {
+      const swapped = swapDayMonth(txDate);
+      if (swapped && sameMonth(swapped, monthDate)) {
+        date = swapped;
+      } else {
+        date = monthDate;
+        dateExact = false;
+      }
     }
     if (!date) return null;
     const baseMonth = monthDate || date;
@@ -640,6 +698,7 @@ function ingestWorkbook(wb) {
     const listPrice = num(readField(r, ['price', 'listprice', 'list_price', 'retailprice', 'unitprice']));
     return {
       date,
+      dateExact,
       dateStr: localDateKey(date),
       year: String(baseMonth.getFullYear()),
       quarter: `Q${Math.ceil((baseMonth.getMonth() + 1) / 3)}`,
@@ -694,6 +753,11 @@ function filteredSalesRows() {
     if (f.gender !== 'all' && r.gender !== f.gender) return false;
     if (f.type !== 'all' && r.type !== f.type) return false;
     if (f.store !== 'all' && r.store !== f.store) return false;
+    // Cắt cùng kỳ, chỉ previousPeriod() đặt: bỏ các tháng sau tháng mốc và các
+    // ngày sau ngày mốc của chính tháng đó. Dòng không có ngày thật nằm ở
+    // ngày 1 nên luôn ở lại.
+    if (f.lfl && (r.monthIndex > f.lfl.m
+        || (r.monthIndex === f.lfl.m && r.dateExact && r.date.getDate() > f.lfl.d))) return false;
     return true;
   });
 }
@@ -758,6 +822,17 @@ function aggregate() {
     addBill(m.billAcc, r);
   });
 
+  // Kỳ so sánh cắt cùng kỳ: traffic của sheet target là số cả tháng, nên tháng
+  // mốc chỉ lấy phần tương ứng số ngày, các tháng sau mốc không lấy. Target thì
+  // giữ nguyên — đó là kế hoạch của cả kỳ, không phải số đo.
+  const lfl = S.filters.lfl;
+  const trafficWeight = (t) => {
+    if (!lfl) return 1;
+    if (t.monthIndex > lfl.m) return 0;
+    if (t.monthIndex === lfl.m) return Math.min(1, lfl.d / daysInMonth(t.year, t.monthIndex));
+    return 1;
+  };
+
   targets.forEach((t) => {
     if (!monthMap.has(t.monthKey)) {
       monthMap.set(t.monthKey, {
@@ -774,7 +849,7 @@ function aggregate() {
     }
     const m = monthMap.get(t.monthKey);
     m.target += num(t.target);
-    m.traffic += num(t.traffic);
+    m.traffic += num(t.traffic) * trafficWeight(t);
   });
 
   const months = [...monthMap.values()].sort((a, b) => a.monthKey.localeCompare(b.monthKey)).map((m) => {
@@ -782,12 +857,15 @@ function aggregate() {
     const actual = num(m.actual);
     const traffic = num(m.traffic);
     const qty = num(m.qty);
+    const ratio = elapsedRatio(m.monthKey);
     return {
       ...m,
       billCount,
       actual,
       traffic,
       target: num(m.target),
+      ratio,
+      timelineTarget: num(m.target) * ratio,
       qty,
       cvr: traffic > 0 ? (billCount / traffic) * 100 : 0,
       atv: billCount > 0 ? actual / billCount : 0,
@@ -797,6 +875,58 @@ function aggregate() {
   const bills = countBills(rows);
   const traffic = months.reduce((s, m) => s + num(m.traffic), 0);
   const target = months.reduce((s, m) => s + num(m.target), 0);
+  // Target "đến hạn" tới mốc dữ liệu — mẫu số đúng để hỏi "đang nhanh hay chậm".
+  // Achievement chia cho target cả kỳ, nên giữa tháng luôn trông thấp dù cửa
+  // hàng đang chạy đúng nhịp.
+  const timelineTarget = months.reduce((s, m) => s + num(m.timelineTarget), 0);
+
+  /* Tiến độ tháng đang chạy: dự báo cuối tháng theo tốc độ bình quân mỗi ngày
+     đã qua, và mỗi ngày còn lại phải bán bao nhiêu mới chạm target. Chỉ có khi
+     kỳ đang xem chứa tháng chưa hết. */
+  const pace = (() => {
+    const a = S.asOf;
+    const cur = a && a.partial ? months.find((x) => x.monthKey === a.monthKey) : null;
+    if (!cur || !(cur.actual > 0)) return null;
+    const runRate = cur.actual / a.day;
+    const forecast = runRate * a.dim;
+    const left = a.dim - a.day;
+    const gap = cur.target - cur.actual;
+    return {
+      label: cur.monthLabelYY, monthIndex: a.monthIndex, day: a.day, dim: a.dim, left,
+      actual: cur.actual, target: cur.target, timelineTarget: cur.timelineTarget,
+      runRate, forecast,
+      forecastPct: cur.target > 0 ? (forecast / cur.target) * 100 : null,
+      needPerDay: gap > 0 && left > 0 ? gap / left : 0,
+    };
+  })();
+  /* Theo NGÀY khi bộ lọc chốt đúng một tháng: biểu đồ theo tháng lúc đó chỉ
+     còn một cột duy nhất, không nhìn ra được tháng đang đi lên hay chững lại.
+     Ngày sau mốc dữ liệu để null (chưa tới), không phải 0 (bán không được). */
+  const daily = (() => {
+    const f = S.filters;
+    if (f.year === 'all' || f.month === 'all') return null;
+    const y = +f.year;
+    const mo = +f.month;
+    const dim = daysInMonth(y, mo);
+    const rev = new Array(dim).fill(0);
+    const accs = Array.from({ length: dim }, () => newBillAcc());
+    rows.forEach((r) => {
+      if (!r.dateExact) return;
+      const i = r.date.getDate() - 1;
+      rev[i] += num(r.amount);
+      addBill(accs[i], r);
+    });
+    const a = S.asOf;
+    const lastDay = a && a.year === f.year && a.monthIndex === mo ? a.day : dim;
+    return {
+      dim, lastDay,
+      labels: rev.map((_, i) => String(i + 1)),
+      weekend: rev.map((_, i) => [0, 6].includes(new Date(y, mo - 1, i + 1).getDay())),
+      revenue: rev.map((v, i) => (i < lastDay ? v : null)),
+      bills: accs.map((b, i) => (i < lastDay ? billTotal(b) : null)),
+      dailyTarget: target > 0 ? target / dim : 0,
+    };
+  })();
   const cvr = traffic > 0 ? (bills / traffic) * 100 : 0;
   const atv = bills > 0 ? totalSales / bills : 0;
   const upt = bills > 0 ? qty / bills : 0;
@@ -850,6 +980,26 @@ function aggregate() {
       const category = raw.slice(2, 4);
       const key = `${color}|${category}`;
       const p = map.get(key) || { color, category, value: 0, qty: 0 };
+      p.value += num(r.amount);
+      p.qty += num(r.qty);
+      map.set(key, p);
+    });
+    return [...map.values()];
+  })();
+  // ===== SIZE — ký tự 12-14 của mã SKU =====
+  // Cùng dạng (mã, nhóm hàng) như màu, cùng lý do: size 82 của quần và size 095
+  // của áo không cộng chung được. Đây là số dùng để chia size khi đặt hàng —
+  // thiếu size bán chạy là mất đơn ngay tại quầy.
+  const sizeStats = (() => {
+    const map = new Map();
+    rows.forEach((r) => {
+      const raw = String(r.sku || r.upc || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (raw.length !== 14) return;
+      const code = raw.slice(11, 14);
+      const size = /^\d+$/.test(code) ? String(Number(code)) : code;
+      const category = raw.slice(2, 4);
+      const key = `${size}|${category}`;
+      const p = map.get(key) || { size, category, value: 0, qty: 0 };
       p.value += num(r.amount);
       p.qty += num(r.qty);
       map.set(key, p);
@@ -966,7 +1116,7 @@ function aggregate() {
       bucket.set(key, num(bucket.get(key)) + num(r.amount));
     });
 
-    const staff = new Map();        // name -> { label, amount, target }
+    const staff = new Map();        // name -> { label, amount, target, timeline }
 
     months.forEach((mo) => {
       const bucket = revByMonth.get(mo.monthKey);
@@ -977,10 +1127,13 @@ function aggregate() {
       const monthTarget = num(mo.target);
 
       names.forEach((n) => {
-        const e = staff.get(n) || { label: n, coef: staffCoef(n), amount: 0, target: 0 };
+        const e = staff.get(n) || { label: n, coef: staffCoef(n), amount: 0, target: 0, timeline: 0 };
         e.amount += num(bucket.get(n));
         if (totalCoef > 0 && monthTarget > 0) {
-          e.target += (monthTarget * staffCoef(n)) / totalCoef;
+          const share = (monthTarget * staffCoef(n)) / totalCoef;
+          e.target += share;
+          // Phần target đã đến hạn tới ngày dữ liệu cuối — vạch dọc trên thanh.
+          e.timeline += share * num(mo.ratio);
         }
         staff.set(n, e);
       });
@@ -990,7 +1143,8 @@ function aggregate() {
     return {
       list,
       totalAmount: list.reduce((s, e) => s + e.amount, 0),
-      totalTarget: list.reduce((s, e) => s + e.target, 0)
+      totalTarget: list.reduce((s, e) => s + e.target, 0),
+      totalTimeline: list.reduce((s, e) => s + e.timeline, 0)
     };
   })();
 
@@ -1081,7 +1235,9 @@ function aggregate() {
       dow: d, label: DAY_NAMES_EN[d], revenue: 0, qty: 0, billAcc: newBillAcc(), dates: new Set()
     }));
     rows.forEach((r) => {
-      if (!r.date) return;
+      // Dòng không biết ngày thật đang nằm tạm ở ngày 1 của tháng; tính nó vào
+      // thì thứ của ngày mùng 1 được cộng oan cả đống doanh thu.
+      if (!r.date || !r.dateExact) return;
       const d = r.date.getDay();
       const b = buckets[d];
       b.revenue += num(r.amount);
@@ -1300,11 +1456,11 @@ function aggregate() {
 
   return {
     discountStats, txTypes, basketStats, customerStats,
-    rows, months, totalSales, qty, bills, traffic, target, cvr, atv, upt, topProducts,
+    rows, months, daily, totalSales, qty, bills, traffic, target, timelineTarget, pace, cvr, atv, upt, topProducts,
     byType: safeGroupSum(rows, 'type'),
     byGender: safeGroupSum(rows, 'gender'),
     byCategory: safeGroupSum(rows, 'category'),
-    colorStats,
+    colorStats, sizeStats,
     promotionStats, cashierMatrix, cashierTotals, staffMatrix, dowStats, rangeFrom, rangeTo,
     seasonStats, seasonTotals, seasonMonthly
   };
@@ -1317,32 +1473,55 @@ function aggregate() {
    nó so với "tháng trước" là so hai đại lượng khác nhau, nên trả về null và
    thẻ không hiện chip nào. Thà không có con số còn hơn có một con số sai.
 
-   Các bộ lọc chiều khác (Store) được giữ nguyên để so sánh cùng phạm vi. */
-function previousPeriodMetrics() {
+   Các bộ lọc chiều khác (Store) được giữ nguyên để so sánh cùng phạm vi.
+
+   Kỳ đang xem chứa tháng CHƯA HẾT (dữ liệu tới 18/10) thì kỳ trước cũng chỉ
+   lấy tới đúng ngày đó (1–18/09). So 18 ngày với cả tháng 30 ngày thì chip nào
+   cũng đỏ sâu −40%, trong khi cửa hàng có khi đang bán tốt hơn.
+
+   Trả về { m, label } — label dùng cho tooltip chip. */
+function previousPeriod() {
   const f = S.filters;
   if (f.year === 'all') return null;
   const year = +f.year;
+  const a = S.asOf;
   let prev = null;
+  let lfl = null;
+  let label = '';
 
   if (f.month !== 'all') {
     const mo = +f.month;
-    prev = mo === 1
-      ? { year: String(year - 1), month: '12', quarter: 'all' }
-      : { year: String(year), month: String(mo - 1).padStart(2, '0'), quarter: 'all' };
+    const py = mo === 1 ? year - 1 : year;
+    const pm = mo === 1 ? 12 : mo - 1;
+    prev = { year: String(py), month: String(pm).padStart(2, '0'), quarter: 'all' };
+    label = `${MONTH_NAMES[pm - 1]} ${py}`;
+    if (a && a.partial && a.year === f.year && a.monthIndex === mo) {
+      lfl = { m: pm, d: Math.min(a.day, daysInMonth(py, pm)) };
+      label += ` (1–${lfl.d})`;
+    }
   } else if (f.quarter !== 'all') {
     const q = +String(f.quarter).replace(/\D/g, '');
     if (!q) return null;
-    prev = q === 1
-      ? { year: String(year - 1), quarter: 'Q4', month: 'all' }
-      : { year: String(year), quarter: `Q${q - 1}`, month: 'all' };
+    const py = q === 1 ? year - 1 : year;
+    const pq = q === 1 ? 4 : q - 1;
+    prev = { year: String(py), quarter: `Q${pq}`, month: 'all' };
+    label = `Q${pq} ${py}`;
+    if (a && a.partial && a.year === f.year && Math.ceil(a.monthIndex / 3) === q) {
+      // Cùng vị trí trong quý: đang ở ngày 18 của tháng thứ nhất Q4 thì kỳ so
+      // là Q3 tính tới ngày 18 của tháng thứ nhất Q3.
+      const pm = (pq - 1) * 3 + (a.monthIndex - (q - 1) * 3);
+      lfl = { m: pm, d: Math.min(a.day, daysInMonth(py, pm)) };
+      label += ` to ${lfl.d} ${MONTH_NAMES[pm - 1]}`;
+    }
   }
   if (!prev) return null;
+  prev.lfl = lfl;
 
   const saved = { ...f };
   try {
     Object.assign(S.filters, prev);
     const m = metrics();
-    return m.rows.length ? m : null;   // kỳ trước không có dữ liệu thì thôi
+    return m.rows.length ? { m, label } : null;   // kỳ trước không có dữ liệu thì thôi
   } finally {
     S.filters = saved;
   }
@@ -1613,23 +1792,31 @@ function renderStaffTargets(m) {
   el.innerHTML = list.map((s) => {
     const amount = num(s.amount);
     const target = num(s.target);
+    const timeline = num(s.timeline);
     const pct = target > 0 ? (amount / target) * 100 : 0;
     const fillPct = target > 0
       ? Math.min((amount / target) * 100, 100)
       : (amount / revScale) * 100;
+    // Vạch dọc = phần target đã đến hạn; chỉ vẽ khi kỳ còn tháng đang chạy.
+    const markPct = target > 0 ? (timeline / target) * 100 : 100;
+    // Xanh = đang ở trên vạch, cam = đang dưới vạch. Màu nói "kịp hay không",
+    // độ dài nói "được bao nhiêu" — không bắt người xem tự so hai thứ đó.
+    const tone = target > 0 ? (amount >= timeline ? ' ahead' : ' behind') : '';
 
     // Dạng rút gọn ("2.45 B ₫") chứ không phải đủ chữ số: mọi con số tiền
     // khác trên trang — thẻ KPI, thanh Revenue vs Target, các bảng — đều bày
     // ở dạng này, để riêng tooltip đọc ra "2.451.754.241 ₫" thì lạc nhịp.
     const tip = target > 0
       ? `${esc(s.label)} — Revenue ${fmtVNDShort(amount)} / Target ${fmtVNDShort(target)}`
+        + (markPct < 99.9 ? ` · Timeline ${fmtVNDShort(timeline)} (${fmtPct(timeline > 0 ? (amount / timeline) * 100 : 0)})` : '')
       : `${esc(s.label)} — Revenue ${fmtVNDShort(amount)} (no target for this period)`;
     return `
       <div class="st-row" title="${esc(tip)}">
         <div class="st-name">${esc(s.label)}</div>
         <div class="st-track">
           ${target > 0 ? '<div class="st-target"></div>' : ''}
-          <div class="st-fill" style="width:${fillPct}%"></div>
+          <div class="st-fill${tone}" style="width:${fillPct}%"></div>
+          ${markPct < 99.9 ? `<div class="st-mark" style="left:${markPct}%"></div>` : ''}
         </div>
         <div class="st-pct">${target > 0 ? rollHtml(pct, 'pct') : '—'}</div>
       </div>
@@ -1650,7 +1837,52 @@ function renderStaffTargets(m) {
 /* Biểu đồ Revenue tách riêng khỏi renderCharts: nút Monthly/Cumulative chỉ đổi
    mỗi biểu đồ này, mà dựng lại cả cụm thì kéo theo Traffic, hai doughnut, danh
    sách danh mục, khuyến mãi, nhân viên và biểu đồ mùa — toàn thứ không đổi. */
+/* Một tháng: cột = doanh thu từng ngày (xanh lá khi đạt target ngày, cuối tuần
+   đậm hơn để thấy nhịp tuần), đường cam = target ngày. Ở chế độ Cumulative:
+   cột lũy kế so với đường target lũy kế — cột vượt đường là đang đi trước kế
+   hoạch, nhìn là biết không cần đọc số. */
+function renderDailyRevenueChart(m) {
+  const d = m.daily;
+  const cumulative = S.revMode === 'cumulative';
+  let run = 0;
+  const rev = cumulative ? d.revenue.map((v) => (v === null ? null : (run += v))) : d.revenue;
+  const tgt = d.labels.map((_, i) => (d.dailyTarget > 0 ? (cumulative ? d.dailyTarget * (i + 1) : d.dailyTarget) : null));
+  const green = css('--green');
+  const blue = css('--brand-mid');
+  const opts = baseOptions((v) => fmtShort(v), (ctx) => `${ctx.dataset.label}: ${fmtVNDShort(ctx.raw)}`);
+  opts.layout = { padding: { top: 4, right: 8, bottom: 2, left: 2 } };
+  opts.scales.x.ticks.autoSkip = true;
+  opts.scales.x.ticks.maxRotation = 0;
+  opts.scales.y.grace = '6%';
+  opts.plugins.tooltip.callbacks.title = (items) => `Day ${items[0].label}`;
+  S.charts.rev = new Chart(document.getElementById('chartRevenue'), {
+    data: {
+      labels: d.labels,
+      datasets: [
+        {
+          type: 'bar', label: cumulative ? 'Actual (cum.)' : 'Actual', data: rev, order: 2,
+          backgroundColor: rev.map((v, i) => {
+            const c = tgt[i] !== null && v !== null && v >= tgt[i] ? green : blue;
+            return d.weekend[i] ? c : withAlpha(c, 0.62);
+          }),
+          borderRadius: 3, maxBarThickness: 22, categoryPercentage: 0.8, barPercentage: 0.9,
+        },
+        {
+          type: 'line', label: cumulative ? 'Target (cum.)' : 'Daily target', data: tgt, order: 1,
+          borderColor: css('--accent'), borderWidth: 2, borderDash: [5, 4],
+          pointRadius: 0, pointHoverRadius: 4, spanGaps: true,
+        },
+      ],
+    },
+    options: opts,
+  });
+}
+
 function renderRevenueChart(m) {
+  // Nhãn tab đầu đổi theo kiểu biểu đồ đang hiện: Monthly hay Daily.
+  const firstTab = document.querySelector('#revTabs .chart-tab');
+  if (firstTab) firstTab.textContent = m.daily ? 'Daily' : 'Monthly';
+  if (m.daily) { destroyChart('rev'); renderDailyRevenueChart(m); return; }
   const labels = safeLabels(m.months.map((x) => x.monthLabelYY));
   const actual = safeDataset(m.months.map((x) => x.actual), labels.length);
   const target = safeDataset(m.months.map((x) => x.target), labels.length);
@@ -1727,32 +1959,54 @@ function renderCharts(m) {
 
   destroyChart('traffic');
   const green = css('--green');
-  S.charts.traffic = new Chart(document.getElementById('chartTraffic'), {
-    data: {
-      labels,
-      datasets: [
-        {
-          type: 'bar', label: 'Bills', data: bills, borderRadius: 4,
-          maxBarThickness: barCapFor(labels.length),
-          backgroundColor: css('--brand-mid')
-        },
-        {
-          type: 'line', label: 'Traffic', data: traffic,
-          borderColor: green, borderWidth: 2,
-          cubicInterpolationMode: 'monotone',
-          borderJoinStyle: 'round', borderCapStyle: 'round',
-          pointRadius: 2, pointHoverRadius: 5, pointBorderWidth: 0,
-          // Vùng nền mờ dưới đường Traffic — đọc ra "khối lượng khách", không
-          // chỉ là một sợi chỉ vắt ngang. Chỗ này buộc phải là hàm vì gradient
-          // cần khung vẽ, mà khung vẽ chưa có ở lượt dựng đầu tiên — nhưng màu
-          // thì đã chốt sẵn ở ngoài, không đọc lại biến CSS mỗi khung hình.
-          fill: true,
-          backgroundColor: (ctx) => vGradient(ctx.chart, green, 0.20, 0)
-        }
-      ]
-    },
-    options: baseOptions((v) => fmtShort(v), (ctx) => `${ctx.dataset.label}: ${fmtN(ctx.raw)}`)
-  });
+  // Một tháng: số hoá đơn theo ngày (traffic chỉ có số cả tháng nên không vẽ
+  // được theo ngày). Cuối tuần đậm hơn, cùng quy ước với biểu đồ doanh thu.
+  if (m.daily) {
+    const d = m.daily;
+    const blue = css('--brand-mid');
+    const opts = baseOptions((v) => fmtShort(v), (ctx) => `${ctx.dataset.label}: ${fmtN(ctx.raw)}`);
+    opts.scales.x.ticks.autoSkip = true;
+    opts.scales.x.ticks.maxRotation = 0;
+    opts.plugins.tooltip.callbacks.title = (items) => `Day ${items[0].label}`;
+    S.charts.traffic = new Chart(document.getElementById('chartTraffic'), {
+      type: 'bar',
+      data: {
+        labels: d.labels,
+        datasets: [{
+          label: 'Bills', data: d.bills, borderRadius: 3, maxBarThickness: 22,
+          backgroundColor: d.weekend.map((w) => (w ? blue : withAlpha(blue, 0.62))),
+        }],
+      },
+      options: opts,
+    });
+  } else {
+    S.charts.traffic = new Chart(document.getElementById('chartTraffic'), {
+      data: {
+        labels,
+        datasets: [
+          {
+            type: 'bar', label: 'Bills', data: bills, borderRadius: 4,
+            maxBarThickness: barCapFor(labels.length),
+            backgroundColor: css('--brand-mid')
+          },
+          {
+            type: 'line', label: 'Traffic', data: traffic,
+            borderColor: green, borderWidth: 2,
+            cubicInterpolationMode: 'monotone',
+            borderJoinStyle: 'round', borderCapStyle: 'round',
+            pointRadius: 2, pointHoverRadius: 5, pointBorderWidth: 0,
+            // Vùng nền mờ dưới đường Traffic — đọc ra "khối lượng khách", không
+            // chỉ là một sợi chỉ vắt ngang. Chỗ này buộc phải là hàm vì gradient
+            // cần khung vẽ, mà khung vẽ chưa có ở lượt dựng đầu tiên — nhưng màu
+            // thì đã chốt sẵn ở ngoài, không đọc lại biến CSS mỗi khung hình.
+            fill: true,
+            backgroundColor: (ctx) => vGradient(ctx.chart, green, 0.20, 0)
+          }
+        ]
+      },
+      options: baseOptions((v) => fmtShort(v), (ctx) => `${ctx.dataset.label}: ${fmtN(ctx.raw)}`)
+    });
+  }
 
   renderCategoryList(m);
   renderColorList(m);
@@ -1815,11 +2069,20 @@ function barCapFor(count) {
 // kho, dịch sang tiếng Việt chỉ thêm một bước đối chiếu ngược.
 // Ô nhóm hàng là thứ làm card này có ích: gộp mọi nhóm lại thì BK luôn đứng đầu
 // và chẳng nói được gì, còn lọc riêng PA hay TS mới thấy màu nào bán được.
-const COLOR_FILTER = { category: 'all' };
+const COLOR_FILTER = { category: 'all', mode: 'color' };   // mode: color | size
 
 window.switchColorCategory = function (code) {
   COLOR_FILTER.category = code;
   renderColorList(metrics());
+};
+
+window.switchColorMode = function (mode, btn) {
+  COLOR_FILTER.mode = mode;
+  (btn.closest('.chart-tabs') || document).querySelectorAll('.chart-tab').forEach((t) => t.classList.remove('active'));
+  btn.classList.add('active');
+  if (!S.raw.sales.length) return;
+  renderColorList(metrics());
+  sweepIfVisible(document.getElementById('colorList'));
 };
 
 function syncColorCategoryOptions(stats) {
@@ -1849,6 +2112,7 @@ function renderColorList(m) {
   if (!el) return;
   const stats = m.colorStats || [];
   syncColorCategoryOptions(stats);
+  if (COLOR_FILTER.mode === 'size') { renderSizeList(el, m.sizeStats || []); return; }
 
   const roll = new Map();
   stats.forEach((p) => {
@@ -1874,6 +2138,43 @@ function renderColorList(m) {
     <div class="cat-row" title="${esc(x.color)}">
       <div class="cat-fill" style="width:${Math.max(2, (num(x.value) / maxVal) * 100)}%"></div>
       <div class="cat-code">${esc(x.color)}</div>
+      <div class="cat-name">${rollHtml(x.qty, 'n')} pcs</div>
+      <div class="cat-amt">${rollHtml(x.value, 'short')}</div>
+      <div class="cat-pct">${rollHtml(share, 'pct')}</div>
+    </div>`;
+  }).join('');
+}
+
+/* Size xếp theo THỨ TỰ SIZE chứ không theo doanh thu: nhìn từ nhỏ tới lớn mới
+   ra được "đường cong size" để chia hàng khi đặt. Thanh và % tính theo SỐ MÓN
+   — đặt hàng là đặt số cái, không phải số tiền. */
+function renderSizeList(el, stats) {
+  const roll = new Map();
+  stats.forEach((p) => {
+    if (COLOR_FILTER.category !== 'all' && p.category !== COLOR_FILTER.category) return;
+    const e = roll.get(p.size) || { size: p.size, value: 0, qty: 0 };
+    e.value += num(p.value);
+    e.qty += num(p.qty);
+    roll.set(p.size, e);
+  });
+  const list = [...roll.values()].filter((x) => num(x.qty) > 0).sort((a, b) => {
+    const na = /^\d+$/.test(a.size), nb = /^\d+$/.test(b.size);
+    if (na && nb) return Number(a.size) - Number(b.size);
+    if (na !== nb) return na ? -1 : 1;
+    return a.size.localeCompare(b.size);
+  });
+  if (!list.length) {
+    el.innerHTML = '<div style="padding:14px 16px;color:var(--text-3);font-size:12px;text-align:center">No Data</div>';
+    return;
+  }
+  const maxQty = Math.max(...list.map((x) => num(x.qty))) || 1;
+  const totalQty = list.reduce((s, x) => s + num(x.qty), 0);
+  el.innerHTML = list.map((x) => {
+    const share = totalQty > 0 ? (num(x.qty) / totalQty) * 100 : 0;
+    return `
+    <div class="cat-row${num(x.qty) === maxQty ? ' is-top' : ''}" title="Size ${esc(x.size)} · ${fmtN(x.qty)} pcs · ${fmtVNDShort(x.value)}">
+      <div class="cat-fill" style="width:${Math.max(2, (num(x.qty) / maxQty) * 100)}%"></div>
+      <div class="cat-code">${esc(x.size)}</div>
       <div class="cat-name">${rollHtml(x.qty, 'n')} pcs</div>
       <div class="cat-amt">${rollHtml(x.value, 'short')}</div>
       <div class="cat-pct">${rollHtml(share, 'pct')}</div>
@@ -2033,14 +2334,30 @@ function setKpi(id, value, fmt) {
   rollNumber(el, n, fmt);
 }
 
-function renderKPIs(m) {
+/** Tiến độ so với target đến hạn (timeline), không phải target cả kỳ. Một
+ *  ngưỡng chung cho thẻ Achievement, thanh Revenue vs Target và Personal Sales:
+ *  ≥100% đúng nhịp, 90–100% hơi chậm, dưới 90% đáng lo. */
+function paceClass(actual, timeline) {
+  if (!(timeline > 0)) return '';
+  const p = (actual / timeline) * 100;
+  return p >= 100 ? 'good' : p >= 90 ? 'warn' : 'bad';
+}
+
+function renderKPIs(m, prev) {
   setKpi('kSales', num(m.totalSales), fmtVNDShort);
   setKpi('kBills', num(m.bills), fmtN);
   setKpi('kQty', num(m.qty), fmtN);
-  setKpi('kTraffic', num(m.traffic), fmtN);
-  setKpi('kCVR', num(m.cvr), fmtPct);
   setKpi('kUPT', num(m.upt), (v) => num(v).toFixed(2));
   setKpi('kATV', num(m.atv), fmtVNDShort);
+  // Không có traffic thì Conversion không tính được — hiện "—" chứ không phải
+  // "0.0%", đọc ra như thể không ai mua.
+  if (num(m.traffic) > 0) {
+    setKpi('kTraffic', num(m.traffic), fmtN);
+    setKpi('kCVR', num(m.cvr), fmtPct);
+  } else {
+    setKpi('kTraffic', '—');
+    setKpi('kCVR', '—');
+  }
 
   // Target + Achievement %
   const target = num(m.target);
@@ -2053,19 +2370,22 @@ function renderKPIs(m) {
   if (target > 0) {
     const pct = (num(m.totalSales) / target) * 100;
     setKpi('kAchieve', pct, fmtPct);
-    achEl.classList.add(pct >= 100 ? 'good' : pct >= 80 ? 'warn' : 'bad');
+    // Màu theo tiến độ timeline: ngày 18/31 đạt 58% target là ĐÚNG nhịp, tô
+    // đỏ theo mốc 100% cả tháng thì giữa tháng nào cũng báo động giả.
+    const cls = paceClass(num(m.totalSales), num(m.timelineTarget));
+    if (cls) achEl.classList.add(cls);
   } else {
     setKpi('kAchieve', '—');
   }
 
-  renderKpiContext(m);
+  renderKpiContext(m, prev);
   renderTargetProgressBar(m);
 }
 
-/* Chip so kỳ trước cho từng thẻ KPI. Chỉ xuất hiện khi previousPeriodMetrics()
-   có kỳ để so — xem chú thích ở đó. */
-function renderKpiContext(m) {
-  const prev = previousPeriodMetrics();
+/* Chip so kỳ trước cho từng thẻ KPI. Chỉ xuất hiện khi previousPeriod() có kỳ
+   để so — xem chú thích ở đó. */
+function renderKpiContext(m, prevPeriod) {
+  const prev = prevPeriod ? prevPeriod.m : null;
 
   const cards = [
     ['Sales',   m.totalSales,                                            prev && prev.totalSales, 'pct'],
@@ -2083,21 +2403,14 @@ function renderKpiContext(m) {
   cards.forEach(([key, cur, prevVal, unit]) => {
     const delta = document.getElementById('d' + key);
     if (!delta) return;
-    delta.innerHTML = prev ? deltaChip(cur, prevVal, unit) : '';
-    delta.title = prev ? `So với ${prevPeriodLabel()}` : '';
+    // Không có traffic ở một trong hai kỳ thì không có gì để so.
+    const noTraffic = (key === 'Traffic' || key === 'CVR') && !(num(m.traffic) > 0);
+    delta.innerHTML = prev && !noTraffic ? deltaChip(cur, prevVal, unit) : '';
+    delta.title = prev ? `So với ${prevPeriod.label}` : '';
   });
 }
 
-/** Nhãn kỳ so sánh, chỉ dùng cho tooltip của chip. */
-function prevPeriodLabel() {
-  const f = S.filters;
-  if (f.month !== 'all') {
-    const mo = +f.month;
-    return mo === 1 ? `${MONTH_NAMES[11]} ${+f.year - 1}` : `${MONTH_NAMES[mo - 2]} ${f.year}`;
-  }
-  const q = +String(f.quarter).replace(/\D/g, '');
-  return q === 1 ? `Q4 ${+f.year - 1}` : `Q${q - 1} ${f.year}`;
-}
+const PACE_COLOR = { good: 'var(--green)', warn: 'var(--warn)', bad: 'var(--red)' };
 
 function renderTargetProgressBar(m) {
   const section = document.getElementById('targetProgressSection');
@@ -2109,11 +2422,9 @@ function renderTargetProgressBar(m) {
   const actual = num(m.totalSales);
   const rawPct = (actual / target) * 100;
   const fillPct = Math.min(rawPct, 100);
-
-  let color;
-  if (rawPct >= 100)    color = 'var(--green)';
-  else if (rawPct >= 85) color = 'var(--warn)';
-  else                   color = 'var(--red)';
+  const timeline = num(m.timelineTarget);
+  // Tô theo tiến độ timeline, cùng ngưỡng với thẻ Achievement.
+  const color = PACE_COLOR[paceClass(actual, timeline)] || 'var(--text-3)';
 
   rollNumber(document.getElementById('tpPct'), rawPct, fmtPct);
   document.getElementById('tpPct').style.color = color;
@@ -2125,6 +2436,45 @@ function renderTargetProgressBar(m) {
   const fill = document.getElementById('tpFill');
   fill.style.width = fillPct + '%';
   fill.style.background = color;
+
+  /* Vạch "Today" = phần target đã đến hạn. Trước đây là một vạch cố định ở
+     85%, không nói được gì giữa tháng: ngày 10 thì 85% là quá xa, ngày 30
+     thì lại quá gần. Kỳ đã trọn vẹn (vạch = 100%) thì ẩn đi. */
+  const ratio = timeline / target;
+  const mark = document.getElementById('tpMark');
+  if (mark) {
+    const show = ratio > 0 && ratio < 0.999;
+    mark.style.display = show ? '' : 'none';
+    mark.style.left = `${ratio * 100}%`;
+    document.getElementById('tpMarkLbl').textContent = `Today ${fmtPct(ratio * 100)}`;
+  }
+
+  const paceEl = document.getElementById('tpPace');
+  if (!paceEl) return;
+  const chips = [];
+  if (ratio > 0 && ratio < 0.999) {
+    const p = (actual / timeline) * 100;
+    chips.push([`<b>${fmtPct(p)}</b> of timeline`, paceClass(actual, timeline),
+      `Doanh thu so với phần target đã đến hạn (${fmtVNDShort(timeline)}). ≥100% là đúng nhịp.`]);
+  }
+  const pc = m.pace;
+  if (pc && pc.target > 0) {
+    chips.push([`${esc(pc.label)} forecast <b>${fmtVNDShort(pc.forecast)}</b> · ${fmtPct(pc.forecastPct)}`,
+      pc.forecastPct >= 100 ? 'good' : pc.forecastPct >= 90 ? 'warn' : 'bad',
+      `Bình quân ${fmtVNDShort(pc.runRate)}/ngày × ${pc.dim} ngày. Target tháng ${fmtVNDShort(pc.target)}.`]);
+    chips.push([pc.needPerDay > 0
+      ? `Need <b>${fmtVNDShort(pc.needPerDay)}</b>/day · ${pc.left} days left`
+      : '<b>Target reached</b>', pc.needPerDay > pc.runRate ? 'warn' : 'good',
+      pc.needPerDay > 0
+        ? `Mỗi ngày còn lại phải bán ${fmtVNDShort(pc.needPerDay)} — ${(pc.needPerDay / pc.runRate).toFixed(2)}× tốc độ hiện tại (${fmtVNDShort(pc.runRate)}/ngày).`
+        : 'Đã vượt target tháng.']);
+  }
+  if (S.asOf) {
+    chips.push([`Data to <b>${S.asOf.date.toLocaleDateString('vi-VN')}</b>`, '',
+      'Ngày bán cuối cùng có trong dữ liệu. Tiến độ và so cùng kỳ đều tính tới ngày này.']);
+  }
+  paceEl.innerHTML = chips.map(([html, cls, tip]) =>
+    `<span class="band-item ${cls}" title="${esc(tip)}">${html}</span>`).join('');
 }
 
 /* ======== XEM ẢNH SẢN PHẨM NGAY TRONG BẢNG ========
@@ -2456,7 +2806,8 @@ function syncCharts() {
 function renderAll() {
   if (!S.raw.sales.length) return;
   const m = metrics();
-  renderKPIs(m);
+  const prev = previousPeriod();
+  renderKPIs(m, prev);
   renderCharts(m);
   renderTopProducts(m);
   renderCashierMatrix(m);
@@ -2938,6 +3289,7 @@ function setStatus(text, isIdle = false) {
 // ---- Shared helper: ingest workbook + reset UI state ----
 function applyWorkbook(wb, successMsg) {
   S.raw = ingestWorkbook(wb);
+  S.asOf = computeAsOf(S.raw.sales);
   invalidateAggregate();   // dữ liệu mới: mọi bảng tổng hợp đã nhớ đều hết giá trị
   // Every filter starts at "All" — the dashboard opens on the full data set and
   // the user narrows it down themselves.
@@ -3206,8 +3558,44 @@ function initYoyFilters() {
   document.getElementById('yoyCustomTo').addEventListener('change', e => { YOY.customTo = +e.target.value; renderYoy(); });
 }
 
+/* ======== SO CÙNG KỲ (LIKE-FOR-LIKE) ========
+   Dữ liệu tới 18/10/2026 thì "YTD" của 2025 phải là 01/01–18/10/2025, không
+   phải cả năm 2025; và "Oct" của mọi năm là 1–18/10. Trước đây YTD lấy trọn
+   12 tháng của năm cũ, nên năm nay luôn trông như tụt 20–30%. */
+function yoyCutRows(rows, ytd) {
+  const a = S.asOf;
+  if (!a) return rows;
+  return rows.filter(r => {
+    if (ytd && r.monthIndex > a.monthIndex) return false;
+    if (a.partial && r.monthIndex === a.monthIndex && r.dateExact && r.date.getDate() > a.day) return false;
+    return true;
+  });
+}
+
+/** Traffic ở sheet target là số cả tháng: tháng mốc của các năm cũ chỉ lấy
+ *  phần tương ứng số ngày đã cắt, để CVR so được với năm nay. */
+function yoyTrafficWeight(t) {
+  const a = S.asOf;
+  if (!a || !a.partial || t.monthIndex !== a.monthIndex || t.year === a.year) return 1;
+  return Math.min(1, a.day / daysInMonth(t.year, t.monthIndex));
+}
+
+/** Kỳ YoY đang chọn có bị cắt cùng kỳ không — để hiện huy hiệu báo cho người xem. */
+function yoyCutActive() {
+  const a = S.asOf;
+  if (!a) return false;
+  const rt = YOY.rangeType;
+  if (rt === 'ytd') return a.partial || a.monthIndex < 12;
+  if (!a.partial) return false;
+  if (rt === 'month') return YOY.month === a.monthIndex;
+  if (rt === 'quarter') return Math.ceil(a.monthIndex / 3) === YOY.quarter;
+  const lo = Math.min(YOY.customFrom, YOY.customTo);
+  const hi = Math.max(YOY.customFrom, YOY.customTo);
+  return a.monthIndex >= lo && a.monthIndex <= hi;
+}
+
 function getYoyRows(year) {
-  const rows = applyDimFilters(S.raw.sales).filter(r => r.year === String(year));
+  const rows = yoyCutRows(applyDimFilters(S.raw.sales).filter(r => r.year === String(year)), YOY.rangeType === 'ytd');
   const rt = YOY.rangeType;
   if (rt === 'month')   return rows.filter(r => r.monthIndex === YOY.month);
   if (rt === 'quarter') return rows.filter(r => Math.ceil(r.monthIndex / 3) === YOY.quarter);
@@ -3226,7 +3614,7 @@ function getYoyTargetRows(year) {
     const rt = YOY.rangeType;
     if (rt === 'month')   return t.monthIndex === YOY.month;
     if (rt === 'quarter') return Math.ceil(t.monthIndex / 3) === YOY.quarter;
-    if (rt === 'ytd')     return true;
+    if (rt === 'ytd')     return !S.asOf || t.monthIndex <= S.asOf.monthIndex;
     if (rt === 'custom') {
       const lo = Math.min(YOY.customFrom, YOY.customTo);
       const hi = Math.max(YOY.customFrom, YOY.customTo);
@@ -3242,7 +3630,7 @@ function calcYoyMetrics(year) {
   const revenue = rows.reduce((s,r) => s + num(r.amount), 0);
   const qty     = rows.reduce((s,r) => s + num(r.qty), 0);
   const bills   = countBills(rows);
-  const traffic = tgts.reduce((s,t) => s + num(t.traffic), 0);
+  const traffic = tgts.reduce((s,t) => s + num(t.traffic) * yoyTrafficWeight(t), 0);
   const target  = tgts.reduce((s,t) => s + num(t.target), 0);
   const atv  = bills > 0 ? revenue / bills : 0;
   const upt  = bills > 0 ? qty / bills : 0;
@@ -3281,7 +3669,7 @@ function getYoyMonthlyData(year, months) {
   });
   tgts.forEach(t => {
     const b = buckets.get(t.monthIndex);
-    if (b) b.traffic += num(t.traffic);
+    if (b) b.traffic += num(t.traffic) * yoyTrafficWeight(t);
   });
   return months.map(m => {
     const b = buckets.get(m);
@@ -3299,7 +3687,7 @@ function getYoyMonthlyData(year, months) {
 /* Dạng theo quý không đi qua getYoyRows: nó cố tình lấy CẢ năm rồi tự chia
    quý, để bốn cột Q1..Q4 luôn có mặt bất kể kỳ đang chọn. */
 function getYoyQuarterlyData(year) {
-  const rows = applyDimFilters(S.raw.sales).filter(r => r.year === year);
+  const rows = yoyCutRows(applyDimFilters(S.raw.sales).filter(r => r.year === year), false);
   const tgts = applyDimFiltersTargets(S.raw.targets).filter(t => t.year === year);
   // Một lượt quét gom vào bốn ngăn, cùng lý do như getYoyMonthlyData().
   const buckets = [1,2,3,4].map(() => ({ revenue: 0, qty: 0, traffic: 0, billAcc: newBillAcc() }));
@@ -3312,7 +3700,7 @@ function getYoyQuarterlyData(year) {
   });
   tgts.forEach(t => {
     const b = buckets[Math.ceil(t.monthIndex/3) - 1];
-    if (b) b.traffic += num(t.traffic);
+    if (b) b.traffic += num(t.traffic) * yoyTrafficWeight(t);
   });
   return buckets.map(b => {
     const bills = billTotal(b.billAcc);
@@ -3356,19 +3744,22 @@ function renderYoy() {
     const m = metricsPerYear[y];
     const prev = i > 0 ? metricsPerYear[years[i-1]] : null;
     const c = YEAR_COLORS[i % YEAR_COLORS.length];
-    const mkDelta = (cur, prv) => {
+    // unit 'pt' cho CVR: vốn đã là phần trăm, chênh lệch phải đọc là điểm %
+    // (11,8% → 12,5% là +0,7pt), không phải "+6,5%" — cùng quy ước chip KPI.
+    const mkDelta = (cur, prv, unit) => {
       if (!prv || prv <= 0) return '<span class="yoy-year-metric-delta empty">&nbsp;</span>';
-      const pct = ((cur - prv) / prv) * 100;
+      const pct = unit === 'pt' ? cur - prv : ((cur - prv) / prv) * 100;
       const cls = pct > 0 ? 'up' : pct < 0 ? 'down' : 'neu';
       const arrow = pct > 0 ? '▲' : pct < 0 ? '▼' : '•';
-      return `<span class="yoy-year-metric-delta ${cls}">${arrow}${Math.abs(pct).toFixed(1)}%</span>`;
+      return `<span class="yoy-year-metric-delta ${cls}">${arrow}${Math.abs(pct).toFixed(1)}${unit === 'pt' ? 'pt' : '%'}</span>`;
     };
     const rows = [
       { lbl: 'Revenue', val: rollHtml(m.revenue, 'vndShort'), delta: prev ? mkDelta(m.revenue, prev.revenue) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
       { lbl: 'Target',    val: rollHtml(m.target, 'vndShort'), delta: '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
       { lbl: 'Bills',     val: rollHtml(m.bills, 'n'),         delta: prev ? mkDelta(m.bills, prev.bills) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
-      { lbl: 'Traffic',   val: rollHtml(m.traffic, 'n'),       delta: prev ? mkDelta(m.traffic, prev.traffic) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
-      { lbl: 'CVR',       val: rollHtml(m.cvr, 'pct'),         delta: prev ? mkDelta(m.cvr, prev.cvr) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      // Năm chưa nhập traffic thì "—" chứ không phải 0 / 0.0% và −100%.
+      { lbl: 'Traffic',   val: m.traffic > 0 ? rollHtml(m.traffic, 'n') : '<span class="cell-na">—</span>', delta: prev && m.traffic > 0 ? mkDelta(m.traffic, prev.traffic) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
+      { lbl: 'CVR',       val: m.traffic > 0 ? rollHtml(m.cvr, 'pct') : '<span class="cell-na">—</span>', delta: prev && m.traffic > 0 ? mkDelta(m.cvr, prev.cvr, 'pt') : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
       { lbl: 'ATV',       val: rollHtml(m.atv, 'vndShort'),    delta: prev ? mkDelta(m.atv, prev.atv) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
       { lbl: 'UPT',       val: rollHtml(m.upt, 'fixed2'),      delta: prev ? mkDelta(m.upt, prev.upt) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
       { lbl: 'Qty',       val: rollHtml(m.qty, 'n'),           delta: prev ? mkDelta(m.qty, prev.qty) : '<span class="yoy-year-metric-delta empty">&nbsp;</span>' },
@@ -3413,11 +3804,14 @@ function renderYoy() {
   const _fb = document.getElementById('yoyFilterBadge');
   if (_fb) {
     const _dims = [
-      S.filters.store !== 'all' ? S.filters.store : null,
+      S.filters.store !== 'all' ? `🔍 ${S.filters.store}` : null,
+      // Báo rõ là đang so cùng kỳ, nếu không người xem sẽ tưởng cột năm cũ
+      // thấp đi vì bán kém chứ không phải vì đã bị cắt tới cùng ngày.
+      yoyCutActive() ? `📅 Like-for-like · to ${S.asOf.day} ${MONTH_NAMES[S.asOf.monthIndex - 1]}` : null,
     ].filter(Boolean);
     if (_dims.length) {
       _fb.style.display = '';
-      _fb.innerHTML = `<span class="yoy-filter-badge">🔍 ${_dims.map(esc).join(' · ')}</span>`;
+      _fb.innerHTML = _dims.map((d) => `<span class="yoy-filter-badge" title="Mọi năm đều cắt tới cùng ngày để so được với nhau">${esc(d)}</span>`).join(' ');
     } else {
       _fb.style.display = 'none';
       _fb.innerHTML = '';
@@ -3431,6 +3825,8 @@ function renderYoy() {
   let labels, points;
   if (needMonthly) {
     let mLo = 1, mHi = 12;
+    // YTD chỉ tới tháng mốc dữ liệu: các tháng sau đó năm nay chưa có gì để so.
+    if (rt === 'ytd' && S.asOf) mHi = S.asOf.monthIndex;
     if (rt === 'month')   { mLo = mHi = YOY.month; }
     if (rt === 'custom')  { mLo = Math.min(YOY.customFrom, YOY.customTo); mHi = Math.max(YOY.customFrom, YOY.customTo); }
     const monthRange = [];
