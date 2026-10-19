@@ -1116,7 +1116,7 @@ function aggregate() {
       bucket.set(key, num(bucket.get(key)) + num(r.amount));
     });
 
-    const staff = new Map();        // name -> { label, amount, target, timeline }
+    const staff = new Map();        // name -> { label, amount, target }
 
     months.forEach((mo) => {
       const bucket = revByMonth.get(mo.monthKey);
@@ -1127,13 +1127,10 @@ function aggregate() {
       const monthTarget = num(mo.target);
 
       names.forEach((n) => {
-        const e = staff.get(n) || { label: n, coef: staffCoef(n), amount: 0, target: 0, timeline: 0 };
+        const e = staff.get(n) || { label: n, coef: staffCoef(n), amount: 0, target: 0 };
         e.amount += num(bucket.get(n));
         if (totalCoef > 0 && monthTarget > 0) {
-          const share = (monthTarget * staffCoef(n)) / totalCoef;
-          e.target += share;
-          // Phần target đã đến hạn tới ngày dữ liệu cuối — vạch dọc trên thanh.
-          e.timeline += share * num(mo.ratio);
+          e.target += (monthTarget * staffCoef(n)) / totalCoef;
         }
         staff.set(n, e);
       });
@@ -1143,8 +1140,7 @@ function aggregate() {
     return {
       list,
       totalAmount: list.reduce((s, e) => s + e.amount, 0),
-      totalTarget: list.reduce((s, e) => s + e.target, 0),
-      totalTimeline: list.reduce((s, e) => s + e.timeline, 0)
+      totalTarget: list.reduce((s, e) => s + e.target, 0)
     };
   })();
 
@@ -1792,31 +1788,23 @@ function renderStaffTargets(m) {
   el.innerHTML = list.map((s) => {
     const amount = num(s.amount);
     const target = num(s.target);
-    const timeline = num(s.timeline);
     const pct = target > 0 ? (amount / target) * 100 : 0;
     const fillPct = target > 0
       ? Math.min((amount / target) * 100, 100)
       : (amount / revScale) * 100;
-    // Vạch dọc = phần target đã đến hạn; chỉ vẽ khi kỳ còn tháng đang chạy.
-    const markPct = target > 0 ? (timeline / target) * 100 : 100;
-    // Xanh = đang ở trên vạch, cam = đang dưới vạch. Màu nói "kịp hay không",
-    // độ dài nói "được bao nhiêu" — không bắt người xem tự so hai thứ đó.
-    const tone = target > 0 ? (amount >= timeline ? ' ahead' : ' behind') : '';
 
     // Dạng rút gọn ("2.45 B ₫") chứ không phải đủ chữ số: mọi con số tiền
     // khác trên trang — thẻ KPI, thanh Revenue vs Target, các bảng — đều bày
     // ở dạng này, để riêng tooltip đọc ra "2.451.754.241 ₫" thì lạc nhịp.
     const tip = target > 0
       ? `${esc(s.label)} — Revenue ${fmtVNDShort(amount)} / Target ${fmtVNDShort(target)}`
-        + (markPct < 99.9 ? ` · Timeline ${fmtVNDShort(timeline)} (${fmtPct(timeline > 0 ? (amount / timeline) * 100 : 0)})` : '')
       : `${esc(s.label)} — Revenue ${fmtVNDShort(amount)} (no target for this period)`;
     return `
       <div class="st-row" title="${esc(tip)}">
         <div class="st-name">${esc(s.label)}</div>
         <div class="st-track">
           ${target > 0 ? '<div class="st-target"></div>' : ''}
-          <div class="st-fill${tone}" style="width:${fillPct}%"></div>
-          ${markPct < 99.9 ? `<div class="st-mark" style="left:${markPct}%"></div>` : ''}
+          <div class="st-fill" style="width:${fillPct}%"></div>
         </div>
         <div class="st-pct">${target > 0 ? rollHtml(pct, 'pct') : '—'}</div>
       </div>

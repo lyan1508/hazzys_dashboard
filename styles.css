@@ -2090,7 +2090,7 @@ html.theme-anim *::after{
 #topCustomerBody .tc-phone{color:var(--text-3);font-family:var(--mono)}
 
 /* =========================================
-   TIẾN ĐỘ TARGET · TIMELINE NHÂN VIÊN · SIZE
+   TIẾN ĐỘ TARGET · SIZE
    ========================================= */
 /* Dải chip tiến độ dưới thanh Revenue vs Target: không có viền trên và dồn
    trái như dòng chú thích của chính thanh đó, không phải chân thẻ. */
@@ -2101,16 +2101,6 @@ html.theme-anim *::after{
    cần thêm chỗ trước dải chip. */
 .tp-mark{transition:left .35s ease}
 .tp-mark-line{background:var(--text);opacity:.75;width:2px}
-
-/* Personal Sales: vạch timeline và màu theo tiến độ. */
-.st-mark{
-  position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;z-index:2;
-  background:var(--text);opacity:.75;border-radius:1px;pointer-events:none;
-}
-.st-fill.ahead{background:linear-gradient(90deg,rgba(45,212,167,.75),var(--green))}
-.st-fill.behind{background:linear-gradient(90deg,rgba(232,167,101,.75),var(--accent))}
-.st-key-fill{background:linear-gradient(90deg,var(--green) 50%,var(--accent) 50%)}
-.st-key-mark{width:2px!important;height:11px!important;border-radius:1px;background:var(--text);opacity:.75}
 
 /* By Colour / Size: tab nằm cùng hàng với ô chọn nhóm hàng. */
 #colorCard .chart-card-hd{flex-wrap:wrap;gap:6px}
