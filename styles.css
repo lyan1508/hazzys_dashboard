@@ -2092,10 +2092,6 @@ html.theme-anim *::after{
 /* =========================================
    TIẾN ĐỘ TARGET · SIZE
    ========================================= */
-/* Dải chip tiến độ dưới thanh Revenue vs Target: không có viền trên và dồn
-   trái như dòng chú thích của chính thanh đó, không phải chân thẻ. */
-.tp-pace{border-top:0;justify-content:flex-start;padding-top:20px;margin-top:0}
-.tp-pace:empty{display:none}
 .tp-label .hz-info{margin-left:4px;vertical-align:1px}
 /* Vạch Today cao hơn thanh và có nhãn ở dưới — nhãn chữ dài hơn "85%" cũ nên
    cần thêm chỗ trước dải chip. */
