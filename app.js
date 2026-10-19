@@ -605,7 +605,7 @@ function readField(row, aliases) {
 }
 
 function validateRequiredSalesColumns(salesRows) {
-  if (!salesRows.length) throw new Error('Sales data sheet is empty.');
+  if (!salesRows.length) throw new Error('Sheet dữ liệu bán hàng đang trống.');
   const headerSet = new Set(Object.keys(salesRows[0]).map((k) => canonKey(k)));
   const requiredMap = {
     Date: ['date', 'trans_date', 'transdate'],
@@ -615,7 +615,7 @@ function validateRequiredSalesColumns(salesRows) {
     'Bill No. / Bill': BILLNO_ALIASES.concat(BILL_FLAG_ALIASES)
   };
   const missing = Object.entries(requiredMap).filter(([, aliases]) => !aliases.some((a) => headerSet.has(canonKey(a)))).map(([k]) => k);
-  if (missing.length) throw new Error(`Missing required columns: ${missing.join(', ')}.`);
+  if (missing.length) throw new Error(`Thiếu cột bắt buộc: ${missing.join(', ')}.`);
 }
 
 function ingestWorkbook(wb) {
@@ -1279,6 +1279,22 @@ function aggregate() {
 
     const pctOf = (e) => (e.list > 0 ? (1 - e.net / e.list) * 100 : 0);
 
+    // Một tháng: mức giảm theo ngày, cùng trục ngày với hai biểu đồ phía trên.
+    let byDay = null;
+    if (daily) {
+      const acc = Array.from({ length: daily.dim }, () => ({ list: 0, net: 0 }));
+      rows.forEach((r) => {
+        const list = num(r.listValue);
+        if (!list || !r.dateExact) return;
+        const e = acc[r.date.getDate() - 1];
+        e.list += list; e.net += num(r.amount);
+      });
+      byDay = acc.map((e, i) => ({
+        label: daily.labels[i],
+        pct: i < daily.lastDay && e.list > 0 ? pctOf(e) : null,
+      }));
+    }
+
     return {
       listTotal, netTotal,
       given: listTotal - netTotal,
@@ -1286,6 +1302,7 @@ function aggregate() {
       coveredLines: covered,
       totalLines: rows.length,
       bands,
+      byDay,
       // Theo tháng giữ đúng thứ tự thời gian của months[] để khớp trục biểu đồ.
       byMonth: months.map((mo) => {
         const e = byMonth.get(mo.monthKey);
@@ -2081,7 +2098,18 @@ function renderColorList(m) {
   if (!el) return;
   const stats = m.colorStats || [];
   syncColorCategoryOptions(stats);
-  if (COLOR_FILTER.mode === 'size') { renderSizeList(el, m.sizeStats || []); return; }
+  if (COLOR_FILTER.mode === 'size') {
+    // Size chỉ đọc được trong MỘT nhóm hàng: gộp chung thì size 57 của nón đứng
+    // cạnh size 64 của váy, không chia được gì. Đang ở "All" thì tự chọn nhóm
+    // bán chạy nhất (option đầu tiên sau "All").
+    const sel = document.getElementById('colorCategory');
+    if (COLOR_FILTER.category === 'all' && sel && sel.options.length > 1) {
+      COLOR_FILTER.category = sel.options[1].value;
+      sel.value = COLOR_FILTER.category;
+    }
+    renderSizeList(el, m.sizeStats || []);
+    return;
+  }
 
   const roll = new Map();
   stats.forEach((p) => {
@@ -2896,14 +2924,18 @@ function renderDiscount(m) {
       <div class="mini-stat-lbl">${lbl}</div>
     </div>`).join('');
 
-  const months = d.byMonth || [];
+  const months = d.byDay || d.byMonth || [];
   const labels = safeLabels(months.map((x) => x.label));
-  const data = safeDataset(months.map((x) => x.pct), labels.length);
+  // Ngày chưa tới / không có giá niêm yết để null: Chart.js bỏ trống, không vẽ cột 0%.
+  const data = months.length ? months.map((x) => (x.pct === null ? null : num(x.pct))) : [0];
   const avg = num(d.pct);
   const warn = css('--warn');
   const mid = css('--brand-mid');
   const opts = baseOptions((v) => `${num(v).toFixed(0)}%`, (ctx) => `Discount: ${fmtPct(ctx.raw)}`);
-  opts.scales.x.ticks.maxRotation = labels.length > 10 ? 40 : 0;
+  if (d.byDay) {
+    opts.plugins.tooltip.callbacks.title = (items) => `Ngày ${items[0].label}`;
+    opts.scales.x.ticks.maxRotation = 0;
+  } else opts.scales.x.ticks.maxRotation = labels.length > 10 ? 40 : 0;
   opts.scales.x.ticks.autoSkip = true;
   S.charts.discount = new Chart(document.getElementById('chartDiscount'), {
     type: 'bar',
@@ -2914,7 +2946,7 @@ function renderDiscount(m) {
         data,
         // Tháng nhượng nhiều hơn mức trung bình của kỳ thì đổi màu — mắt bắt
         // ngay tháng nào phải bán rẻ mới ra được doanh thu.
-        backgroundColor: data.map((v) => (v > avg ? warn : mid)),
+        backgroundColor: data.map((v) => (v !== null && v > avg ? warn : mid)),
         borderRadius: 4,
         maxBarThickness: barCapFor(labels.length),
       }]
@@ -3270,10 +3302,10 @@ async function fetchSheetCandidatesWithRetry(name, urls, attempts = 3) {
         const rawText = await res.text();
         const head = rawText.slice(0, 256).trim().toLowerCase();
         if (head.startsWith('<!doctype') || head.startsWith('<html') || head.includes('<title>sign in')) {
-          throw new Error(`Sheet "${name}" is not publicly accessible. In Google Sheets -> Share -> set "Anyone with the link - Viewer".`);
+          throw new Error(`Sheet "${name}" chưa mở quyền xem. Vào Google Sheets → Share → "Anyone with the link – Viewer".`);
         }
         const text = preprocessGSheetCsv(rawText);
-        if (!text.trim()) throw new Error(`Sheet "${name}" is empty.`);
+        if (!text.trim()) throw new Error(`Sheet "${name}" đang trống.`);
         // raw:true keeps date cells as their original text (e.g. "03/10/2024") so our
       // DD/MM/YYYY-aware parseDate handles them. With cellDates:true, SheetJS auto-
       // parses CSV dates as US MM/DD/YYYY, swapping day↔month whenever day ≤ 12.
@@ -3281,7 +3313,7 @@ async function fetchSheetCandidatesWithRetry(name, urls, attempts = 3) {
         return parsed.Sheets[parsed.SheetNames[0]];
       } catch (err) {
         lastErr = err;
-        if (/not publicly accessible|is empty/.test(err.message)) break;
+        if (/chưa mở quyền xem|đang trống/.test(err.message)) break;
         if (i < attempts - 1) await new Promise(r => setTimeout(r, 600 * (i + 1)));
       }
     }
@@ -3318,7 +3350,7 @@ async function loadFile(file) {
     console.error(err);
     destroyAllCharts();
     setStatus(`Error: ${err.message}`, true);
-    alert(`⚠️ ${err.message}\n\nPlease check the Excel file and required columns:\n- DATE (transaction date)\n- BILL (0/1)\n- AMOUNT (revenue)\n- QUANTITY (qty)\n\nRecommended: add a MM/YYYY column for accurate month mapping.`);
+    alert(`⚠️ ${err.message}\n\nKiểm tra file Excel có đủ cột:\n- DATE (ngày bán)\n- BILL NO. hoặc BILL (0/1)\n- AMOUNT (doanh thu)\n- QUANTITY (số lượng)\n\nNên có thêm cột MM/YYYY để xếp đúng tháng.`);
   } finally {
     overlay.classList.remove('show');
   }
