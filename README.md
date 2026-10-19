@@ -47,9 +47,10 @@ File Excel local **không commit lên GitHub** (đã có `.gitignore` chặn) �
 
 Toàn bộ thống kê nằm trên **một trang duy nhất**, chia 5 nhóm:
 
-- **KPI cards** (Revenue, Target, Achievement, Bills, Units, Traffic, CVR, UPT, ATV) + thanh Revenue vs Target
-- **Performance** — Revenue Performance (Monthly / Cumulative), Bills & Traffic
+- **KPI cards** (Revenue, Target, Achievement, Bills, Units, Traffic, CVR, UPT, ATV) — chip so kỳ trước **cùng số ngày** khi tháng chưa hết
+- **Revenue vs Target** — vạch Today (target đến hạn), % timeline, forecast cuối tháng, cần bán/ngày, ngày dữ liệu cuối
+- **Performance** — Revenue Performance (Monthly / Cumulative; chọn 1 tháng → theo ngày), Bills & Traffic
 - **Patterns** — Promotion, DOW Heatmap (Rev / Bills / ATV)
-- **Year over Year** — biểu đồ xu hướng + bảng tóm tắt theo năm
-- **Product** — Top Products by Style, By Category, By Type, By Gender
-- **Staff** — Revenue by Cashier, Cashier Productivity Matrix
+- **Year over Year** — biểu đồ xu hướng + bảng tóm tắt theo năm, so cùng kỳ (cắt tới cùng ngày)
+- **Product** — Top Products by Style, By Category, By Colour / Size, By Type, By Gender
+- **Staff** — Personal Sales (vạch timeline; xanh = đúng nhịp, cam = chậm), Cashier Productivity
