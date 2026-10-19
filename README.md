@@ -48,7 +48,7 @@ File Excel local **không commit lên GitHub** (đã có `.gitignore` chặn) �
 Toàn bộ thống kê nằm trên **một trang duy nhất**, chia 5 nhóm:
 
 - **KPI cards** (Revenue, Target, Achievement, Bills, Units, Traffic, CVR, UPT, ATV) — chip so kỳ trước **cùng số ngày** khi tháng chưa hết
-- **Revenue vs Target** — vạch Today (target đến hạn), % timeline, forecast cuối tháng, cần bán/ngày, ngày dữ liệu cuối
+- **Revenue vs Target** — vạch Hôm nay (mức cần đạt tới ngày dữ liệu cuối), màu theo tiến độ
 - **Performance** — Revenue Performance (Monthly / Cumulative; chọn 1 tháng → theo ngày), Bills & Traffic
 - **Patterns** — Promotion, DOW Heatmap (Rev / Bills / ATV)
 - **Year over Year** — biểu đồ xu hướng + bảng tóm tắt theo năm, so cùng kỳ (cắt tới cùng ngày)

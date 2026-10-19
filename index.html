@@ -26,7 +26,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20261019-staff">
+<link rel="stylesheet" href="styles.css?v=20261019-vi">
 </head>
 <body>
 <div class="app">
@@ -63,21 +63,21 @@
     </div>
 
     <div class="topbar-actions">
-      <button class="btn-icon btn-filter-toggle" id="filterToggle" title="Filters" aria-label="Filters">
+      <button class="btn-icon btn-filter-toggle" id="filterToggle" title="Bộ lọc" aria-label="Bộ lọc">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h14M6 10h8M9 15h2"/></svg>
         <span class="filter-count" id="filterCount"></span>
       </button>
-      <button class="btn-icon btn-theme" id="themeBtn" title="Switch light / dark theme" aria-label="Switch light / dark theme" aria-pressed="false">
+      <button class="btn-icon btn-theme" id="themeBtn" title="Đổi nền sáng / tối" aria-label="Đổi nền sáng / tối" aria-pressed="false">
         <svg class="ico-sun" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3.6"/><path d="M10 1.5v2M10 16.5v2M18.5 10h-2M3.5 10h-2M16 4l-1.4 1.4M5.4 14.6L4 16M16 16l-1.4-1.4M5.4 5.4L4 4"/></svg>
         <svg class="ico-moon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 12.3A7.5 7.5 0 0 1 7.7 3a7.5 7.5 0 1 0 9.3 9.3z"/></svg>
       </button>
-      <button class="btn-icon" id="resetBtn" title="Clear filters" aria-label="Clear filters">
+      <button class="btn-icon" id="resetBtn" title="Xoá bộ lọc" aria-label="Xoá bộ lọc">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.84 2.5H1.67l6.66 7.88v5.45l3.34 1.67v-7.12l.75-.88"/><path d="M18.33 2.5l-4.16 4.17"/><path d="M14.17 2.5l4.16 4.17"/></svg>
       </button>
-      <button class="btn-icon" id="syncBtn" title="Sync from Google Sheets" aria-label="Sync from Google Sheets">
+      <button class="btn-icon" id="syncBtn" title="Đồng bộ Google Sheets" aria-label="Đồng bộ Google Sheets">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 10a7.5 7.5 0 0 1 7.5-7.5 8.13 8.13 0 0 1 5.62 2.28L17.5 6.67"/><path d="M17.5 2.5v4.17h-4.17"/><path d="M17.5 10a7.5 7.5 0 0 1-7.5 7.5 8.13 8.13 0 0 1-5.62-2.28L2.5 13.33"/><path d="M2.5 17.5v-4.17h4.17"/></svg>
       </button>
-      <label class="btn-icon btn-icon-primary" for="fileInput" title="Upload data file" aria-label="Upload data file">
+      <label class="btn-icon btn-icon-primary" for="fileInput" title="Tải file dữ liệu" aria-label="Tải file dữ liệu">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13V3"/><path d="M5.5 7.5L10 3l4.5 4.5"/><path d="M3.5 13v3a1.5 1.5 0 0 0 1.5 1.5h10a1.5 1.5 0 0 0 1.5-1.5v-3"/></svg>
       </label>
       <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsm,.csv">
@@ -90,7 +90,7 @@
 <div class="loading-overlay" id="loadingOverlay">
   <div class="loader">
     <div class="spinner"></div>
-    <div class="loader-text">Processing data…</div>
+    <div class="loader-text">Đang xử lý dữ liệu…</div>
   </div>
 </div>
 
@@ -103,13 +103,13 @@
       <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="4" width="24" height="24" rx="4"/><line x1="4" y1="12" x2="28" y2="12"/><line x1="4" y1="20" x2="28" y2="20"/><line x1="12" y1="12" x2="12" y2="28"/></svg>
     </div>
     <div class="empty-title">Sales Intelligence Dashboard</div>
-    <div class="empty-desc">Upload your sales Excel file to start analyzing.<br>Supports .xlsx, .xls, .xlsm, .csv</div>
+    <div class="empty-desc">Tải file Excel doanh số để bắt đầu.<br>Hỗ trợ .xlsx, .xls, .xlsm, .csv</div>
     <label class="upload-zone" for="fileInput" id="dropZone">
       <div style="font-size:var(--fs-md);font-weight:600;color:var(--text-2);margin-bottom:6px">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="vertical-align:middle;margin-right:6px"><path d="M3 13v4h14v-4M10 3v10M6 7l4-4 4 4"/></svg>
-        Drag & drop file here or click to select
+        Kéo thả file vào đây hoặc bấm để chọn
       </div>
-      <div style="font-size:var(--fs-xs);color:var(--text-3)">Required: Date, Bill No., Bill (0/1), UPC, Type, Gender, Amount, Qty. Optional: Store, Category</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-3)">Cột bắt buộc: Date, Bill No., Bill (0/1), UPC, Type, Gender, Amount, Qty. Không bắt buộc: Store, Category</div>
     </label>
   </div>
 
@@ -139,39 +139,39 @@
     <!-- Mỗi thẻ: số → (nhãn + chip so kỳ trước) → sparkline nằm sát đáy thẻ.
          Sparkline đặt tuyệt đối nên không chiếm chỗ của chữ. -->
     <div class="kpi-grid" id="kpiGrid">
-      <div class="kpi-card" title="Doanh thu thực thu (đã trừ chiết khấu, trả hàng)">
+      <div class="kpi-card" title="Tiền thực thu (đã trừ giảm giá, trả hàng)">
         <div class="kpi-value" id="kSales">—</div>
         <div class="kpi-foot"><span class="kpi-label">Revenue</span><span class="kpi-delta-slot" id="dSales"></span></div>
       </div>
-      <div class="kpi-card" title="Target cửa hàng của các tháng trong kỳ">
+      <div class="kpi-card" title="Target cửa hàng trong kỳ">
         <div class="kpi-value" id="kTarget">—</div>
         <div class="kpi-foot"><span class="kpi-label">Target</span><span class="kpi-delta-slot" id="dTarget"></span></div>
       </div>
-      <div class="kpi-card" title="Doanh thu / Target cả kỳ. Màu theo tiến độ timeline: xanh ≥100%, cam 90–100%, đỏ <90%">
+      <div class="kpi-card" title="Doanh thu / Target. Màu theo tiến độ: xanh đúng, cam hơi chậm, đỏ chậm">
         <div class="kpi-value" id="kAchieve">—</div>
         <div class="kpi-foot"><span class="kpi-label">Achievement</span><span class="kpi-delta-slot" id="dAchieve"></span></div>
       </div>
-      <div class="kpi-card" title="Số hoá đơn (đếm theo số bill, không trùng)">
+      <div class="kpi-card" title="Số hoá đơn">
         <div class="kpi-value" id="kBills">—</div>
         <div class="kpi-foot"><span class="kpi-label">Bills</span><span class="kpi-delta-slot" id="dBills"></span></div>
       </div>
-      <div class="kpi-card" title="Tổng số món bán ra (trừ hàng trả)">
+      <div class="kpi-card" title="Số món bán ra (đã trừ trả hàng)">
         <div class="kpi-value" id="kQty">—</div>
         <div class="kpi-foot"><span class="kpi-label">Units Sold</span><span class="kpi-delta-slot" id="dQty"></span></div>
       </div>
-      <div class="kpi-card" title="Lượt khách vào cửa hàng (nhập ở sheet target)">
+      <div class="kpi-card" title="Lượt khách vào cửa hàng">
         <div class="kpi-value" id="kTraffic">—</div>
         <div class="kpi-foot"><span class="kpi-label">Traffic</span><span class="kpi-delta-slot" id="dTraffic"></span></div>
       </div>
-      <div class="kpi-card" title="Conversion = Bills / Traffic — bao nhiêu % khách vào mua hàng">
+      <div class="kpi-card" title="% khách vào có mua (Bills / Traffic)">
         <div class="kpi-value" id="kCVR">—</div>
         <div class="kpi-foot"><span class="kpi-label">Conversion</span><span class="kpi-delta-slot" id="dCVR"></span></div>
       </div>
-      <div class="kpi-card" title="Units per Transaction = số món / hoá đơn">
+      <div class="kpi-card" title="Số món trung bình mỗi hoá đơn">
         <div class="kpi-value" id="kUPT">—</div>
         <div class="kpi-foot"><span class="kpi-label">UPT</span><span class="kpi-delta-slot" id="dUPT"></span></div>
       </div>
-      <div class="kpi-card" title="Average Transaction Value = doanh thu / hoá đơn">
+      <div class="kpi-card" title="Giá trị trung bình mỗi hoá đơn">
         <div class="kpi-value" id="kATV">—</div>
         <div class="kpi-foot"><span class="kpi-label">ATV</span><span class="kpi-delta-slot" id="dATV"></span></div>
       </div>
@@ -181,7 +181,7 @@
     <div class="tp-section" id="targetProgressSection" style="display:none">
       <div class="tp-header">
         <span class="tp-label">Revenue vs Target
-          <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Thanh</b> — doanh thu so với target cả kỳ.</li><li><b>Vạch Today</b> — phần target đã đến hạn tới ngày dữ liệu cuối.</li><li><b>Màu</b> — xanh: đúng/vượt timeline, cam: chậm dưới 10%, đỏ: chậm hơn.</li><li><b>Forecast</b> — bình quân mỗi ngày × số ngày của tháng.</li><li><b>Need/day</b> — mỗi ngày còn lại phải bán bao nhiêu để đạt target.</li></ul>">i</button>
+          <button type="button" class="hz-info" aria-label="What this card shows" data-info="<ul><li><b>Thanh</b> — doanh thu / target cả kỳ.</li><li><b>Vạch Hôm nay</b> — mức cần đạt tới ngày dữ liệu cuối.</li><li><b>Xanh</b> đúng tiến độ · <b>Cam</b> chậm dưới 10% · <b>Đỏ</b> chậm hơn.</li></ul>">i</button>
         </span>
         <span class="tp-value" id="tpPct">—</span>
         <span class="tp-meta" id="tpMeta">—</span>
@@ -193,7 +193,6 @@
           <span class="tp-mark-lbl" id="tpMarkLbl"></span>
         </div>
       </div>
-      <div class="band-strip tp-pace" id="tpPace"></div>
     </div>
 
     <!-- ══════════ GROUP 1 · PERFORMANCE ══════════ -->
@@ -584,13 +583,13 @@
 <footer class="statusbar">
   <div class="statusbar-inner">
     <div class="status-dot" id="statusDot"></div>
-    <span id="statusText">Ready — Click Cloud Sync or upload an Excel file to start</span>
+    <span id="statusText">Sẵn sàng — bấm đồng bộ hoặc tải file Excel</span>
     <span style="margin-left:auto" id="statusTime">—</span>
   </div>
 </footer>
 
 </div><!-- /app -->
 
-<script defer src="app.js?v=20261019-staff"></script>
+<script defer src="app.js?v=20261019-vi"></script>
 </body>
 </html>

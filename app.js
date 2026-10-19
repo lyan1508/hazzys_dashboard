@@ -84,7 +84,7 @@ function setTheme(theme, animate) {
   const btn = document.getElementById('themeBtn');
   if (btn) {
     btn.setAttribute('aria-pressed', String(theme === 'light'));
-    btn.title = theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme';
+    btn.title = theme === 'light' ? 'Chuyển nền tối' : 'Chuyển nền sáng';
   }
   try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* chế độ riêng tư */ }
 
@@ -880,25 +880,6 @@ function aggregate() {
   // hàng đang chạy đúng nhịp.
   const timelineTarget = months.reduce((s, m) => s + num(m.timelineTarget), 0);
 
-  /* Tiến độ tháng đang chạy: dự báo cuối tháng theo tốc độ bình quân mỗi ngày
-     đã qua, và mỗi ngày còn lại phải bán bao nhiêu mới chạm target. Chỉ có khi
-     kỳ đang xem chứa tháng chưa hết. */
-  const pace = (() => {
-    const a = S.asOf;
-    const cur = a && a.partial ? months.find((x) => x.monthKey === a.monthKey) : null;
-    if (!cur || !(cur.actual > 0)) return null;
-    const runRate = cur.actual / a.day;
-    const forecast = runRate * a.dim;
-    const left = a.dim - a.day;
-    const gap = cur.target - cur.actual;
-    return {
-      label: cur.monthLabelYY, monthIndex: a.monthIndex, day: a.day, dim: a.dim, left,
-      actual: cur.actual, target: cur.target, timelineTarget: cur.timelineTarget,
-      runRate, forecast,
-      forecastPct: cur.target > 0 ? (forecast / cur.target) * 100 : null,
-      needPerDay: gap > 0 && left > 0 ? gap / left : 0,
-    };
-  })();
   /* Theo NGÀY khi bộ lọc chốt đúng một tháng: biểu đồ theo tháng lúc đó chỉ
      còn một cột duy nhất, không nhìn ra được tháng đang đi lên hay chững lại.
      Ngày sau mốc dữ liệu để null (chưa tới), không phải 0 (bán không được). */
@@ -1452,7 +1433,7 @@ function aggregate() {
 
   return {
     discountStats, txTypes, basketStats, customerStats,
-    rows, months, daily, totalSales, qty, bills, traffic, target, timelineTarget, pace, cvr, atv, upt, topProducts,
+    rows, months, daily, totalSales, qty, bills, traffic, target, timelineTarget, cvr, atv, upt, topProducts,
     byType: safeGroupSum(rows, 'type'),
     byGender: safeGroupSum(rows, 'gender'),
     byCategory: safeGroupSum(rows, 'category'),
@@ -1797,8 +1778,8 @@ function renderStaffTargets(m) {
     // khác trên trang — thẻ KPI, thanh Revenue vs Target, các bảng — đều bày
     // ở dạng này, để riêng tooltip đọc ra "2.451.754.241 ₫" thì lạc nhịp.
     const tip = target > 0
-      ? `${esc(s.label)} — Revenue ${fmtVNDShort(amount)} / Target ${fmtVNDShort(target)}`
-      : `${esc(s.label)} — Revenue ${fmtVNDShort(amount)} (no target for this period)`;
+      ? `${esc(s.label)} — Doanh thu ${fmtVNDShort(amount)} / Target ${fmtVNDShort(target)}`
+      : `${esc(s.label)} — Doanh thu ${fmtVNDShort(amount)} (kỳ này chưa có target)`;
     return `
       <div class="st-row" title="${esc(tip)}">
         <div class="st-name">${esc(s.label)}</div>
@@ -1842,7 +1823,7 @@ function renderDailyRevenueChart(m) {
   opts.scales.x.ticks.autoSkip = true;
   opts.scales.x.ticks.maxRotation = 0;
   opts.scales.y.grace = '6%';
-  opts.plugins.tooltip.callbacks.title = (items) => `Day ${items[0].label}`;
+  opts.plugins.tooltip.callbacks.title = (items) => `Ngày ${items[0].label}`;
   S.charts.rev = new Chart(document.getElementById('chartRevenue'), {
     data: {
       labels: d.labels,
@@ -1955,7 +1936,7 @@ function renderCharts(m) {
     const opts = baseOptions((v) => fmtShort(v), (ctx) => `${ctx.dataset.label}: ${fmtN(ctx.raw)}`);
     opts.scales.x.ticks.autoSkip = true;
     opts.scales.x.ticks.maxRotation = 0;
-    opts.plugins.tooltip.callbacks.title = (items) => `Day ${items[0].label}`;
+    opts.plugins.tooltip.callbacks.title = (items) => `Ngày ${items[0].label}`;
     S.charts.traffic = new Chart(document.getElementById('chartTraffic'), {
       type: 'bar',
       data: {
@@ -2160,7 +2141,7 @@ function renderSizeList(el, stats) {
   el.innerHTML = list.map((x) => {
     const share = totalQty > 0 ? (num(x.qty) / totalQty) * 100 : 0;
     return `
-    <div class="cat-row${num(x.qty) === maxQty ? ' is-top' : ''}" title="Size ${esc(x.size)} · ${fmtN(x.qty)} pcs · ${fmtVNDShort(x.value)}">
+    <div class="cat-row${num(x.qty) === maxQty ? ' is-top' : ''}" title="Size ${esc(x.size)} · ${fmtN(x.qty)} món · ${fmtVNDShort(x.value)}">
       <div class="cat-fill" style="width:${Math.max(2, (num(x.qty) / maxQty) * 100)}%"></div>
       <div class="cat-code">${esc(x.size)}</div>
       <div class="cat-name">${rollHtml(x.qty, 'n')} pcs</div>
@@ -2419,7 +2400,7 @@ function renderTargetProgressBar(m) {
 
   const gap = actual - target;
   document.getElementById('tpMeta').textContent =
-    `${fmtVNDShort(actual)} / ${fmtVNDShort(target)}  ·  ${gap >= 0 ? '▲ Over' : '▼ Under'} ${fmtVNDShort(Math.abs(gap))}`;
+    `${fmtVNDShort(actual)} / ${fmtVNDShort(target)}  ·  ${gap >= 0 ? '▲ Vượt' : '▼ Thiếu'} ${fmtVNDShort(Math.abs(gap))}`;
 
   const fill = document.getElementById('tpFill');
   fill.style.width = fillPct + '%';
@@ -2434,35 +2415,8 @@ function renderTargetProgressBar(m) {
     const show = ratio > 0 && ratio < 0.999;
     mark.style.display = show ? '' : 'none';
     mark.style.left = `${ratio * 100}%`;
-    document.getElementById('tpMarkLbl').textContent = `Today ${fmtPct(ratio * 100)}`;
+    document.getElementById('tpMarkLbl').textContent = `Hôm nay ${fmtPct(ratio * 100)}`;
   }
-
-  const paceEl = document.getElementById('tpPace');
-  if (!paceEl) return;
-  const chips = [];
-  if (ratio > 0 && ratio < 0.999) {
-    const p = (actual / timeline) * 100;
-    chips.push([`<b>${fmtPct(p)}</b> of timeline`, paceClass(actual, timeline),
-      `Doanh thu so với phần target đã đến hạn (${fmtVNDShort(timeline)}). ≥100% là đúng nhịp.`]);
-  }
-  const pc = m.pace;
-  if (pc && pc.target > 0) {
-    chips.push([`${esc(pc.label)} forecast <b>${fmtVNDShort(pc.forecast)}</b> · ${fmtPct(pc.forecastPct)}`,
-      pc.forecastPct >= 100 ? 'good' : pc.forecastPct >= 90 ? 'warn' : 'bad',
-      `Bình quân ${fmtVNDShort(pc.runRate)}/ngày × ${pc.dim} ngày. Target tháng ${fmtVNDShort(pc.target)}.`]);
-    chips.push([pc.needPerDay > 0
-      ? `Need <b>${fmtVNDShort(pc.needPerDay)}</b>/day · ${pc.left} days left`
-      : '<b>Target reached</b>', pc.needPerDay > pc.runRate ? 'warn' : 'good',
-      pc.needPerDay > 0
-        ? `Mỗi ngày còn lại phải bán ${fmtVNDShort(pc.needPerDay)} — ${(pc.needPerDay / pc.runRate).toFixed(2)}× tốc độ hiện tại (${fmtVNDShort(pc.runRate)}/ngày).`
-        : 'Đã vượt target tháng.']);
-  }
-  if (S.asOf) {
-    chips.push([`Data to <b>${S.asOf.date.toLocaleDateString('vi-VN')}</b>`, '',
-      'Ngày bán cuối cùng có trong dữ liệu. Tiến độ và so cùng kỳ đều tính tới ngày này.']);
-  }
-  paceEl.innerHTML = chips.map(([html, cls, tip]) =>
-    `<span class="band-item ${cls}" title="${esc(tip)}">${html}</span>`).join('');
 }
 
 /* ======== XEM ẢNH SẢN PHẨM NGAY TRONG BẢNG ========
@@ -2595,7 +2549,7 @@ function renderTopProducts(m) {
   el.innerHTML = list.map((p, i) => `
     <button type="button" class="pr-card" data-sku="${esc(p.sku)}"
             onclick="openProductPreview('${esc(p.sku)}','${esc((p.colors || []).join(','))}')"
-            title="View photos of ${esc(p.sku)}">
+            title="Xem ảnh ${esc(p.sku)}">
       <span class="pr-thumb"><span class="pr-rank${i < 3 ? ' medal' : ''}">${i + 1}</span></span>
       <span class="pr-body">
         <span class="pr-name">${esc(p.sku)}</span>
@@ -2681,9 +2635,9 @@ async function openProductPreview(sku, colorsCsv) {
   const swatches = el.querySelector('#pvSwatches');
 
   el.querySelector('#pvSku').textContent = sku;
-  el.querySelector('#pvSub').textContent = 'Loading photos…';
+  el.querySelector('#pvSub').textContent = 'Đang tải ảnh…';
   swatches.innerHTML = '';
-  stage.innerHTML = '<div class="pv-msg">Loading photos…</div>';
+  stage.innerHTML = '<div class="pv-msg">Đang tải ảnh…</div>';
   el.classList.add('open');
   document.addEventListener('keydown', onPreviewKey);
 
@@ -2699,14 +2653,14 @@ async function openProductPreview(sku, colorsCsv) {
 
   if (!shots.length) {
     PREVIEW_STATE = null;
-    el.querySelector('#pvSub').textContent = 'no photo';
-    stage.innerHTML = '<div class="pv-msg">No photo for this style</div>';
+    el.querySelector('#pvSub').textContent = 'chưa có ảnh';
+    stage.innerHTML = '<div class="pv-msg">Mẫu này chưa có ảnh</div>';
     return;
   }
 
   PREVIEW_STATE = { sku, shots, index: 0 };
   el.querySelector('#pvSub').textContent =
-    `${shots.length} colour${shots.length > 1 ? 's' : ''}${shots.length < colorsAll.length ? ` of ${colorsAll.length} sold` : ''}`;
+    `${shots.length} màu${shots.length < colorsAll.length ? ` / ${colorsAll.length} màu đã bán` : ''}`;
   swatches.innerHTML = shots.map((s, i) => `
     <button type="button" class="pv-swatch${i === 0 ? ' active' : ''}" onclick="showPreviewColor(${i})">
       <img src="${esc(s.thumb)}" alt="">
@@ -2928,18 +2882,14 @@ function renderDiscount(m) {
     // Chỉ nói ra khi có dòng thiếu giá niêm yết: 100% thì câu này là tiếng ồn.
     cov.textContent = pct >= 99.95
       ? ''
-      : `${fmtN(d.coveredLines)}/${fmtN(d.totalLines)} lines have a retail price`;
+      : `${fmtN(d.coveredLines)}/${fmtN(d.totalLines)} dòng có giá niêm yết`;
   }
 
   document.getElementById('discountStats').innerHTML = [
-    ['Retail',    rollHtml(d.listTotal, 'vndShort'), '',
-      'What the goods would have brought in at full retail price'],
-    ['Net sales', rollHtml(d.netTotal, 'vndShort'), '',
-      'What actually came in'],
-    ['Discount',   rollHtml(d.given, 'vndShort'), 'warn',
-      'The gap between the two — money handed back to customers'],
-    ['Discount %', rollHtml(d.pct, 'pct'), 'accent',
-      'That same gap as a share of retail price'],
+    ['Retail',    rollHtml(d.listTotal, 'vndShort'), '', 'Tổng tiền nếu bán đúng giá niêm yết'],
+    ['Net sales', rollHtml(d.netTotal, 'vndShort'), '', 'Tiền thực thu'],
+    ['Discount',   rollHtml(d.given, 'vndShort'), 'warn', 'Tiền đã giảm cho khách'],
+    ['Discount %', rollHtml(d.pct, 'pct'), 'accent', 'Mức giảm bình quân so với giá niêm yết'],
   ].map(([lbl, val, cls, tip]) => `
     <div class="mini-stat ${cls}" title="${esc(tip)}">
       <div class="mini-stat-val">${val}</div>
@@ -2985,7 +2935,7 @@ function renderDiscount(m) {
       ['15–30%', b.mid, 'warn'],
       ['≥ 30%', b.deep, 'bad'],
     ].map(([lbl, v, cls]) =>
-      `<span class="band-item ${cls}" title="${fmtN(v)} sold lines"><b>${fmtPct((num(v) / tot) * 100)}</b>${esc(lbl)}</span>`
+      `<span class="band-item ${cls}" title="${fmtN(v)} dòng bán"><b>${fmtPct((num(v) / tot) * 100)}</b>${esc(lbl)}</span>`
     ).join('');
   }
 }
@@ -3024,10 +2974,10 @@ function renderBasket(m) {
   const totalTx = num(t.total) || 1;
   const nonSale = num(t.exchange?.bills) + num(t.ret?.bills);
   document.getElementById('basketAttach').innerHTML = [
-    ['with accessory', b.accAttachPct, `${fmtN(b.accAttach)} of ${fmtN(b.basketBills)} bills`],
-    ['multi-category', b.multiCatPct, `${fmtN(b.multiCat)} of ${fmtN(b.basketBills)} bills`],
+    ['with accessory', b.accAttachPct, `${fmtN(b.accAttach)}/${fmtN(b.basketBills)} hoá đơn có phụ kiện`],
+    ['multi-category', b.multiCatPct, `${fmtN(b.multiCat)}/${fmtN(b.basketBills)} hoá đơn từ 2 nhóm hàng trở lên`],
     ['exchange / return', (nonSale / totalTx) * 100,
-      `${fmtN(t.exchange?.bills)} exchanges · ${fmtN(t.ret?.bills)} returns, of ${fmtN(totalTx)} transactions`],
+      `${fmtN(t.exchange?.bills)} đổi · ${fmtN(t.ret?.bills)} trả / ${fmtN(totalTx)} giao dịch`],
   ].map(([lbl, pct, tip]) =>
     `<span class="band-item" title="${esc(tip)}"><b>${fmtPct(pct)}</b>${esc(lbl)}</span>`
   ).join('');
@@ -3049,11 +2999,9 @@ function renderCustomers(m) {
     // Ngắn gọn để không bị cắt cụt trong góc tiêu đề; con số đầy đủ nằm ở
     // tooltip, chỗ người muốn biết kỹ sẽ tìm tới.
     cov.textContent = `${fmtN(c.repeat)} of ${fmtN(c.customers)} known customers · ${fmtPct(c.repeatPct)}`;
-    cov.title = `Repeat = bought on 2 or more separate bills. They averaged `
-      + `${num(c.repeatAvgBills).toFixed(1)} orders and ${fmtVNDShort(c.repeatAvgSpend)} each.\n`
-      + `Only ${fmtN(c.identifiedBills)} of ${fmtN(c.totalBills)} bills carry a customer, so every `
-      + `share here is of that identified part (${fmtPct(c.revCoverage)} of revenue).\n`
-      + `Walk-ins with no contact details: ${fmtN(c.walkInBills)} bills, ${fmtVNDShort(c.walkInAmount)}.`;
+    cov.title = `Khách quay lại: mua từ 2 hoá đơn, TB ${num(c.repeatAvgBills).toFixed(1)} lần, ${fmtVNDShort(c.repeatAvgSpend)}/khách.\n`
+      + `Có SĐT: ${fmtN(c.identifiedBills)}/${fmtN(c.totalBills)} hoá đơn (${fmtPct(c.revCoverage)} doanh thu).\n`
+      + `Khách lẻ không SĐT: ${fmtN(c.walkInBills)} hoá đơn, ${fmtVNDShort(c.walkInAmount)}.`;
   }
 
   /* Bốn ô này nói về RIÊNG nhóm mua từ 2 lần trở lên, không phải về toàn bộ
@@ -3061,13 +3009,13 @@ function renderCustomers(m) {
      đó. Tổng số khách đã nằm ở ghi chú bên cạnh tiêu đề. */
   document.getElementById('customerStats').innerHTML = [
     ['Repeat',      rollHtml(c.repeat, 'n'), 'accent',
-      `${fmtN(c.repeat)} customers bought on 2 or more separate bills`],
+      `${fmtN(c.repeat)} khách mua từ 2 hoá đơn trở lên`],
     ['Their rev',   rollHtml(c.repeatAmount, 'vndShort'), '',
-      `Revenue from those ${fmtN(c.repeat)} repeat customers`],
+      `Doanh thu của ${fmtN(c.repeat)} khách quay lại`],
     ['% of rev',    rollHtml(c.repeatShare, 'pct'), 'good',
-      `Their ${fmtVNDShort(c.repeatAmount)} out of ${fmtVNDShort(c.identifiedAmount)} from all identified customers`],
+      `${fmtVNDShort(c.repeatAmount)} / ${fmtVNDShort(c.identifiedAmount)} doanh thu khách có SĐT`],
     ['Avg each',    rollHtml(c.repeatAvgSpend, 'vndShort'), '',
-      `Average per repeat customer over ${num(c.repeatAvgBills).toFixed(1)} orders`],
+      `Trung bình mỗi khách quay lại, ${num(c.repeatAvgBills).toFixed(1)} lần mua`],
     /* Nhãn phải nói ra CHỦ NGỮ: "Revenue" và "Share" đứng một mình thì đọc ra
        doanh thu của cả cửa hàng, trong khi cả bốn ô đều chỉ tính riêng nhóm
        khách quay lại. Viết tắt "rev" vì ô chỉ rộng 68px khi thẻ nằm nửa hàng:
@@ -3081,7 +3029,7 @@ function renderCustomers(m) {
   const freq = c.freq || [];
   const maxPct = Math.max(...freq.map((f) => num(f.pct)), 0.001);
   document.getElementById('customerFreq').innerHTML = freq.map((f) => `
-    <div class="st-row" title="${fmtN(f.customers)} customers placed ${f.times >= 4 ? '4 or more orders' : f.times + (f.times === 1 ? ' order' : ' orders')}">
+    <div class="st-row" title="${fmtN(f.customers)} khách mua ${f.times >= 4 ? 'từ 4 lần' : f.times + ' lần'}">
       <div class="st-name">${f.times >= 4 ? '4+ orders' : f.times + (f.times === 1 ? ' order' : ' orders')}</div>
       <div class="st-track"><div class="st-fill" style="width:${Math.max(2, (num(f.pct) / maxPct) * 100)}%"></div></div>
       <div class="st-pct">${rollHtml(f.pct, 'pct')}</div>
@@ -3352,7 +3300,7 @@ function preprocessGSheetCsv(text) {
 async function loadFile(file) {
   const overlay = document.getElementById('loadingOverlay');
   overlay.classList.add('show');
-  setStatus('Loading data…', false);
+  setStatus('Đang tải dữ liệu…', false);
   try {
     const lower = (file.name || '').toLowerCase();
     let wb;
@@ -3365,7 +3313,7 @@ async function loadFile(file) {
       const buf = await file.arrayBuffer();
       wb = XLSX.read(buf, { type: 'array', cellDates: true });
     }
-    applyWorkbook(wb, `Loaded: ${file.name} · {rows} rows`);
+    applyWorkbook(wb, `Đã tải: ${file.name} · {rows} dòng`);
   } catch (err) {
     console.error(err);
     destroyAllCharts();
@@ -3393,7 +3341,7 @@ async function loadFromGSheets() {
   else overlay.classList.add('show');
   syncBtn.disabled = true;
   syncBtn.classList.add('syncing');
-  setStatus('Syncing from Google Sheets…', false);
+  setStatus('Đang đồng bộ Google Sheets…', false);
   try {
     // Fetch all sheets in parallel but tolerate partial failure: only "sale
     // data" is required to render. If the target sheet fails on a flaky mobile
@@ -3418,22 +3366,22 @@ async function loadFromGSheets() {
     }
 
     const now = new Date();
-    const warn = failed.length ? ` · ⚠️ skipped: ${failed.join(', ')}` : '';
-    applyWorkbook(wb, `Synced at ${now.toLocaleTimeString('en-GB')} · {rows} rows${warn}`);
-    syncBtn.title = `Last synced: ${now.toLocaleString('en-GB')}`;
+    const warn = failed.length ? ` · ⚠️ thiếu: ${failed.join(', ')}` : '';
+    applyWorkbook(wb, `Đồng bộ lúc ${now.toLocaleTimeString('vi-VN')} · {rows} dòng${warn}`);
+    syncBtn.title = `Đồng bộ lần cuối: ${now.toLocaleString('vi-VN')}`;
   } catch (err) {
     console.error(err);
     const msg = err.name === 'AbortError'
-      ? 'Timed out. Check network and retry.'
+      ? 'Quá thời gian. Kiểm tra mạng rồi thử lại.'
       : err.message;
-    setStatus(`Sync error: ${msg}`, true);
+    setStatus(`Lỗi đồng bộ: ${msg}`, true);
     if (!S.raw.sales.length) {
       // First load failed — show empty state so user has clear next action
       showSkeleton(false);
       document.getElementById('emptyState').style.display = 'flex';
       document.getElementById('dashContent').style.display = 'none';
     } else {
-      alert(`⚠️ Could not sync from Google Sheets:\n${msg}\n\nKeeping the previously loaded data.`);
+      alert(`⚠️ Không đồng bộ được Google Sheets:\n${msg}\n\nĐang giữ dữ liệu cũ.`);
     }
   } finally {
     overlay.classList.remove('show');
@@ -3795,11 +3743,11 @@ function renderYoy() {
       S.filters.store !== 'all' ? `🔍 ${S.filters.store}` : null,
       // Báo rõ là đang so cùng kỳ, nếu không người xem sẽ tưởng cột năm cũ
       // thấp đi vì bán kém chứ không phải vì đã bị cắt tới cùng ngày.
-      yoyCutActive() ? `📅 Like-for-like · to ${S.asOf.day} ${MONTH_NAMES[S.asOf.monthIndex - 1]}` : null,
+      yoyCutActive() ? `📅 So cùng kỳ · đến ${S.asOf.day}/${S.asOf.monthIndex}` : null,
     ].filter(Boolean);
     if (_dims.length) {
       _fb.style.display = '';
-      _fb.innerHTML = _dims.map((d) => `<span class="yoy-filter-badge" title="Mọi năm đều cắt tới cùng ngày để so được với nhau">${esc(d)}</span>`).join(' ');
+      _fb.innerHTML = _dims.map((d) => `<span class="yoy-filter-badge" title="Các năm đều tính đến cùng ngày">${esc(d)}</span>`).join(' ');
     } else {
       _fb.style.display = 'none';
       _fb.innerHTML = '';
