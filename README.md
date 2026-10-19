@@ -53,4 +53,4 @@ Toàn bộ thống kê nằm trên **một trang duy nhất**, chia 5 nhóm:
 - **Patterns** — Promotion, DOW Heatmap (Rev / Bills / ATV)
 - **Year over Year** — biểu đồ xu hướng + bảng tóm tắt theo năm, so cùng kỳ (cắt tới cùng ngày)
 - **Product** — Top Products by Style, By Category, By Colour / Size, By Type, By Gender
-- **Staff** — Personal Sales (vạch timeline; xanh = đúng nhịp, cam = chậm), Cashier Productivity
+- **Staff** — Personal Sales, Cashier Productivity
